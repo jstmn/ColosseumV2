@@ -30,7 +30,7 @@ from act.detr.detr_vae import build_encoder, DETRVAE
 from dataclasses import dataclass, field
 from typing import Optional, List
 import tyro
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.distraction_set import DistractionSet, DISTRACTION_SETS
 
 
 @dataclass
@@ -112,9 +112,9 @@ class Args:
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
 
-    camera_width: int = 128
-    camera_height: int = 128
-    distraction_set: str = "none"
+    camera_width: int
+    camera_height: int
+    distraction_set: str
 
 
 DISTRACTION_SETS = {"none".upper(): DistractionSet()}
