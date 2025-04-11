@@ -158,13 +158,12 @@ def is_position_valid(position, size, existing_objects, rotation=None):
     return True
 
 
-def get_valid_position_on_table(table_pos, table_size, obj_size, existing_objects, max_attempts=100, rotation=None, obj_type=None):
+def get_valid_position_on_table(obj_size, existing_objects, max_attempts=100, rotation=None, obj_type=None):
     """
     Find a valid position on the table with no physical overlaps. Simple random sampling approach.
     
     Args:
         table_pos: Position of the table
-        table_size: Size of the table [width, length, height]
         obj_size: Size of the object to place [width, length, height]
         existing_objects: List of already placed objects
         max_attempts: Maximum number of attempts to find a valid position
@@ -202,21 +201,22 @@ def get_valid_position_on_table(table_pos, table_size, obj_size, existing_object
     return None
 
 
-def create_enhanced_distractors(scene, table_pos, table_size, manipulation_obj_pos, manipulation_obj_size, cfg):
+def create_enhanced_distractors(scene, manipulation_obj_pos, cfg):
     """
     Create enhanced distractor objects (cylinders and spheres) and place them on the table.
     
     Args:
         scene: The SAPIEN scene
         table_pos: Position of the table
-        table_size: Size of the table [width, length, height]
         manipulation_obj_pos: Position of the manipulation object
-        manipulation_obj_size: Size of the manipulation object [width, length, height]
         cfg: Configuration for enhanced distractors
     
     Returns:
         Dictionary with internal objects data
     """
+
+    manipulation_obj_size = [0.05, 0.05, 0.05]  # assumed size manipulation object (for overlap check only)
+
     # Create list to track objects we've placed
     existing_objects = [
         {"position": manipulation_obj_pos, "size": manipulation_obj_size, "id": "manipulation_object"}
@@ -255,7 +255,7 @@ def create_enhanced_distractors(scene, table_pos, table_size, manipulation_obj_p
         
         # Try to find a valid position
         position = get_valid_position_on_table(
-            table_pos, table_size, obj_size, existing_objects, 
+            obj_size, existing_objects, 
             max_attempts=max_attempts_per_object,
             rotation=rotation_quat,
             obj_type="cylinder"  # Pass object type for proper height adjustment
@@ -324,7 +324,7 @@ def create_enhanced_distractors(scene, table_pos, table_size, manipulation_obj_p
         
         # No rotation needed for spheres, they're symmetrical
         position = get_valid_position_on_table(
-            table_pos, table_size, obj_size, existing_objects, 
+            obj_size, existing_objects, 
             max_attempts=max_attempts_per_object,
             obj_type="sphere"  # Pass object type for proper height adjustment
         )

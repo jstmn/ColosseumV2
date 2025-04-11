@@ -187,22 +187,14 @@ class DistractionSet:
         """
         # Add enhanced distractors if enabled
         if self.enhanced_distractor_enabled() and table is not None and manipulation_object is not None:
-            # Get positions and sizes
-            table_pose = table.pose
-            table_pos = table_pose.p.cpu().numpy()[0]  # Get first env's position
-            table_size = [0.6, 0.6, 0.02]  # Default size for table
-            
+
             cube_pose = manipulation_object.pose
             cube_pos = cube_pose.p.cpu().numpy()[0]  # Get first env's position
-            cube_size = [0.04, 0.04, 0.04]  # Default size for manipulation object
             
             # Create enhanced distractors using the helper module
             internal_objects = enhanced_distractors.create_enhanced_distractors(
                 scene=scene,
-                table_pos=table_pos,
-                table_size=table_size,
                 manipulation_obj_pos=cube_pos,
-                manipulation_obj_size=cube_size,
                 cfg=self.enhanced_distractor_cfg
             )
             
@@ -304,21 +296,21 @@ all_distractor_set = DistractionSet(
     },
     enhanced_distractor_cfg={
         "max_objects": 4,
-        "max_attempts": 100,
+        "max_attempts": 10,
         "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
         "texture_probability": 0.5,
         "cylinder": {
-            "count": 2,  # Place 2 cylinders
-            "radius_range": (0.02, 0.04),
-            "height_range": (0.04, 0.08),
-            "color_range": ((0, 0, 0), (1, 1, 1)),
-            "rotation_range": (0, np.pi/2),  # Random rotation around y-axis
+            "count": 2,
+            "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+            "height_range": (0.05, 0.07),    # Random height between 5-7cm
+            "color_range": ((0.7, 0, 0), (1, 1, 1)),               
+            "rotation_range": (0, np.pi/2),  # Random rotation 0-90 degrees around y-axis
         },
         "sphere": {
-            "count": 2,  # Place 2 spheres
-            "radius_range": (0.02, 0.04),
-            "color_range": ((0, 0, 0), (1, 1, 1)),
-        },
+            "count": 2,
+            "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+                "color_range": ((0, 0, 0), (1, 1, 1)),
+            },
     },
 )
 
@@ -354,13 +346,13 @@ DISTRACTION_SETS = {
                 "count": 2,
                 "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
                 "height_range": (0.05, 0.07),    # Random height between 5-7cm
-                "color_range": ((0.7, 0, 0), (1, 0.3, 0.3)),  # Reddish
+                "color_range": ((0.7, 0, 0), (1, 1, 1)),
                 "rotation_range": (0, np.pi/2),  # Random rotation 0-90 degrees around y-axis
             },
             "sphere": {
                 "count": 2,
                 "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
-                "color_range": ((0, 0.7, 0), (0.3, 1, 0.3)),  # Greenish
+                "color_range": ((0, 0, 0), (1, 1, 1)),
             },
         },
     ),
