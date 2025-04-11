@@ -2,6 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Optional
 import os
+import random
 
 import numpy as np
 import torch
@@ -15,6 +16,7 @@ from mani_skill.envs.scene import ManiSkillScene
 from mani_skill.utils.building import actors
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.actor import Actor
+from mani_skill.envs.utils.randomization import enhanced_distractors
 
 @dataclass
 class DistractionSet:
@@ -30,9 +32,9 @@ class DistractionSet:
     Table color         | Modifies the color of the tabletop of the robot setup
     Light color         | Modifies the color of the lights setup in the scene.
     Table texture       | Modifies the texture applied to the tabletop of the robot setup.
-    Distractor object   | Spawns a random object in the workspace of the robot.
     Background texture  | Modifies the textures applied to the walls of the scene.
     Camera pose         | Randomly perturbs the pose of a camera.
+    Enhanced distractors| Spawns customizable enhanced distractor objects in the workspace.
 
     from https://robot-colosseum.readthedocs.io/en/latest/overview.html
     """
@@ -45,9 +47,9 @@ class DistractionSet:
     table_color_cfg: dict = field(default_factory=dict)
     light_color_cfg: dict = field(default_factory=dict)
     table_texture_cfg: dict = field(default_factory=dict)
-    distractor_object_cfg: dict = field(default_factory=dict)
     background_texture_cfg: dict = field(default_factory=dict)
     camera_pose_cfg: dict = field(default_factory=dict)
+    enhanced_distractor_cfg: dict = field(default_factory=dict)  # Enhanced distractor configuration
 
     unimplemented = {
         "RO_color",
@@ -88,14 +90,14 @@ class DistractionSet:
     def table_texture_enabled(self) -> bool:
         return len(self.table_texture_cfg) > 0
 
-    def distractor_object_enabled(self) -> bool:
-        return len(self.distractor_object_cfg) > 0
-
     def background_texture_enabled(self) -> bool:
         return len(self.background_texture_cfg) > 0
 
     def camera_pose_enabled(self) -> bool:
         return len(self.camera_pose_cfg) > 0
+
+    def enhanced_distractor_enabled(self) -> bool:
+        return len(self.enhanced_distractor_cfg) > 0
 
     def which_enabled_str(self) -> list[str]:
         enabled_strs = []
@@ -110,7 +112,6 @@ class DistractionSet:
         return enabled_strs, disabled_strs
 
     def __post_init__(self):
-
         self._internal = {}
         for key in [
             "MO_color_cfg",
@@ -122,9 +123,9 @@ class DistractionSet:
             "table_color_cfg",
             "light_color_cfg",
             "table_texture_cfg",
-            "distractor_object_cfg",
             "background_texture_cfg",
             "camera_pose_cfg",
+            "enhanced_distractor_cfg",
         ]:
             self._internal[key] = {}
 
@@ -142,8 +143,6 @@ class DistractionSet:
         if self.camera_pose_enabled():
             assert_range_correct(self.camera_pose_cfg["rpy_range"])
             assert_range_correct(self.camera_pose_cfg["xyz_range"])
-        if self.distractor_object_enabled():
-            assert_range_correct(self.distractor_object_cfg["color_range"])
         if self.table_color_enabled():
             assert_range_correct(self.table_color_cfg["color_range"])
 
@@ -158,9 +157,9 @@ class DistractionSet:
             table_color_cfg=self.table_color_cfg,
             light_color_cfg=self.light_color_cfg,
             table_texture_cfg=self.table_texture_cfg,
-            distractor_object_cfg=self.distractor_object_cfg,
             background_texture_cfg=self.background_texture_cfg,
             camera_pose_cfg=self.camera_pose_cfg,
+            enhanced_distractor_cfg=self.enhanced_distractor_cfg,
         )
 
     def update_camera_configs(self, cfgs: list[CameraConfig]) -> list[CameraConfig]:
@@ -178,40 +177,42 @@ class DistractionSet:
 
         return cfgs
 
-
-
     def load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor]):
         """
         This function is called when the scene is loaded.
         Args:
             scene (ManiSkillScene): The scene to modify.
-            manipulation_object (Optional[Actor]): The manipulation object to modify. Note that this is a wrapper around
-                                                    a sapien.Entity.
+            manipulation_object (Optional[Actor]): The manipulation object to modify.
+            table (Optional[Actor]): The table object in the scene.
         """
-
-        # New distractor spheres
-        if self.distractor_object_enabled():
-            n_spheres = self.distractor_object_cfg["n_spheres"]
-            radius_range = self.distractor_object_cfg["radius_range"]
-            color_range = self.distractor_object_cfg["color_range"]
-            radii = np.random.uniform(*radius_range, size=n_spheres)
-
-            self._internal["distractor_object_cfg"]["internal__radii"] = radii
-            self._internal["distractor_object_cfg"]["internal__spheres"] = [
-                actors.build_sphere(
-                    scene,
-                    initial_pose=sapien.Pose(),
-                    name=f"distractor_sphere_{i}",
-                    radius=radii[i],
-                    color=np.random.uniform(*color_range).tolist() + [1.0], # alpha=1.0
-                )
-                for i in range(n_spheres)
-            ]
+        # Add enhanced distractors if enabled
+        if self.enhanced_distractor_enabled() and table is not None and manipulation_object is not None:
+            # Get positions and sizes
+            table_pose = table.pose
+            table_pos = table_pose.p.cpu().numpy()[0]  # Get first env's position
+            table_size = [0.6, 0.6, 0.02]  # Default size for table
+            
+            cube_pose = manipulation_object.pose
+            cube_pos = cube_pose.p.cpu().numpy()[0]  # Get first env's position
+            cube_size = [0.04, 0.04, 0.04]  # Default size for manipulation object
+            
+            # Create enhanced distractors using the helper module
+            internal_objects = enhanced_distractors.create_enhanced_distractors(
+                scene=scene,
+                table_pos=table_pos,
+                table_size=table_size,
+                manipulation_obj_pos=cube_pos,
+                manipulation_obj_size=cube_size,
+                cfg=self.enhanced_distractor_cfg
+            )
+            
+            # Store the objects for the initialize_episode_hook
+            self._internal["enhanced_distractor_cfg"]["internal__objects"] = internal_objects
 
         def get_random_color(color_range: tuple):
             assert (len(color_range) == 2) and (len(color_range[0]) == 3) and (len(color_range[1]) == 3), "color_range must be a tuple of two tuples of three floats"
             return np.random.uniform(*color_range).tolist() + [1]
-
+            
         def get_random_texture(texture_dir: str):
             texture_files = [f for f in os.listdir(texture_dir) if f.endswith('.png')]
             texture_file = np.random.choice(texture_files)
@@ -243,7 +244,7 @@ class DistractionSet:
                             else:
                                 part.material.set_base_color_texture(texture)
 
-
+        # Set manipulation object color and texture
         if (manipulation_object is not None) and (self.MO_color_enabled() or self.MO_texture_enabled()):
             assert isinstance(manipulation_object, Actor), "manipulation_object must be a ManiSkill Actor, is {}".format(type(manipulation_object))
 
@@ -270,36 +271,21 @@ class DistractionSet:
                             else:
                                 part.material.set_base_color_texture(texture)
 
-
-
     def initialize_episode_hook(self, n_envs: int, mo_pose: torch.Tensor):
+        """Set positions of all objects at episode start."""
         assert mo_pose.shape == (n_envs, 3), f"mo_pose must be of shape (n_envs, 3), got {mo_pose.shape}"
-
-        if self.distractor_object_enabled():
-
-            x_lims = self.distractor_object_cfg["x_lims"]
-            y_lims = self.distractor_object_cfg["y_lims"]
-            radii = self._internal["distractor_object_cfg"]["internal__radii"]
-            x_range = x_lims[1] - x_lims[0]
-            y_range = y_lims[1] - y_lims[0]
-
-            # What happens if you set the poses such that the spheres collide with one another?
-            for i, sphere in enumerate(self._internal["distractor_object_cfg"]["internal__spheres"]):
-                xyz = torch.rand((n_envs, 3), dtype=torch.float32)
-                xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
-                xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
-                xyz[:, 2] = radii[i]
-                sphere.set_pose(Pose.create_from_pq(p=xyz))
+        
+        # Position enhanced distractors if enabled
+        if self.enhanced_distractor_enabled():
+            if "enhanced_distractor_cfg" in self._internal:
+                if "internal__objects" in self._internal["enhanced_distractor_cfg"]:
+                    internal_objects = self._internal["enhanced_distractor_cfg"]["internal__objects"]
+                    # Use helper module to position enhanced distractors
+                    enhanced_distractors.position_enhanced_distractors(internal_objects, n_envs)
 
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "../assets")
 all_distractor_set = DistractionSet(
-    distractor_object_cfg={
-        "n_spheres": 1,
-        "radius_range": (0.01, 0.02),"color_range": ((0, 0, 0), (1, 1, 1)),
-        "x_lims": (-0.1, 0.1),
-        "y_lims": (-0.1, 0.1),
-    },
     MO_color_cfg ={
         "color_range": ((0, 0, 0), (1, 1, 1)),
     },
@@ -315,41 +301,74 @@ all_distractor_set = DistractionSet(
     camera_pose_cfg = {
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
-    }
+    },
+    enhanced_distractor_cfg={
+        "max_objects": 4,
+        "max_attempts": 100,
+        "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
+        "texture_probability": 0.5,
+        "cylinder": {
+            "count": 2,  # Place 2 cylinders
+            "radius_range": (0.02, 0.04),
+            "height_range": (0.04, 0.08),
+            "color_range": ((0, 0, 0), (1, 1, 1)),
+            "rotation_range": (0, np.pi/2),  # Random rotation around y-axis
+        },
+        "sphere": {
+            "count": 2,  # Place 2 spheres
+            "radius_range": (0.02, 0.04),
+            "color_range": ((0, 0, 0), (1, 1, 1)),
+        },
+    },
 )
 
 DISTRACTION_SETS = {
     "none".upper(): DistractionSet(),
     "dev".upper(): DistractionSet(
-        distractor_object_cfg={
-            "n_spheres": 1,
-            "radius_range": (0.01, 0.02),
-            "color_range": ((0, 0, 0), (1, 1, 1)),
-            "x_lims": (-0.1, 0.1),
-            "y_lims": (-0.1, 0.1),
-        },
         MO_color_cfg ={
             "color_range": ((0, 0, 0), (1, 1, 1)),
         },
         MO_texture_cfg = {
             "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
+            "texture_scale_range": (0.5, 2.0),
+            "use_random_texture": True,
         },
         table_color_cfg = {
             "color_range": ((0, 0, 0), (1, 1, 1)),
         },
         table_texture_cfg = {
             "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
+            "texture_scale_range": (0.5, 2.0),
+            "use_random_texture": True,
         },
         camera_pose_cfg = {
-            "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
-            "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
-        }
+            "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)),
+            "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),
+        },
+        enhanced_distractor_cfg={
+            "max_objects": 4,
+            "max_attempts": 10,
+            "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
+            "texture_probability": 0.5,
+            "cylinder": {
+                "count": 2,
+                "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+                "height_range": (0.05, 0.07),    # Random height between 5-7cm
+                "color_range": ((0.7, 0, 0), (1, 0.3, 0.3)),  # Reddish
+                "rotation_range": (0, np.pi/2),  # Random rotation 0-90 degrees around y-axis
+            },
+            "sphere": {
+                "count": 2,
+                "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+                "color_range": ((0, 0.7, 0), (0.3, 1, 0.3)),  # Greenish
+            },
+        },
     ),
     "all".upper(): deepcopy(all_distractor_set),
-    "distractor_object_cfg".upper(): all_distractor_set.get_partial_copy(["distractor_object_cfg"]),
     "MO_color_cfg".upper(): all_distractor_set.get_partial_copy(["MO_color_cfg"]),
     "MO_texture_cfg".upper(): all_distractor_set.get_partial_copy(["MO_texture_cfg"]),
     "table_color_cfg".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture_cfg".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
     "camera_pose_cfg".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
+    "enhanced_distractor_cfg".upper(): all_distractor_set.get_partial_copy(["enhanced_distractor_cfg"]),
 }
