@@ -17,6 +17,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.envs.utils.randomization import enhanced_distractors
+from mani_skill.envs.utils.randomization.enhanced_distractors import EnhancedDistractorManager, TextureManager
 
 @dataclass
 class DistractionSet:
@@ -191,8 +192,8 @@ class DistractionSet:
             cube_pose = manipulation_object.pose
             cube_pos = cube_pose.p.cpu().numpy()[0]  # Get first env's position
             
-            # Create enhanced distractors using the helper module
-            internal_objects = enhanced_distractors.create_enhanced_distractors(
+            # Create enhanced distractors using the EnhancedDistractorManager class
+            internal_objects = EnhancedDistractorManager.create_enhanced_distractors(
                 scene=scene,
                 manipulation_obj_pos=cube_pos,
                 cfg=self.enhanced_distractor_cfg
@@ -206,9 +207,8 @@ class DistractionSet:
             return np.random.uniform(*color_range).tolist() + [1]
             
         def get_random_texture(texture_dir: str):
-            texture_files = [f for f in os.listdir(texture_dir) if f.endswith('.png')]
-            texture_file = np.random.choice(texture_files)
-            return sapien.render.RenderTexture2D(filename=os.path.join(texture_dir, texture_file))
+            # Use TextureManager for consistent texture handling
+            return TextureManager.get_random_texture(texture_dir)
 
         # Set table color and texture
         if (table is not None) and (self.table_color_enabled() or self.table_texture_enabled()):
@@ -272,8 +272,8 @@ class DistractionSet:
             if "enhanced_distractor_cfg" in self._internal:
                 if "internal__objects" in self._internal["enhanced_distractor_cfg"]:
                     internal_objects = self._internal["enhanced_distractor_cfg"]["internal__objects"]
-                    # Use helper module to position enhanced distractors
-                    enhanced_distractors.position_enhanced_distractors(internal_objects, n_envs)
+                    # Use EnhancedDistractorManager to position enhanced distractors
+                    EnhancedDistractorManager.position_enhanced_distractors(internal_objects, n_envs)
 
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "../assets")
