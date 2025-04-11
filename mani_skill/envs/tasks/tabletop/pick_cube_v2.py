@@ -129,7 +129,7 @@ class PickCubeV2Env(PickCubeEnv):
             initial_pose=sapien.Pose(),
         )
         self._hidden_objects.append(self.goal_site)
-        self._distraction_set.load_scene_hook(self.scene, manipulation_object=self.cube, table=self.table_scene)
+        self._distraction_set.load_scene_hook(self.scene, manipulation_object=self.cube, table=self.table_scene, manipulation_object_size=self.cube_half_size)
 
 
     @property

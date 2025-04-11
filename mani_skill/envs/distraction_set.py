@@ -4,6 +4,7 @@ from typing import Optional
 import os
 import random
 
+from matplotlib.pylab import geometric
 import numpy as np
 import torch
 import sapien
@@ -178,14 +179,16 @@ class DistractionSet:
 
         return cfgs
 
-    def load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor]):
+    def load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor], manipulation_object_size):
         """
         This function is called when the scene is loaded.
         Args:
             scene (ManiSkillScene): The scene to modify.
-            manipulation_object (Optional[Actor]): The manipulation object to modify.
+            manipulation_object (Optional[Actor]): The manipulation object to modify. Note that this is a wrapper around
             table (Optional[Actor]): The table object in the scene.
+            manipulation_object_size: The size (half-size) of the manipulation object
         """
+
         # Add enhanced distractors if enabled
         if self.enhanced_distractor_enabled() and table is not None and manipulation_object is not None:
 
@@ -196,7 +199,8 @@ class DistractionSet:
             internal_objects = EnhancedDistractorManager.create_enhanced_distractors(
                 scene=scene,
                 manipulation_obj_pos=cube_pos,
-                cfg=self.enhanced_distractor_cfg
+                cfg=self.enhanced_distractor_cfg,
+                manipulation_object_size=manipulation_object_size
             )
             
             # Store the objects for the initialize_episode_hook
@@ -295,10 +299,16 @@ all_distractor_set = DistractionSet(
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
     },
     enhanced_distractor_cfg={
+        # Sometimes less than 4 objects may be spawned due to overlaps with other distractors objects
         "max_objects": 4,
-        "max_attempts": 10,
+        "max_attempts": 100,
         "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
-        "texture_probability": 0.5,
+        "table_bounds": {
+            "x_min": -0.20,
+            "x_max": 0.20,
+            "y_min": -0.20,
+            "y_max": 0.20
+        },
         "cylinder": {
             "count": 2,
             "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
@@ -322,26 +332,28 @@ DISTRACTION_SETS = {
         },
         MO_texture_cfg = {
             "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
-            "texture_scale_range": (0.5, 2.0),
-            "use_random_texture": True,
         },
         table_color_cfg = {
             "color_range": ((0, 0, 0), (1, 1, 1)),
         },
         table_texture_cfg = {
             "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
-            "texture_scale_range": (0.5, 2.0),
-            "use_random_texture": True,
         },
         camera_pose_cfg = {
             "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)),
             "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),
         },
         enhanced_distractor_cfg={
+            # Sometimes less than 4 objects may be spawned due to overlaps with other distractors objects
             "max_objects": 4,
-            "max_attempts": 10,
+            "max_attempts": 100,
             "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
-            "texture_probability": 0.5,
+            "table_bounds": {
+                "x_min": -0.20,
+                "x_max": 0.20,
+                "y_min": -0.20,
+                "y_max": 0.20
+            },
             "cylinder": {
                 "count": 2,
                 "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm

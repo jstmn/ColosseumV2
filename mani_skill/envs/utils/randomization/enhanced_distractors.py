@@ -58,15 +58,15 @@ class DistractorRandomization:
     @staticmethod
     def randomize_cylinder_properties(config):
         """Generate random properties for a cylinder based on config."""
-        cylinder_config = config.get("cylinder", {})
+        cylinder_config = config.get("cylinder")
         
         # Get random size within range
-        radius = random.uniform(*cylinder_config.get("radius_range", (0.02, 0.04)))
-        height = random.uniform(*cylinder_config.get("height_range", (0.04, 0.08)))
-        color = np.random.uniform(*cylinder_config.get("color_range", ((0, 0, 0), (1, 1, 1)))).tolist() + [1.0]
+        radius = random.uniform(*cylinder_config.get("radius_range"))
+        height = random.uniform(*cylinder_config.get("height_range"))
+        color = np.random.uniform(*cylinder_config.get("color_range")).tolist() + [1.0]
         
         # Generate random rotation around Y-axis
-        rotation_range = cylinder_config.get("rotation_range", (0, np.pi/2))
+        rotation_range = cylinder_config.get("rotation_range")
         y_rotation = random.uniform(*rotation_range)
         rotation_quat = euler2quat(0, y_rotation, 0)  # Rotate around y-axis
         
@@ -85,11 +85,11 @@ class DistractorRandomization:
     @staticmethod
     def randomize_sphere_properties(config):
         """Generate random properties for a sphere based on config."""
-        sphere_config = config.get("sphere", {})
+        sphere_config = config.get("sphere")
         
         # Get random size within range
-        radius = random.uniform(*sphere_config.get("radius_range", (0.02, 0.04)))
-        color = np.random.uniform(*sphere_config.get("color_range", ((0, 0, 0), (1, 1, 1)))).tolist() + [1.0]
+        radius = random.uniform(*sphere_config.get("radius_range"))
+        color = np.random.uniform(*sphere_config.get("color_range")).tolist() + [1.0]
         
         obj_size = [radius*2, radius*2, radius*2]
         
@@ -104,50 +104,27 @@ class CollisionDetection:
     """Handles collision detection between objects."""
     
     @staticmethod
-    def check_xy_overlap(pos1, size1, pos2, size2, obj_id="", rotation1=None, rotation2=None):
+    def calculate_bounding_box(position, size, rotation=None):
         """
-        Check if two objects overlap in the x-y plane using bounding boxes.
-        Accounts for orientation (especially for cylinders which are rotated to stand upright).
+        Calculate the axis-aligned bounding box for an object.
         
         Args:
-            pos1, pos2: Positions of the objects
-            size1, size2: Sizes of the objects [width, length, height]
-            obj_id: ID of the second object (for debug purposes)
-            rotation1, rotation2: Quaternion rotations for the objects (optional)
-        """
-        # Calculate distances in x and y directions
-        dist_x = abs(pos1[0] - pos2[0])
-        dist_y = abs(pos1[1] - pos2[1])
-        
-        # Use a larger safety margin for the manipulation object (cube)
-        safety_margin = 0.07 if obj_id == "manipulation_object" else 0.015
-        
-        # Identify cylinders by ID
-        is_cylinder1 = "cylinder" in str(obj_id)
-        is_cylinder2 = "cylinder" in str(obj_id)
-        
-        # For cylinders, we simplify by using the radius for both dimensions
-        # since a cylinder rotated around Y still has a circular base
-        if is_cylinder1:
-            # Cylinder's x and y dimensions are both the diameter (2*radius)
-            width1 = size1[0]  # This is already diameter, 2*radius
-            length1 = size1[0]  # Same as width for cylinder (circular base)
-        else:
-            width1, length1 = size1[0], size1[1]
+            position: [x, y, z] position of the object center
+            size: [width, length, height] dimensions of the object
+            rotation: Optional quaternion rotation to apply
             
-        if is_cylinder2:
-            # Cylinder's x and y dimensions are both the diameter (2*radius)
-            width2 = size2[0]  # This is already diameter, 2*radius
-            length2 = size2[0]  # Same as width for cylinder (circular base)
-        else:
-            width2, length2 = size2[0], size2[1]
+        Returns:
+            Dictionary with min_x, max_x, min_y, max_y bounds
+        """
+        # Default half-extents
+        half_width = size[0] / 2
+        half_length = size[1] / 2
         
-        # For non-cylinders, adjust for rotation if provided
-        if not is_cylinder1 and rotation1 is not None:
-            # If we have rotation, convert to Euler angles
-            if isinstance(rotation1, (list, tuple, np.ndarray)) and len(rotation1) == 4:
-                rot_matrix = quat2mat(rotation1)
-                roll, pitch, yaw = mat2euler(rot_matrix)
+        # If rotation is provided for non-cylindrical objects, adjust the bounding box
+        if rotation is not None:
+            if isinstance(rotation, (list, tuple, np.ndarray)) and len(rotation) == 4:
+                rot_matrix = quat2mat(rotation)
+                _, _, yaw = mat2euler(rot_matrix)
                 
                 # For simplicity, we'll just consider yaw (rotation around z-axis)
                 # which affects the x-y footprint
@@ -155,39 +132,53 @@ class CollisionDetection:
                 sin_yaw = abs(np.sin(yaw))
                 
                 # Rotated rectangle dimensions
-                rotated_width1 = width1 * cos_yaw + length1 * sin_yaw
-                rotated_length1 = width1 * sin_yaw + length1 * cos_yaw
+                rotated_half_width = half_width * cos_yaw + half_length * sin_yaw
+                rotated_half_length = half_width * sin_yaw + half_length * cos_yaw
                 
-                width1, length1 = rotated_width1, rotated_length1
+                half_width, half_length = rotated_half_width, rotated_half_length
         
-        if not is_cylinder2 and rotation2 is not None:
-            # Same for the second object
-            if isinstance(rotation2, (list, tuple, np.ndarray)) and len(rotation2) == 4:
-                rot_matrix = quat2mat(rotation2)
-                roll, pitch, yaw = mat2euler(rot_matrix)
-                
-                cos_yaw = abs(np.cos(yaw))
-                sin_yaw = abs(np.sin(yaw))
-                
-                rotated_width2 = width2 * cos_yaw + length2 * sin_yaw
-                rotated_length2 = width2 * sin_yaw + length2 * cos_yaw
-                
-                width2, length2 = rotated_width2, rotated_length2
+        # Calculate bounds
+        return {
+            "min_x": position[0] - half_width,
+            "max_x": position[0] + half_width,
+            "min_y": position[1] - half_length,
+            "max_y": position[1] + half_length
+        }
+    
+    @staticmethod
+    def check_xy_overlap(pos1, size1, pos2, size2, obj_id="", rotation1=None, rotation2=None):
+        """
+        Check if two objects overlap in the x-y plane using bounding boxes.
         
-        # Required separation in x direction
-        half_width1 = width1 / 2
-        half_width2 = width2 / 2
-        min_dist_x = half_width1 + half_width2 + safety_margin
+        Args:
+            pos1, pos2: Positions of the objects
+            size1, size2: Sizes of the objects [width, length, height]
+            obj_id: ID of the second object (for safety margin adjustment)
+            rotation1, rotation2: Quaternion rotations for the objects (optional)
+        """
+        # Calculate safety margin - larger for manipulation object
+        safety_margin = 0.02 if obj_id == "manipulation_object" else 0.015
         
-        # Required separation in y direction
-        half_length1 = length1 / 2
-        half_length2 = length2 / 2
-        min_dist_y = half_length1 + half_length2 + safety_margin
+        # Calculate bounding boxes for both objects
+        bb1 = CollisionDetection.calculate_bounding_box(pos1, size1, rotation1)
+        bb2 = CollisionDetection.calculate_bounding_box(pos2, size2, rotation2)
         
-        # Check if overlapping in both dimensions
-        overlap = dist_x < min_dist_x and dist_y < min_dist_y
+        # Add safety margin to the bounding box
+        bb1["min_x"] -= safety_margin
+        bb1["max_x"] += safety_margin
+        bb1["min_y"] -= safety_margin
+        bb1["max_y"] += safety_margin
         
-        return overlap
+        bb2["min_x"] -= safety_margin
+        bb2["max_x"] += safety_margin
+        bb2["min_y"] -= safety_margin
+        bb2["max_y"] += safety_margin
+        
+        # Check for overlap - boxes overlap if they overlap on both axes
+        x_overlap = (bb1["min_x"] <= bb2["max_x"] and bb1["max_x"] >= bb2["min_x"])
+        y_overlap = (bb1["min_y"] <= bb2["max_y"] and bb1["max_y"] >= bb2["min_y"])
+        
+        return x_overlap and y_overlap
 
     @staticmethod
     def is_position_valid(position, size, existing_objects, rotation=None):
@@ -195,7 +186,7 @@ class CollisionDetection:
         # Check against each existing object
         for obj in existing_objects:
             # Get rotation of existing object if available
-            obj_rotation = obj.get('rotation', None)
+            obj_rotation = obj.get('rotation')
             
             # If overlap is detected with any object, position is invalid
             if CollisionDetection.check_xy_overlap(
@@ -214,7 +205,7 @@ class DistractorPlacement:
     """Handles positioning and placement of distractor objects."""
     
     @staticmethod
-    def get_valid_position_on_table(obj_size, existing_objects, max_attempts=100, rotation=None, obj_type=None):
+    def get_valid_position_on_table(obj_size, existing_objects, max_attempts, rotation=None, obj_type=None, table_bounds=None):
         """
         Find a valid position on the table with no physical overlaps. Simple random sampling approach.
         
@@ -224,6 +215,7 @@ class DistractorPlacement:
             max_attempts: Maximum number of attempts to find a valid position
             rotation: Optional quaternion rotation to apply to the object
             obj_type: Type of object ("cylinder" or "sphere") for specialized positioning
+            table_bounds: Optional dictionary with x_min, x_max, y_min, y_max defining table boundaries
         """
         if obj_type == "cylinder":
             # For cylinders, we need to use the radius for the z-height
@@ -238,10 +230,12 @@ class DistractorPlacement:
             # Default case - just place at half height
             obj_z = obj_size[2]/2
         
-        # Set search boundaries for the table (expanded slightly)
-        x_min, x_max = -0.20, 0.20  # Expanded to 40cm x 40cm area
-        y_min, y_max = -0.20, 0.20
-        
+        # Set search boundaries for the table
+        x_min = table_bounds.get("x_min")
+        x_max = table_bounds.get("x_max")
+        y_min = table_bounds.get("y_min")
+        y_max = table_bounds.get("y_max")
+
         # Simple random sampling with overlap checking
         for attempt in range(max_attempts):
             # Generate random position within bounds
@@ -256,7 +250,7 @@ class DistractorPlacement:
         return None
 
     @staticmethod
-    def create_cylinder(scene, properties, position, textures_directory=None, texture_probability=0.5):
+    def create_cylinder(scene, properties, position, textures_directory=None, cylinder_index=0):
         """Create a cylinder with the given properties and position it."""
         # Create cylinder
         # Note: Cylinders are initially built horizontally (z-axis aligned)
@@ -264,7 +258,7 @@ class DistractorPlacement:
         cylinder = actors.build_cylinder(
             scene,
             initial_pose=sapien.Pose(),
-            name=f"distractor_cylinder_{random.randint(0, 9999)}",
+            name=f"distractor_cylinder_{cylinder_index}",
             radius=properties["radius"],
             half_length=properties["height"]/2,  # half the full height
             color=properties["color"]
@@ -283,10 +277,15 @@ class DistractorPlacement:
         final_pose = pose * sapien.Pose(p=[0, 0, 0], q=properties["rotation_quat"])
         cylinder.set_pose(final_pose)
         
-        # Apply texture if configured
-        if textures_directory and random.random() < texture_probability:
-            TextureManager.apply_texture_to_objects([cylinder._objs[0]], textures_directory)
-            
+        # Apply either color or texture
+        # If texture directory is available, we might apply texture instead of color
+        if textures_directory:
+            # Randomly decide whether to use texture or color (keep the color set above)
+            use_texture = random.random() < 0.5
+            if use_texture:
+                # Apply texture if configured
+                TextureManager.apply_texture_to_objects([cylinder._objs[0]], textures_directory)
+        
         # Create object data for tracking
         cylinder_data = {
             "object": cylinder,
@@ -299,12 +298,12 @@ class DistractorPlacement:
         return cylinder_data
     
     @staticmethod
-    def create_sphere(scene, properties, position, textures_directory=None, texture_probability=0.5):
+    def create_sphere(scene, properties, position, textures_directory=None, sphere_index=0):
         """Create a sphere with the given properties and position it."""
         sphere = actors.build_sphere(
             scene,
             initial_pose=sapien.Pose(),
-            name=f"distractor_sphere_{random.randint(0, 9999)}",
+            name=f"distractor_sphere_{sphere_index}",
             radius=properties["radius"],
             color=properties["color"]
         )
@@ -313,9 +312,14 @@ class DistractorPlacement:
         pose = sapien.Pose(p=position)
         sphere.set_pose(pose)
         
-        # Apply texture if configured
-        if textures_directory and random.random() < texture_probability:
-            TextureManager.apply_texture_to_objects([sphere._objs[0]], textures_directory)
+        # Apply either color or texture
+        # If texture directory is available, we might apply texture instead of color
+        if textures_directory:
+            # Randomly decide whether to use texture or color (keep the color set above)
+            use_texture = random.random() < 0.5
+            if use_texture:
+                # Apply texture if configured
+                TextureManager.apply_texture_to_objects([sphere._objs[0]], textures_directory)
         
         # Create object data for tracking
         sphere_data = {
@@ -331,7 +335,7 @@ class EnhancedDistractorManager:
     """Main class for managing enhanced distractors in the scene."""
     
     @staticmethod
-    def create_enhanced_distractors(scene, manipulation_obj_pos, cfg):
+    def create_enhanced_distractors(scene, manipulation_obj_pos, cfg, manipulation_object_size=None):
         """
         Create enhanced distractor objects (cylinders and spheres) and place them on the table.
         
@@ -339,11 +343,14 @@ class EnhancedDistractorManager:
             scene: The SAPIEN scene
             manipulation_obj_pos: Position of the manipulation object
             cfg: Configuration for enhanced distractors
+            manipulation_object_size: The size of the manipulation object for overlap checking
         
         Returns:
             List of internal objects data
         """
-        manipulation_obj_size = [0.05, 0.05, 0.05]  # assumed size manipulation object (for overlap check only)
+        
+        full_size = manipulation_object_size * 2
+        manipulation_obj_size = [full_size, full_size, full_size]
 
         # Create list to track objects we've placed
         existing_objects = [
@@ -354,13 +361,16 @@ class EnhancedDistractorManager:
         internal_objects = []
         
         # Place distractors with an alternating approach to ensure variety
-        max_objects_to_place = cfg.get("max_objects", 4)  # Configurable number of objects
-        cylinder_count = cfg.get("cylinder", {}).get("count", max_objects_to_place // 2)
-        sphere_count = cfg.get("sphere", {}).get("count", max_objects_to_place // 2)
+        max_objects_to_place = cfg.get("max_objects")  # Configurable number of objects
+        cylinder_count = cfg.get("cylinder").get("count")
+        sphere_count = cfg.get("sphere"
+        ).get("count")
         
-        max_attempts_per_object = cfg.get("max_attempts", 100)
-        textures_directory = cfg.get("textures_directory", None)
-        texture_probability = cfg.get("texture_probability", 0.5)
+        max_attempts_per_object = cfg.get("max_attempts")
+        textures_directory = cfg.get("textures_directory")
+        
+        # Get table bounds from config
+        table_bounds = cfg.get("table_bounds")
         
         # First place cylinders
         for i in range(cylinder_count):
@@ -372,14 +382,15 @@ class EnhancedDistractorManager:
                 cylinder_props["obj_size"], existing_objects, 
                 max_attempts=max_attempts_per_object,
                 rotation=cylinder_props["rotation_quat"],
-                obj_type="cylinder"  # Pass object type for proper height adjustment
+                obj_type="cylinder",  # Pass object type for proper height adjustment
+                table_bounds=table_bounds
             )
             
             if position is not None:
-                # Create and position cylinder
+                # Create and position cylinder with index i
                 cylinder_data = DistractorPlacement.create_cylinder(
                     scene, cylinder_props, position, 
-                    textures_directory, texture_probability
+                    textures_directory, cylinder_index=i
                 )
                 
                 # Add to tracking list
@@ -403,14 +414,15 @@ class EnhancedDistractorManager:
             position = DistractorPlacement.get_valid_position_on_table(
                 sphere_props["obj_size"], existing_objects, 
                 max_attempts=max_attempts_per_object,
-                obj_type="sphere"  # Pass object type for proper height adjustment
+                obj_type="sphere",  # Pass object type for proper height adjustment
+                table_bounds=table_bounds
             )
             
             if position is not None:
-                # Create and position sphere
+                # Create and position sphere with index i
                 sphere_data = DistractorPlacement.create_sphere(
                     scene, sphere_props, position,
-                    textures_directory, texture_probability
+                    textures_directory, sphere_index=i
                 )
                 
                 # Add to tracking list
