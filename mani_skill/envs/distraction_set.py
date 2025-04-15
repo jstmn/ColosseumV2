@@ -181,103 +181,121 @@ class DistractionSet:
 
     def load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor], manipulation_object_size):
         """
-        This function is called when the scene is loaded.
+        Updated scene hook that works with multiple environments and handles enhanced distractors safely.
         Args:
             scene (ManiSkillScene): The scene to modify.
-            manipulation_object (Optional[Actor]): The manipulation object to modify. Note that this is a wrapper around
+            manipulation_object (Optional[Actor]): The manipulation object to modify.  Note that this is a wrapper around a sapien.Entity.
             table (Optional[Actor]): The table object in the scene.
-            manipulation_object_size: The size (half-size) of the manipulation object
+            manipulation_object_size: The size (half-size) of the manipulation object.
         """
-
-        # Add enhanced distractors if enabled
+        # Create enhanced distractors for each environment independently.
         if self.enhanced_distractor_enabled() and table is not None and manipulation_object is not None:
-
-            cube_pose = manipulation_object.pose
-            cube_pos = cube_pose.p.cpu().numpy()[0]  # Get first env's position
-            
-            # Create enhanced distractors using the EnhancedDistractorManager class
-            internal_objects = EnhancedDistractorManager.create_enhanced_distractors(
-                scene=scene,
-                manipulation_obj_pos=cube_pos,
-                cfg=self.enhanced_distractor_cfg,
-                manipulation_object_size=manipulation_object_size
-            )
-            
-            # Store the objects for the initialize_episode_hook
-            self._internal["enhanced_distractor_cfg"]["internal__objects"] = internal_objects
+            distractors_all_envs = []
+            # Loop over each env-specific manipulation object instance.
+            for env_idx, obj in enumerate(manipulation_object._objs):
+                pose = obj.get_pose()  # Get the individual pose for this env.
+                try:
+                    # Create distractors for this environment with the environment index.
+                    distractors = EnhancedDistractorManager.create_enhanced_distractors(
+                        scene=scene,
+                        manipulation_obj_pos=pose.p,
+                        cfg=self.enhanced_distractor_cfg,
+                        manipulation_object_size=manipulation_object_size,
+                        env_index=env_idx
+                    )
+                except Exception as e:
+                    distractors = None
+                distractors_all_envs.append(distractors)
+            # Store all distractor objects per environment.
+            self._internal["enhanced_distractor_cfg"]["internal__objects"] = distractors_all_envs
 
         def get_random_color(color_range: tuple):
-            assert (len(color_range) == 2) and (len(color_range[0]) == 3) and (len(color_range[1]) == 3), "color_range must be a tuple of two tuples of three floats"
             return np.random.uniform(*color_range).tolist() + [1]
-            
+
         def get_random_texture(texture_dir: str):
-            # Use TextureManager for consistent texture handling
             return TextureManager.get_random_texture(texture_dir)
 
-        # Set table color and texture
         if (table is not None) and (self.table_color_enabled() or self.table_texture_enabled()):
-            assert isinstance(table, Actor), "table must be a ManiSkill Actor, is {}".format(type(table))
-            # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
+            assert isinstance(table, Actor), f"table must be a ManiSkill Actor, is {type(table)}"
             for obj in table._objs:
-                # modify the i-th object which is in parallel environment i
                 render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
                 for render_shape in render_body_component.render_shapes:
                     for part in render_shape.parts:
-                        # part.material: sapien.core.pysapien.RenderMaterial
                         if self.table_texture_enabled():
                             texture = get_random_texture(self.table_texture_cfg["textures_directory"])
                         if self.table_color_enabled():
                             color = get_random_color(self.table_color_cfg["color_range"])
-
                         if self.table_color_enabled() and not self.table_texture_enabled():
                             part.material.set_base_color(color)
                         elif self.table_texture_enabled() and not self.table_color_enabled():
                             part.material.set_base_color_texture(texture)
                         else:
-                            use_color = np.random.random() < 0.5
-                            if use_color:
+                            if np.random.random() < 0.5:
                                 part.material.set_base_color(color)
                             else:
                                 part.material.set_base_color_texture(texture)
 
-        # Set manipulation object color and texture
         if (manipulation_object is not None) and (self.MO_color_enabled() or self.MO_texture_enabled()):
-            assert isinstance(manipulation_object, Actor), "manipulation_object must be a ManiSkill Actor, is {}".format(type(manipulation_object))
-
-            # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
+            assert isinstance(manipulation_object, Actor), f"manipulation_object must be a ManiSkill Actor, is {type(manipulation_object)}"
             for obj in manipulation_object._objs:
-                # modify the i-th object which is in parallel environment i
                 render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
                 for render_shape in render_body_component.render_shapes:
                     for part in render_shape.parts:
-                        # part.material: sapien.core.pysapien.RenderMaterial
                         if self.MO_color_enabled():
                             color = get_random_color(self.MO_color_cfg["color_range"])
                         if self.MO_texture_enabled():
                             texture = get_random_texture(self.MO_texture_cfg["textures_directory"])
-
                         if self.MO_color_enabled() and not self.MO_texture_enabled():
                             part.material.set_base_color(color)
                         elif self.MO_texture_enabled() and not self.MO_color_enabled():
                             part.material.set_base_color_texture(texture)
                         else:
-                            use_color = np.random.random() < 0.5
-                            if use_color:
+                            if np.random.random() < 0.5:
                                 part.material.set_base_color(color)
                             else:
                                 part.material.set_base_color_texture(texture)
+                                
 
     def initialize_episode_hook(self, n_envs: int, mo_pose: torch.Tensor):
         """Set positions of all objects at episode start."""
         assert mo_pose.shape == (n_envs, 3), f"mo_pose must be of shape (n_envs, 3), got {mo_pose.shape}"
-        
-        # Position enhanced distractors if enabled
+
         if self.enhanced_distractor_enabled():
-            if "enhanced_distractor_cfg" in self._internal:
-                if "internal__objects" in self._internal["enhanced_distractor_cfg"]:
-                    internal_objects = self._internal["enhanced_distractor_cfg"]["internal__objects"]
-                    # Use EnhancedDistractorManager to position enhanced distractors
-                    EnhancedDistractorManager.position_enhanced_distractors(internal_objects, n_envs)
+            if "enhanced_distractor_cfg" in self._internal and "internal__objects" in self._internal["enhanced_distractor_cfg"]:
+                distractors_all_envs = self._internal["enhanced_distractor_cfg"]["internal__objects"]
+                
+                # For each environment, position its distractor objects
+                for env_idx, internal_objects in enumerate(distractors_all_envs):
+                    if internal_objects:
+                        # Position each distractor for this environment
+                        for obj_idx, obj_data in enumerate(internal_objects):
+                            # Get the position for this specific environment
+                            pos = torch.tensor(obj_data["position"], dtype=torch.float32).unsqueeze(0)
+
+                            obj = obj_data["object"]
+
+                            obj_type = "cylinder" if "y_rotation" in obj_data else "sphere"
+
+                            if obj_type == "cylinder":
+                                upright_q = obj_data["upright_rotation"]
+                                y_rotation_q = obj_data["y_rotation"]
+                                    
+                                upright_qt = torch.tensor(upright_q, dtype=torch.float32).unsqueeze(0)
+                                y_rotation_qt = torch.tensor(y_rotation_q, dtype=torch.float32).unsqueeze(0)
+                                    
+                                upright_pose = Pose.create_from_pq(p=pos, q=upright_qt)
+
+                                y_rotation_pose = Pose.create_from_pq(
+                                    p=torch.zeros((1, 3), dtype=torch.float32), 
+                                    q=y_rotation_qt
+                                )
+
+                                final_pose = upright_pose * y_rotation_pose
+                            else:
+                                # For spheres, just set position
+                                final_pose = Pose.create_from_pq(p=pos)
+          
+                            obj.set_pose(final_pose)
 
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "../assets")
@@ -295,8 +313,8 @@ all_distractor_set = DistractionSet(
         "textures_directory": os.path.join(_ASSETS_DIR, "textures"),
     },
     camera_pose_cfg = {
-        "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
-        "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
+        "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)),
+        "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),
     },
     enhanced_distractor_cfg={
         # Sometimes less than 4 objects may be spawned due to overlaps with other distractors objects
@@ -311,14 +329,14 @@ all_distractor_set = DistractionSet(
         },
         "cylinder": {
             "count": 2,
-            "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
-            "height_range": (0.05, 0.07),    # Random height between 5-7cm
+            "radius_range": (0.025, 0.035),
+            "height_range": (0.05, 0.07),
             "color_range": ((0.7, 0, 0), (1, 1, 1)),               
-            "rotation_range": (0, np.pi/2),  # Random rotation 0-90 degrees around y-axis
+            "rotation_range": (0, np.pi/2),
         },
         "sphere": {
             "count": 2,
-            "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+            "radius_range": (0.025, 0.035),
                 "color_range": ((0, 0, 0), (1, 1, 1)),
             },
     },
@@ -356,14 +374,14 @@ DISTRACTION_SETS = {
             },
             "cylinder": {
                 "count": 2,
-                "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
-                "height_range": (0.05, 0.07),    # Random height between 5-7cm
+                "radius_range": (0.025, 0.035),
+                "height_range": (0.05, 0.07),
                 "color_range": ((0.7, 0, 0), (1, 1, 1)),
-                "rotation_range": (0, np.pi/2),  # Random rotation 0-90 degrees around y-axis
+                "rotation_range": (0, np.pi/2),
             },
             "sphere": {
                 "count": 2,
-                "radius_range": (0.025, 0.035),  # Random radius between 2.5-3.5cm
+                "radius_range": (0.025, 0.035),
                 "color_range": ((0, 0, 0), (1, 1, 1)),
             },
         },
