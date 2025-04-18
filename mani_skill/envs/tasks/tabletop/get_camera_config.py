@@ -7,11 +7,11 @@ REALSENSE_DEPTH_FOV_HORIZONTAL_RAD = 87.0 * np.pi / 180
 
 SHADER = "default"
 
-def get_camera_configs(xy_offset, z_offset, target: tuple[float, float, float], camera_width, camera_height):
+def get_camera_configs(xy_offset, z_offset, target: tuple[float, float, float], camera_width: int, camera_height: int, is_act: bool=False) -> list[CameraConfig]:
     pose_center = sapien_utils.look_at(eye=[xy_offset, 0,  z_offset], target=target)
     pose_left = sapien_utils.look_at(eye=[0.0, -xy_offset, z_offset], target=target)
     pose_right = sapien_utils.look_at(eye=[0.0, xy_offset, z_offset], target=target)
-    return [
+    configs = [
         CameraConfig(
             uid="camera_center",
             pose=pose_center,
@@ -42,7 +42,22 @@ def get_camera_configs(xy_offset, z_offset, target: tuple[float, float, float], 
             far=100,
             shader_pack=SHADER,
         )]
-
+    if is_act:
+        pose_back = sapien_utils.look_at(eye=[-xy_offset, 0.0, z_offset], target=target)
+        if camera_height != 480 or camera_width != 640:
+            print('overriding camera width and height with act!')
+        configs.append(
+        CameraConfig(
+            uid="camera_back",
+            pose=pose_back,
+            width=640,
+            height=480,
+            fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
+            near=0.01,
+            far=100,
+            shader_pack=SHADER,
+        ))
+    return configs
 def get_human_render_camera_config(eye: tuple[float, float, float], target: tuple[float, float, float]):
     """ Configures the human render camera. Shader options:
         - minimal: The fastest shader with minimal GPU memory usage. Note that the background will always be black (normally it is the color of the ambient light)

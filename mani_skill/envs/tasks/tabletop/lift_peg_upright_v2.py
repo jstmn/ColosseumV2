@@ -18,6 +18,7 @@ class LiftPegUprightV2Env(LiftPegUprightEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         super().__init__(*args, robot_uids=robot_uids, robot_init_qpos_noise=robot_init_qpos_noise, **kwargs)
 
     @property
@@ -30,4 +31,4 @@ class LiftPegUprightV2Env(LiftPegUprightEnv):
         target = [0.0, 0, 0.1]
         eye_xy = 0.5
         eye_z = 0.6
-        return get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        return get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height, self._is_act)

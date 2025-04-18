@@ -20,6 +20,7 @@ class StackCubeV2Env(StackCubeEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
@@ -31,5 +32,5 @@ class StackCubeV2Env(StackCubeEnv):
         target = [0, 0, 0.0]
         eye_xy = 0.3
         eye_z = 0.4
-        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height, self._is_act)
         return cfgs
