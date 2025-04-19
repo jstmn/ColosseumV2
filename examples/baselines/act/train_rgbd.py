@@ -127,6 +127,7 @@ class Args:
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
 
+    is_act: bool = False
 
 class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     """
@@ -496,6 +497,7 @@ if __name__ == "__main__":
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
         camera_width=args.camera_width,
         camera_height=args.camera_height,
+        is_act=args.is_act,
         distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
     )
     if args.max_episode_steps is not None:
