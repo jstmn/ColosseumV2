@@ -60,6 +60,7 @@ def parse_args(args=None):
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
     parser.add_argument("--camera-width", type=int, required=False, help="Width of the camera.")
     parser.add_argument("--camera-height", type=int,  required=False, help="Height of the camera.")
+    parser.add_argument("--is-act", action="store_true", help="Use act params. Overrides camera width and height.")
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
     return parser.parse_args()
 
@@ -81,7 +82,8 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             sim_backend=args.sim_backend,
             camera_width=args.camera_width,
             camera_height=args.camera_height,
-            distraction_set=distraction_set
+            distraction_set=distraction_set,
+            is_act=args.is_act
         )
     else:
         env = gym.make(

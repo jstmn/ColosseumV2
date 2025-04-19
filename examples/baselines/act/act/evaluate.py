@@ -38,6 +38,7 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs):
 
         while eps_count < n:
             # pre-process obs
+            counter.update(1)
             if use_visual_obs:
                 obs['state'] = pre_process(obs['state']) if not delta_control else obs['state']  # (num_envs, obs_dim)
                 obs = {k: common.to_tensor(v, device) for k, v in obs.items()}

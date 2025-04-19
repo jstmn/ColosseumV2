@@ -5,7 +5,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config, get_act_camera_configs
 
 @register_env("StackCube-v2", max_episode_steps=50)
 class StackCubeV2Env(StackCubeEnv):
@@ -32,5 +32,8 @@ class StackCubeV2Env(StackCubeEnv):
         target = [0, 0, 0.0]
         eye_xy = 0.3
         eye_z = 0.4
-        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height, self._is_act)
+        if self._is_act:
+            cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
+        else:
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height, self._is_act)
         return cfgs
