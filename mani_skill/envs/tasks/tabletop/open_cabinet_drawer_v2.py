@@ -239,8 +239,7 @@ class OpenCabinetDrawerV2Env(BaseEnv):
 
 
             # initialize robot
-            # qpos_0 = np.zeros(9)
-            # qpos_0[7:] = 0.04
+            # qpos_0 = np.array([-.2, -1.5, 0.3, -2.9, 1.2, 3, 1.5, 0.4, 0.4]) # final two are gripper (start open)
             # self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
             self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi)
             # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
