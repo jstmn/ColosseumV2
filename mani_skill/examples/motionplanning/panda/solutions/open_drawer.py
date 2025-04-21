@@ -33,14 +33,10 @@ def solve(env: OpenCabinetDrawerV2Env, seed=None, debug=False, vis=False):
     print("===========================================")
     print()
 
-    # rotation_noise_range = np.deg2rad(0.0001)
-    # rotation_noise = [np.random.uniform(-rotation_noise_range, rotation_noise_range) for _ in range(3)]
-    # target_rotation = euler2quat(np.pi / 2 + rotation_noise[0], -np.pi + rotation_noise[1], np.pi / 2 + rotation_noise[2])
-    # target_rotation = euler2quat(np.pi / 2, -np.pi, np.pi / 2)
-    # target_rotation = euler2quat(0, -0.1*np.pi/2, 0)
-    target_rotation = euler2quat(0, 0, 0)
-    # target_rotation = euler2quat(np.pi / 2, np.pi/2, np.pi / 2)
-
+    rotation_noise_range = np.deg2rad(0.0001)
+    rotation_noise = [np.random.uniform(-rotation_noise_range, rotation_noise_range) for _ in range(3)]
+    target_rotation = euler2quat(np.pi / 2 + rotation_noise[0], -np.pi + rotation_noise[1], np.pi / 2 + rotation_noise[2]) # this was working
+    
     grasp_pose = handle_obj.pose  # q: [1,  0,  0,  0]
     grasp_pose.q = target_rotation
     grasp_pose.p -= np.array([0.1, 0, 0])
@@ -56,9 +52,8 @@ def solve(env: OpenCabinetDrawerV2Env, seed=None, debug=False, vis=False):
     # reach_pose = grasp_pose * sapien.Pose([0, 0, -0.15])
 
     print()
-    print("===========================================")
-    print("===========================================")
-    print("===========================================")
+    print("calculated grasp_pose")
+    print("======================================================================================")
 
 
 
@@ -72,6 +67,7 @@ def solve(env: OpenCabinetDrawerV2Env, seed=None, debug=False, vis=False):
 
     # TEMP
     for _ in range(10):
+        planner.open_gripper()
         planner.move_to_pose_with_screw(reach_pose)
         planner.open_gripper()
         planner.move_to_pose_with_screw(grasp_pose)

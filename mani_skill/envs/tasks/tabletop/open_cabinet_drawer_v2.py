@@ -95,7 +95,6 @@ class OpenCabinetDrawerV2Env(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        print("  PickCubeV2Env: _default_sensor_configs()")
         target=[-0.1, 0, 0.1]
         eye_xy = 0.3
         eye_z = 0.6
