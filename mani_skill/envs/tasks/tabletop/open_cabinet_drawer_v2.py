@@ -54,7 +54,8 @@ class OpenCabinetDrawerV2Env(BaseEnv):
     TRAIN_JSON = (
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_drawer_train.json"
     )
-    CABINET_X_LIMS = [0.25, 0.27]
+    CABINET_X_LIMS = [0.2, 0.25]
+    # Starts getting planning failures above 0.25
     CABINET_Y_LIMS = [-0.015, 0.015]
 
     min_open_frac = 0.5
@@ -233,15 +234,19 @@ class OpenCabinetDrawerV2Env(BaseEnv):
             cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
             xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
             xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            print("cabinet xy:", xy)
 
             xy[:, 2] = self.cabinet_zs[env_idx]
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
 
 
             # initialize robot
-            # qpos_0 = np.array([-.2, -1.5, 0.3, -2.9, 1.2, 3, 1.5, 0.4, 0.4]) # final two are gripper (start open)
-            # self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi)
+            qpos_0 = np.array([-.325, -0.6, 0.3, -2.3, 2.5, 3, 0.0, 0.4, 0.4]) # < working
+            qpos_0 = np.array([-0.13595445, -1.2611351, 0.24094589, -2.9000182, 2.5728698, 3.0259767, 0.029944034, 0.039999813, 0.03999985]) # final two are gripper (start open)
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+            # ^ Copied from visualizer
+
+            # self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi)
             # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
 
             # close all the cabinets. We know beforehand that lower qlimit means "closed" for these assets.
@@ -282,7 +287,7 @@ class OpenCabinetDrawerV2Env(BaseEnv):
         # and easily get the qpos value.
         open_enough = self.handle_link.joint.qpos >= self.target_qpos
         handle_link_pos = self.handle_link_positions()
-        # print("self.handle_link.joint.qpos:", self.handle_link.joint.qpos, "self.target_qpos:", self.target_qpos)
+        print("self.handle_link.joint.qpos:", self.handle_link.joint.qpos, "self.target_qpos:", self.target_qpos)
 
         link_is_static = (
             torch.linalg.norm(self.handle_link.angular_velocity, axis=1) <= 1
