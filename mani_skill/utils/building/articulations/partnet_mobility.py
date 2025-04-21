@@ -56,10 +56,11 @@ def get_partnet_mobility_builder(
     try:
         urdf_path = PARTNET_MOBILITY["model_urdf_paths"][id]
     except:
-        print(f"PARTNET_MOBILITY:")
+        # =============== DEBUG ===============
+        print(f"\nPARTNET_MOBILITY:")
         for k, v in PARTNET_MOBILITY.items():
             print(f"  {k}: {type(v)}")
-        
+
         print(f"\nPARTNET_MOBILITY['model_data']:")
         for k, v in PARTNET_MOBILITY["model_data"].items():
             if isinstance(v, dict):
@@ -73,13 +74,11 @@ def get_partnet_mobility_builder(
         for k, v in PARTNET_MOBILITY["model_urdf_paths"].items():
             print(f"  {k}: {v}")
         
-
-        # for k, v in PARTNET_MOBILITY["model_urdf_paths"].items():
-        #     print(f"{k}: \t{v}")
         print(f"\nmetadata[id={id}]:")
         for k, v in metadata.items():
             print(f"  {k}: {v}")
         print()
+        # =============== END OF: DEBUG ===============
         raise KeyError(f"ID '{id}' not found in PARTNET_MOBILITY['model_urdf_paths']")
 
     applied_urdf_config = sapien_utils.parse_urdf_config(
