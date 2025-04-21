@@ -36,16 +36,6 @@ class OpenCabinetDrawerV2Env(BaseEnv):
     """
     **Task Description:**
     Use the Panda open the target drawer out.
-
-    **Randomizations:**
-    - The robots initial joint configuration has a sampled noise of magnitude `robot_init_qpos_noise` added to the default joint configuration
-    - The target drawer position is randomized in the range [0.2, 0.3] in the x direction and [-0.1, 0.1] in the y direction
-
-    **Success Conditions:**
-    - The drawer is open at least 90% of the way, and the angular/linear velocities of the drawer link are small
-
-    **Goal Specification:**
-    - 3D goal position centered at the center of mass of the handle mesh on the drawer to open (also visualized in human renders with a sphere).
     """
 
     SUPPORTED_ROBOTS = ["panda"]
@@ -54,9 +44,9 @@ class OpenCabinetDrawerV2Env(BaseEnv):
     TRAIN_JSON = (
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_drawer_train.json"
     )
-    CABINET_X_LIMS = [0.2, 0.25]
-    # Starts getting planning failures above 0.25
-    CABINET_Y_LIMS = [-0.015, 0.015]
+    CABINET_X_LIMS = [0.15, 0.25]
+    # ^ Starts getting planning failures above 0.25
+    CABINET_Y_LIMS = [-0.05, 0.05]
 
     min_open_frac = 0.5
 
@@ -234,7 +224,6 @@ class OpenCabinetDrawerV2Env(BaseEnv):
             cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
             xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
             xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
-            print("cabinet xy:", xy)
 
             xy[:, 2] = self.cabinet_zs[env_idx]
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
@@ -287,7 +276,6 @@ class OpenCabinetDrawerV2Env(BaseEnv):
         # and easily get the qpos value.
         open_enough = self.handle_link.joint.qpos >= self.target_qpos
         handle_link_pos = self.handle_link_positions()
-        print("self.handle_link.joint.qpos:", self.handle_link.joint.qpos, "self.target_qpos:", self.target_qpos)
 
         link_is_static = (
             torch.linalg.norm(self.handle_link.angular_velocity, axis=1) <= 1
