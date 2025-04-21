@@ -7,18 +7,20 @@ import torch
 import trimesh
 
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.agents.robots import Fetch
+from mani_skill.agents.robots import Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
-from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
+from mani_skill.utils.scene_builder.table import TableSceneBuilder
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
 
@@ -26,20 +28,18 @@ CABINET_COLLISION_BIT = 29
 # TODO (stao): we need to cut the meshes of all the cabinets in this dataset for gpu sim, there may be some wierd physics
 # that may happen although it seems okay for state based RL
 @register_env(
-    "OpenCabinetDrawer-v1",
+    "OpenCabinetDrawer-v2",
     asset_download_ids=["partnet_mobility_cabinet"],
     max_episode_steps=100,
 )
-class OpenCabinetDrawerEnv(BaseEnv):
+class OpenCabinetDrawerV2Env(BaseEnv):
     """
     **Task Description:**
-    Use the Fetch mobile manipulation robot to move towards a target cabinet and open the target drawer out.
+    Use the Panda open the target drawer out.
 
     **Randomizations:**
-    - Robot is randomly initialized 1.6 to 1.8 meters away from the cabinet and positioned to face it
-    - Robot's base orientation is randomized by -9 to 9 degrees
-    - The cabinet selected to manipulate is randomly sampled from all PartnetMobility cabinets that have drawers
-    - The drawer to open is randomly sampled from all drawers available to open
+    - The robots initial joint configuration has a sampled noise of magnitude `robot_init_qpos_noise` added to the default joint configuration
+    - The target drawer position is randomized in the range [0.2, 0.3] in the x direction and [-0.1, 0.1] in the y direction
 
     **Success Conditions:**
     - The drawer is open at least 90% of the way, and the angular/linear velocities of the drawer link are small
@@ -48,133 +48,123 @@ class OpenCabinetDrawerEnv(BaseEnv):
     - 3D goal position centered at the center of mass of the handle mesh on the drawer to open (also visualized in human renders with a sphere).
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/OpenCabinetDrawer-v1_rt.mp4"
-
-    SUPPORTED_ROBOTS = ["fetch"]
-    agent: Union[Fetch]
+    SUPPORTED_ROBOTS = ["panda"]
+    agent: Union[Panda]
     handle_types = ["prismatic"]
     TRAIN_JSON = (
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_drawer_train.json"
     )
+    CABINET_X_LIMS = [0.25, 0.27]
+    CABINET_Y_LIMS = [-0.015, 0.015]
 
-    min_open_frac = 0.75
+    min_open_frac = 0.5
 
     def __init__(
         self,
         *args,
-        robot_uids="fetch",
+        robot_uids="panda",
         robot_init_qpos_noise=0.02,
-        reconfiguration_freq=None,
-        num_envs=1,
         **kwargs,
     ):
-        # TEMP
-        self._camera_width = kwargs.pop("camera_width", None)
-        self._camera_height = kwargs.pop("camera_height", None)
-        self._distraction_set = kwargs.pop("distraction_set", None)
-        # END OF TEMP
-
+        # TEMP:
+        print("TODO: remove default camera_width, camera_height, distraction_set defaults")
+        self._camera_width = kwargs.pop("camera_width", 640)
+        self._camera_height = kwargs.pop("camera_height", 480)
+        self._distraction_set = kwargs.pop("distraction_set", DistractionSet())
+        # 
         self.robot_init_qpos_noise = robot_init_qpos_noise
-        train_data = load_json(self.TRAIN_JSON)
-        self.all_model_ids = np.array(list(train_data.keys()))
-        # self.all_model_ids = np.array(["1004", "1004"])
-        if reconfiguration_freq is None:
-            # if not user set, we pick a number
-            if num_envs == 1:
-                reconfiguration_freq = 1
-            else:
-                reconfiguration_freq = 0
+        # TRAIN_JSON.keys(): ['1000' '1004' '1005' '1013' '1016' '1021' '1024' '1027' '1032' '1033'
+        #  '1035' '1038' '1040' '1044' '1045' '1052' '1054' '1056' '1061' '1063'
+        #  '1066' '1067' '1076' '1079' '1082']
+        # Good, but lower drawer: 1004
+        # Missing top: 1038, 1040, 1045,  1052, 1054 
+        # Drawer is too small: 1005, 1000, 1013, 1016,1021, 1024, 1027, 1032, 1033, 1035
+        # self._model_id = 1005 # don't like the color
+        self._model_id = 1027
+
         super().__init__(
             *args,
             robot_uids=robot_uids,
-            reconfiguration_freq=reconfiguration_freq,
-            num_envs=num_envs,
             **kwargs,
         )
 
-    @property
-    def _default_sim_config(self):
-        return SimConfig(
-            spacing=5,
-            gpu_memory_config=GPUMemoryConfig(
-                max_rigid_contact_count=2**21, max_rigid_patch_count=2**19
-            ),
-        )
-
-    @property
-    def _default_sensor_configs(self):
-        return []
 
     @property
     def _default_human_render_camera_configs(self):
-        pose = sapien_utils.look_at(eye=[-1.8, -1.3, 1.8], target=[-0.3, 0.5, 0])
-        return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
-        )
+        return get_human_render_camera_config(eye=[0.35, 0.45, 0.4], target=[0.0, 0.0, 0.15])
+
+    @property
+    def _default_sensor_configs(self):
+        print("  PickCubeV2Env: _default_sensor_configs()")
+        target=[-0.1, 0, 0.1]
+        eye_xy = 0.3
+        eye_z = 0.6
+        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        return self._distraction_set.update_camera_configs(cfgs)
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[1, 0, 0]))
+        super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
+
 
     def _load_scene(self, options: dict):
-        self.ground = build_ground(self.scene)
+        self.table_scene = TableSceneBuilder(
+            self, robot_init_qpos_noise=self.robot_init_qpos_noise
+        )
+        self.table_scene.build()
+        
         # temporarily turn off the logging as there will be big red warnings
         # about the cabinets having oblong meshes which we ignore for now.
         sapien.set_log_level("off")
         self._load_cabinets(self.handle_types)
         sapien.set_log_level("warn")
-        from mani_skill.agents.robots.fetch import FETCH_WHEELS_COLLISION_BIT
+        
 
-        self.ground.set_collision_group_bit(
-            group=2, bit_idx=FETCH_WHEELS_COLLISION_BIT, bit=1
-        )
-        self.ground.set_collision_group_bit(
-            group=2, bit_idx=CABINET_COLLISION_BIT, bit=1
-        )
 
     def _load_cabinets(self, joint_types: List[str]):
         # we sample random cabinet model_ids with numpy as numpy is always deterministic based on seed, regardless of
         # GPU/CPU simulation backends. This is useful for replaying demonstrations.
-        model_ids = self._batched_episode_rng.choice(self.all_model_ids)
-        link_ids = self._batched_episode_rng.randint(0, 2**31)
+        # link_ids = self._batched_episode_rng.randint(0, 2**31)
+        link_ids = [0]
+        # ^ fix this so that we use the same drawer every time
 
         self._cabinets = []
         handle_links: List[List[Link]] = []
         handle_links_meshes: List[List[trimesh.Trimesh]] = []
-        for i, model_id in enumerate(model_ids):
-            # partnet-mobility is a dataset source and the ids are the ones we sampled
-            # we provide tools to easily create the articulation builder like so by querying
-            # the dataset source and unique ID
-            cabinet_builder = articulations.get_articulation_builder(
-                self.scene, f"partnet-mobility:{model_id}"
-            )
-            cabinet_builder.set_scene_idxs(scene_idxs=[i])
-            cabinet_builder.initial_pose = sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0])
-            cabinet = cabinet_builder.build(name=f"{model_id}-{i}")
-            self.remove_from_state_dict_registry(cabinet)
-            # this disables self collisions by setting the group 2 bit at CABINET_COLLISION_BIT all the same
-            # that bit is also used to disable collision with the ground plane
-            for link in cabinet.links:
-                link.set_collision_group_bit(
-                    group=2, bit_idx=CABINET_COLLISION_BIT, bit=1
-                )
-            self._cabinets.append(cabinet)
-            handle_links.append([])
-            handle_links_meshes.append([])
 
-            # TODO (stao): At the moment code for selecting semantic parts of articulations
-            # is not very simple. Will be improved in the future as we add in features that
-            # support part and mesh-wise annotations in a standard querable format
-            for link, joint in zip(cabinet.links, cabinet.joints):
-                if joint.type[0] in joint_types:
-                    handle_links[-1].append(link)
-                    # save the first mesh in the link object that correspond with a handle
-                    handle_links_meshes[-1].append(
-                        link.generate_mesh(
-                            filter=lambda _, render_shape: "handle"
-                            in render_shape.name,
-                            mesh_name="handle",
-                        )[0]
-                    )
+        # partnet-mobility is a dataset source and the ids are the ones we sampled
+        # we provide tools to easily create the articulation builder like so by querying
+        # the dataset source and unique ID
+        cabinet_builder = articulations.get_articulation_builder(
+            self.scene, f"partnet-mobility:{self._model_id}"
+        )
+        # cabinet_builder.set_scene_idxs(scene_idxs=[0])
+        cabinet_builder.initial_pose = sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0])
+        cabinet = cabinet_builder.build(name=f"cabinet-{self._model_id}")
+        self.remove_from_state_dict_registry(cabinet)
+        # this disables self collisions by setting the group 2 bit at CABINET_COLLISION_BIT all the same
+        # that bit is also used to disable collision with the ground plane
+        for link in cabinet.links:
+            link.set_collision_group_bit(
+                group=2, bit_idx=CABINET_COLLISION_BIT, bit=1
+            )
+        self._cabinets.append(cabinet)
+        handle_links.append([])
+        handle_links_meshes.append([])
+
+        # TODO (stao): At the moment code for selecting semantic parts of articulations
+        # is not very simple. Will be improved in the future as we add in features that
+        # support part and mesh-wise annotations in a standard querable format
+        for link, joint in zip(cabinet.links, cabinet.joints):
+            if joint.type[0] in joint_types:
+                handle_links[-1].append(link)
+                # save the first mesh in the link object that correspond with a handle
+                handle_links_meshes[-1].append(
+                    link.generate_mesh(
+                        filter=lambda _, render_shape: "handle"
+                        in render_shape.name,
+                        mesh_name="handle",
+                    )[0]
+                )
 
         # we can merge different articulations/links with different degrees of freedoms into a single view/object
         # allowing you to manage all of them under one object and retrieve data like qpos, pose, etc. all together
@@ -240,44 +230,22 @@ class OpenCabinetDrawerEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
+            cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
+            cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
+            xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
+            xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+
             xy[:, 2] = self.cabinet_zs[env_idx]
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
 
+
             # initialize robot
-            if self.robot_uids == "fetch":
-                qpos = torch.tensor(
-                    [
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        -np.pi / 4,
-                        0,
-                        np.pi / 4,
-                        0,
-                        np.pi / 3,
-                        0,
-                        0.015,
-                        0.015,
-                    ]
-                )
-                qpos = qpos.repeat(b).reshape(b, -1)
-                dist = randomization.uniform(1.6, 1.8, size=(b,))
-                theta = randomization.uniform(0.9 * torch.pi, 1.1 * torch.pi, size=(b,))
-                xy = torch.zeros((b, 2))
-                xy[:, 0] += torch.cos(theta) * dist
-                xy[:, 1] += torch.sin(theta) * dist
-                qpos[:, :2] = xy
-                noise_ori = randomization.uniform(
-                    -0.05 * torch.pi, 0.05 * torch.pi, size=(b,)
-                )
-                ori = (theta - torch.pi) + noise_ori
-                qpos[:, 2] = ori
-                self.agent.robot.set_qpos(qpos)
-                self.agent.robot.set_pose(sapien.Pose())
+            # qpos_0 = np.zeros(9)
+            # qpos_0[7:] = 0.04
+            # self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi)
+            # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
+
             # close all the cabinets. We know beforehand that lower qlimit means "closed" for these assets.
             qlimits = self.cabinet.get_qlimits()  # [b, self.cabinet.max_dof, 2])
             self.cabinet.set_qpos(qlimits[env_idx, :, 0])
@@ -316,6 +284,7 @@ class OpenCabinetDrawerEnv(BaseEnv):
         # and easily get the qpos value.
         open_enough = self.handle_link.joint.qpos >= self.target_qpos
         handle_link_pos = self.handle_link_positions()
+        # print("self.handle_link.joint.qpos:", self.handle_link.joint.qpos, "self.target_qpos:", self.target_qpos)
 
         link_is_static = (
             torch.linalg.norm(self.handle_link.angular_velocity, axis=1) <= 1
@@ -325,48 +294,3 @@ class OpenCabinetDrawerEnv(BaseEnv):
             "handle_link_pos": handle_link_pos,
             "open_enough": open_enough,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(
-            tcp_pose=self.agent.tcp.pose.raw_pose,
-        )
-
-        if "state" in self.obs_mode:
-            obs.update(
-                tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
-                target_link_qpos=self.handle_link.joint.qpos,
-                target_handle_pos=info["handle_link_pos"],
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        tcp_to_handle_dist = torch.linalg.norm(
-            self.agent.tcp.pose.p - info["handle_link_pos"], axis=1
-        )
-        reaching_reward = 1 - torch.tanh(5 * tcp_to_handle_dist)
-        amount_to_open_left = torch.div(
-            self.target_qpos - self.handle_link.joint.qpos, self.target_qpos
-        )
-        open_reward = 2 * (1 - amount_to_open_left)
-        reaching_reward[
-            amount_to_open_left < 0.999
-        ] = 2  # if joint opens even a tiny bit, we don't need reach reward anymore
-        # print(open_reward.shape)
-        open_reward[info["open_enough"]] = 3  # give max reward here
-        reward = reaching_reward + open_reward
-        reward[info["success"]] = 5.0
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 5.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
-
-
-@register_env("OpenCabinetDoor-v1", max_episode_steps=100)
-class OpenCabinetDoorEnv(OpenCabinetDrawerEnv):
-    TRAIN_JSON = (
-        PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
-    )
-    handle_types = ["revolute", "revolute_unwrapped"]
