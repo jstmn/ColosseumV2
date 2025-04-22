@@ -11,7 +11,7 @@ from tqdm import tqdm
 import os.path as osp
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere, solveOpenDrawer
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 
 MP_SOLUTIONS = {
@@ -26,20 +26,40 @@ MP_SOLUTIONS = {
     "LiftPegUpright-v1": solveLiftPegUpright,
     "PullCube-v1": solvePullCube,
     "DrawSVG-v1" : solveDrawSVG,
-    "LiftPegUpright-v2": solveLiftPegUpright,
     # 
-    "PickCube-v2": solvePickCube,                   # new
-    "PickCube-v3": solvePickCube,                   # new
-    "PickCube-v4": solvePickCube,                   # new
-    "PickCube-v3-VisibleSphere": solvePickCube,     # new
+
+    # New tasks:
+    "LiftPegUpright-v2": solveLiftPegUpright,
+    "OpenDrawer-v1": solveOpenDrawer,               # new
+    "PlaceSphere-v2": solvePlaceSphere,             # new  
+    # "PickCube-v2": solvePickCube,                   # new
+    # "PickCube-v3": solvePickCube,                   # new
+    # "PickCube-v4": solvePickCube,                   # new
+    # "PickCube-v3-VisibleSphere": solvePickCube,     # new
     "StackCube-v2": solveStackCube,                 # new
-    "PlugCharger-v2": solvePlugCharger,             # new
+    # "PlugCharger-v2": solvePlugCharger,             # new
     "PushCube-v2": solvePushCube,                   # new
     "PullCube-v2": solvePullCube,                   # new
-    "PullCubeTool-v2": solvePullCubeTool,           # new
-    "PullCube-v2": solvePullCube,                   # new
+    # "PullCubeTool-v2": solvePullCubeTool,           # new
     "PegInsertionSide-v2": solvePegInsertionSide,   # new
 }
+
+"""
+ENV_ID=PushCube-v2
+
+python mani_skill/examples/motionplanning/panda/run.py \
+    --camera-width 640 --camera-height 480 \
+    --env-id ${ENV_ID} \
+    --num-traj 10 \
+    --distraction-set "none" \
+    --num-procs 1 \
+    --reward-mode "sparse" \
+    --random-seed \
+    --vis \
+    --save-video
+
+    python -m mani_skill.examples.demo_random_action -e ${ENV_ID} --render-mode="human" --shader="rt-fast" --seed 3 --reward_mode "sparse" --pause
+"""
 
 
 def parse_args(args=None):
@@ -128,13 +148,13 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     passed = 0
     while True:
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
-        try:
-            res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
-        except Exception as e:
-            print(f"Cannot find valid solution because of an error in motion planning solution: {e}")
-            print("Traceback:")
-            print(''.join(traceback.format_tb(e.__traceback__)))
-            res = -1
+        res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
+        # try:
+        # except Exception as e:
+        #     print(f"Cannot find valid solution because of an error in motion planning solution: {e}")
+        #     print("Traceback:")
+        #     print(''.join(traceback.format_tb(e.__traceback__)))
+        #     res = -1
 
         if res == -1:
             success = False
