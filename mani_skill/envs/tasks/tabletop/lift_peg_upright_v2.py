@@ -27,6 +27,7 @@ class LiftPegUprightV2Env(LiftPegUprightEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         if isinstance(self._distraction_set, dict):
             self._distraction_set = DistractionSet(**self._distraction_set)
 
@@ -64,6 +65,7 @@ class LiftPegUprightV2Env(LiftPegUprightEnv):
         eye_xy = 0.5
         eye_z = 0.6
         if self._is_act:
-            return get_act_camera_configs(target, self.agent.robot)
+            cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
         else:
-            return get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height, self._is_act)
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        return cfgs

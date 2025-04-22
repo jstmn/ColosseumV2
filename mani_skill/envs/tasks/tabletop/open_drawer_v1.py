@@ -19,7 +19,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_human_render_camera_config, REALSENSE_DEPTH_FOV_VERTICAL_RAD, SHADER
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_act_camera_configs, get_human_render_camera_config, REALSENSE_DEPTH_FOV_VERTICAL_RAD, SHADER
 from mani_skill.envs.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
@@ -78,6 +78,7 @@ class OpenDrawerV1Env(BaseEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         if isinstance(self._distraction_set, dict):
             self._distraction_set = DistractionSet(**self._distraction_set)
         # 
@@ -108,7 +109,10 @@ class OpenDrawerV1Env(BaseEnv):
         pose_center = sapien_utils.look_at(eye=[-0.5, 0.0, 1.25], target=target)
         pose_left = sapien_utils.look_at(eye=[-0.2, 0.5, 1.1], target=target)
         pose_right = sapien_utils.look_at(eye=[-0.2, -0.5, 1.1], target=target)
-        cfgs = [
+        if self._is_act:
+            cfgs = get_act_camera_configs(0.5, 1.1, target, self.agent.robot)
+        else:
+            cfgs = [
             CameraConfig(
                 uid="camera_center",
                 pose=pose_center,

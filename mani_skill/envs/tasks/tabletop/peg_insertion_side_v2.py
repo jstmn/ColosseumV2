@@ -1,10 +1,11 @@
 import numpy as np
 
+from mani_skill.envs.distraction_set import DistractionSet
 from mani_skill.envs.tasks.tabletop.peg_insertion_side import PegInsertionSideEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_act_camera_configs, get_camera_configs, get_human_render_camera_config
 
 @register_env("PegInsertionSide-v2", max_episode_steps=50)
 class PegInsertionSideV2Env(PegInsertionSideEnv):
@@ -24,6 +25,7 @@ class PegInsertionSideV2Env(PegInsertionSideEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         if isinstance(self._distraction_set, dict):
             self._distraction_set = DistractionSet(**self._distraction_set)
         super().__init__(robot_uids="panda", *args, **kwargs)
@@ -38,4 +40,7 @@ class PegInsertionSideV2Env(PegInsertionSideEnv):
         target = [0, 0.15, 0.1]
         eye_xy = 0.4
         eye_z = 0.5
-        return get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        if self._is_act:
+            cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
+        else:
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)

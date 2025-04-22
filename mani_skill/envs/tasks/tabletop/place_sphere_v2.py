@@ -15,7 +15,7 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.building import actors
 from mani_skill.envs.distraction_set import DistractionSet
 
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_act_camera_configs, get_camera_configs, get_human_render_camera_config
 
 DEFAULT_GOAL_THRESH_MARGIN = 0.05
 
@@ -36,6 +36,7 @@ class PlaceSphereV2Env(PlaceSphereEnv):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
         self._distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
+        self._is_act = kwargs.pop("is_act")
         self._goal_thresh_margin = goal_thresh_margin
         # In this situation, the DistractionSet has serialized as a dict so we now need to deserialize it.
         if isinstance(self._distraction_set, dict):
@@ -53,6 +54,11 @@ class PlaceSphereV2Env(PlaceSphereEnv):
         target=[-0.1, 0, 0.1]
         eye_xy = 0.3
         eye_z = 0.6
-        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        if self._is_act:
+            cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
+        else:
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        return cfgs
         cfgs_adjusted = self._distraction_set.update_camera_configs(cfgs)
         return cfgs_adjusted
