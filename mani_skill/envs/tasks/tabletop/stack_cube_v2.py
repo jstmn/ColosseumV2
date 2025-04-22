@@ -31,7 +31,10 @@ class StackCubeV2Env(StackCubeEnv):
     def _default_sensor_configs(self):
         target = [0, 0, 0.0]
         eye_xy = 0.3
-        eye_z = 0.4
+        eye_z = 0.6
+        target=[-0.1, 0, 0.1]
+        eye_xy = 0.3
+        eye_z = 0.6
         if self._is_act:
             cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
         else:
