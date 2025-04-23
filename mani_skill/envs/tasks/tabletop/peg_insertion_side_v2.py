@@ -44,3 +44,4 @@ class PegInsertionSideV2Env(PegInsertionSideEnv):
             cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
         else:
             cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        return cfgs
