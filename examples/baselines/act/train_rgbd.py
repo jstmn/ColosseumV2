@@ -31,7 +31,7 @@ from act.detr.backbone import build_backbone
 from act.detr.transformer import build_transformer
 from act.detr.detr_vae import build_encoder, DETRVAE
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 import tyro
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 
@@ -493,13 +493,16 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
-    env_kwargs = dict(
+    env_kwargs: dict[str, Any] = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        camera_width=args.camera_width,
-        camera_height=args.camera_height,
-        is_act=args.is_act,
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
     )
+    if 'v2' in args.env_id or 'OpenDrawer' in args.env_id:
+        env_kwargs.update(dict(
+            camera_width=args.camera_width,
+            camera_height=args.camera_height,
+            is_act=args.is_act,
+            distraction_set=DISTRACTION_SETS[args.distraction_set.upper()]
+        ))
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
