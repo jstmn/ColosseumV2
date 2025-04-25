@@ -7,7 +7,7 @@ import sapien
 from mani_skill.envs.tasks.tabletop.pick_cube_v2 import PickCubeV2Env
 from mani_skill.utils.registration import register_env
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_act_camera_configs, get_camera_configs
 
 
 @register_env("PickCube-v3", max_episode_steps=100)
@@ -29,6 +29,9 @@ class PickCubeV3Env(PickCubeV2Env):
         target=[0.0, 0, 0.15]
         xy_offset = 0.3
         z_offset = 0.4
-        cfgs = get_camera_configs(xy_offset, z_offset, target, self._camera_width, self._camera_height)
+        if self._is_act:
+            cfgs = get_act_camera_configs(xy_offset, z_offset, target, self.agent.robot)
+        else:
+            cfgs = get_camera_configs(xy_offset, z_offset, target, self._camera_width, self._camera_height, self._is_act)
         cfgs_adjusted = self._distraction_set.update_camera_configs(cfgs)
         return cfgs_adjusted

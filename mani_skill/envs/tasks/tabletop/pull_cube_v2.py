@@ -16,7 +16,7 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.building import actors
 from mani_skill.envs.distraction_set import DistractionSet
 
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.get_camera_config import get_act_camera_configs, get_camera_configs, get_human_render_camera_config
 
 @register_env("PullCube-v2", max_episode_steps=50)
 class PullCubeV2Env(PullCubeEnv):
@@ -34,6 +34,7 @@ class PullCubeV2Env(PullCubeEnv):
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
+        self._is_act = kwargs.pop("is_act")
         self._distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
         # In this situation, the DistractionSet has serialized as a dict so we now need to deserialize it.
         if isinstance(self._distraction_set, dict):
@@ -125,6 +126,10 @@ class PullCubeV2Env(PullCubeEnv):
         target=[-0.1, 0, -0.1]
         eye_xy = 0.35
         eye_z = 0.45
-        cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
+        if self._is_act:
+            cfgs = get_act_camera_configs(eye_xy, eye_z, target, self.agent.robot)
+        else:
+            cfgs = get_camera_configs(eye_xy, eye_z, target, self._camera_width, self._camera_height)
         cfgs_adjusted = self._distraction_set.update_camera_configs(cfgs)
-        return cfgs_adjusted
+        return cfgs
+        # return cfgs_adjusted
