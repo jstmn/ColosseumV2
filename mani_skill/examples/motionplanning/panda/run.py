@@ -33,7 +33,7 @@ MP_SOLUTIONS = {
     "OpenDrawer-v1": solveOpenDrawer,               # new
     "PlaceSphere-v2": solvePlaceSphere,             # new  
     "PickCube-v2": solvePickCube,                   # new
-    # "PickCube-v3": solvePickCube,                   # new
+    "PickCube-v3": solvePickCube,                   # new
     # "PickCube-v4": solvePickCube,                   # new
     # "PickCube-v3-VisibleSphere": solvePickCube,     # new
     "StackCube-v2": solveStackCube,                 # new
