@@ -496,7 +496,7 @@ if __name__ == "__main__":
     env_kwargs: dict[str, Any] = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
     )
-    if 'v2' in args.env_id or 'OpenDrawer' in args.env_id:
+    if 'v1' not in args.env_id or 'OpenDrawer' in args.env_id:
         env_kwargs.update(dict(
             camera_width=args.camera_width,
             camera_height=args.camera_height,
