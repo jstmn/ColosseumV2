@@ -19,7 +19,7 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs import Actor
 import mani_skill.envs.utils.randomization as randomization
 from mani_skill.envs.distraction_set import DistractionSet
-from mani_skill.envs.tasks.tabletop.get_camera_config import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.colosseum_v2_env_utils import get_camera_configs, get_human_render_camera_config
 
 DEFAULT_GOAL_THRESH_MARGIN = 0.05
 
