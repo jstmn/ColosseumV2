@@ -29,8 +29,8 @@ MP_SOLUTIONS = {
     "DrawSVG-v1" : solveDrawSVG,
     "StackPyramid-v1": solveStackPyramid,
     # 
-
     # New tasks:
+    "RaiseCube-v1": solveRaiseCube,
     "OpenDrawer-v1": solveOpenDrawer,               # new
     "PushCube-v2": solvePushCube,                   # new
     "StackCube-v2": solveStackCube,                 # new
@@ -41,8 +41,9 @@ MP_SOLUTIONS = {
 ENV_ID=OpenDrawer-v1
 ENV_ID=PushCube-v2
 ENV_ID=StackCube-v2
+ENV_ID=RaiseCube-v1
 
-DISTRACTION_SET=all 
+DISTRACTION_SET=all
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 python mani_skill/examples/motionplanning/panda/run.py \

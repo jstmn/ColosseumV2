@@ -41,10 +41,8 @@ class PushCubeV2Env(PushCubeEnv):
         assert "camera_height" in kwargs, "camera_height must be provided"
         self._camera_width = kwargs.pop("camera_width")
         self._camera_height = kwargs.pop("camera_height")
-        self._distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
-        # In this situation, the DistractionSet has serialized as a dict so we now need to deserialize it.
-        if isinstance(self._distraction_set, dict):
-            self._distraction_set = DistractionSet(**self._distraction_set)
+        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
+        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self._human_render_shader = kwargs.pop("human_render_shader", None)
         super().__init__(*args, robot_uids=robot_uids, robot_init_qpos_noise=robot_init_qpos_noise, **kwargs)
 
@@ -57,7 +55,6 @@ class PushCubeV2Env(PushCubeEnv):
             for ts in self._table_scenes:
                 ts.initialize(env_idx)
 
-            # self.table_scene.initialize(env_idx)
             xyz = torch.zeros((b, 3))
             xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
             xyz[..., 2] = self.cube_half_size
