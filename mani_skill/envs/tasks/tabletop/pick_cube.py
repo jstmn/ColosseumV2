@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Any, Union
 
 import numpy as np
 import sapien
@@ -81,7 +81,6 @@ class PickCubeEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
 
     def _load_scene(self, options: dict):
-        assert False, "This should not be called"
         self.table_scene = TableSceneBuilder(
             self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
@@ -105,7 +104,6 @@ class PickCubeEnv(BaseEnv):
         self._hidden_objects.append(self.goal_site)
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
-        # assert False, "This should not be called"
         with torch.device(self.device):
             b = len(env_idx)
             self.table_scene.initialize(env_idx)
@@ -131,7 +129,7 @@ class PickCubeEnv(BaseEnv):
             goal_xyz[:, 2] = torch.rand((b)) * self.max_goal_height + xyz[:, 2]
             self.goal_site.set_pose(Pose.create_from_pq(goal_xyz))
 
-    def _get_obs_extra(self, info: Dict):
+    def _get_obs_extra(self, info: dict):
         # in reality some people hack is_grasped into observations by checking if the gripper can close fully or not
         obs = dict(
             is_grasped=info["is_grasped"],
@@ -153,12 +151,6 @@ class PickCubeEnv(BaseEnv):
         )
         is_grasped = self.agent.is_grasping(self.cube)
         is_robot_static = self.agent.is_static(0.2)
-
-        # Check if this is ever happening.
-        if torch.any(is_obj_placed & torch.logical_not(is_robot_static)):
-            print(f"HEADSUP: found a case when the object is placed but the robot is not static. {is_obj_placed=}, {is_robot_static=}")
-
-        # 
         return {
             "success": is_obj_placed & is_robot_static,
             "is_obj_placed": is_obj_placed,
@@ -166,7 +158,7 @@ class PickCubeEnv(BaseEnv):
             "is_grasped": is_grasped,
         }
 
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
+    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
         tcp_to_obj_dist = torch.linalg.norm(
             self.cube.pose.p - self.agent.tcp_pose.p, axis=1
         )
@@ -194,7 +186,7 @@ class PickCubeEnv(BaseEnv):
         return reward
 
     def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
+        self, obs: Any, action: torch.Tensor, info: dict
     ):
         return self.compute_dense_reward(obs=obs, action=action, info=info) / 5
 
