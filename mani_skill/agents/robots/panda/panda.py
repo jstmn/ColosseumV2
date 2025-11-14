@@ -304,7 +304,7 @@ class Panda(BaseAgent):
         """Build a grasp pose (panda_hand_tcp)."""
         assert np.abs(1 - np.linalg.norm(approaching)) < 1e-3
         assert np.abs(1 - np.linalg.norm(closing)) < 1e-3
-        assert np.abs(approaching @ closing) <= 1e-3
+        assert np.abs(approaching @ closing) <= 1e-3 # dot produce -> we need the vectors to be orthogonal
         ortho = np.cross(closing, approaching)
         T = np.eye(4)
         T[:3, :3] = np.stack([ortho, closing, approaching], axis=1)

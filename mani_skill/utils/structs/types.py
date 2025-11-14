@@ -79,7 +79,7 @@ class SimConfig:
     spacing: float = 5
     """Controls the spacing between parallel environments when simulating on GPU in meters. Increase this value
     if you expect objects in one parallel environment to impact objects within this spacing distance"""
-    sim_freq: int = 100
+    sim_freq: int = 1000
     """simulation frequency (Hz)"""
     control_freq: int = 20
     """control frequency (Hz). Every control step (e.g. env.step) contains sim_freq / control_freq physx simulation steps"""

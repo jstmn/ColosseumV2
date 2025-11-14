@@ -11,7 +11,26 @@ from tqdm import tqdm
 import os.path as osp
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere, solveOpenDrawer,solveRaiseCube, solveStackPyramid
+from mani_skill.examples.motionplanning.panda.solutions import (
+    solvePushCube,
+    solvePickCube,
+    solveStackCube,
+    solvePegInsertionSide,
+    solvePlugCharger,
+    solvePullCubeTool,
+    solveLiftPegUpright,
+    solvePullCube,
+    solveDrawTriangle,
+    solveDrawSVG,
+    solvePlaceSphere,
+    solveOpenDrawer,
+    solveRaiseCube,
+    solveOpenLaptop,
+    solveStackPyramid,
+    solvePlaceDishInRack,
+    solveHammerNail,
+    solvePourSphere,
+)
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 
 MP_SOLUTIONS = {
@@ -28,12 +47,16 @@ MP_SOLUTIONS = {
     "PullCube-v1": solvePullCube,
     "DrawSVG-v1" : solveDrawSVG,
     "StackPyramid-v1": solveStackPyramid,
-    # 
-    # New tasks:
+    "PlaceDishInRack-v1": solvePlaceDishInRack,
+    "HammerNail-v1": solveHammerNail,
+    "PourSphere-v1": solvePourSphere,
     "RaiseCube-v1": solveRaiseCube,
     "OpenDrawer-v1": solveOpenDrawer,               # new
     "PushCube-v2": solvePushCube,                   # new
     "StackCube-v2": solveStackCube,                 # new
+    "PullCube-v2": solvePullCube,                   # new
+    "PegInsertionSide-v2": solvePegInsertionSide,   # new
+    "OpenLaptop-v1": solveOpenLaptop,
 }
 
 """

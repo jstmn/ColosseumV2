@@ -43,6 +43,7 @@ class BaseMotionPlanningSolver:
         self.all_collision_pts = None
 
     def render_wait(self):
+        print("entered into render_wait(self)")
         if not self.vis or not self.debug:
             return
         print("Press [c] to continue")
@@ -75,6 +76,8 @@ class BaseMotionPlanningSolver:
         return target
 
     def follow_path(self, result, refine_steps: int = 0):
+        print("IN def follow_path(self, result, refine_steps: int = 0):")
+        exit()
         n_step = result["position"].shape[0]
         for i in range(n_step + refine_steps):
             qpos = result["position"][min(i, n_step - 1)]
@@ -90,6 +93,7 @@ class BaseMotionPlanningSolver:
                     f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}"
                 )
             if self.vis:
+                print(f"{i} / {n_step + refine_steps}: rendered ")
                 self.base_env.render_human()
         return obs, reward, terminated, truncated, info
 
