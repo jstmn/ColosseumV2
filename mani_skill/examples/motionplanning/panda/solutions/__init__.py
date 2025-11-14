@@ -14,4 +14,9 @@ from .stack_pyramid import solve as solveStackPyramid
 # new
 from .place_sphere import solve as solvePlaceSphere
 from .open_drawer import solve as solveOpenDrawer
+from .open_laptop import solve as solveOpenLaptop
 from .raise_cube import solve as solveRaiseCube
+from .place_dish_in_rack import solve as solvePlaceDishInRack
+from .pick_dish_from_rack import solve as solvePickDishFromRack
+from .hammer_nail import solve as solveHammerNail
+from .pour_sphere import solve as solvePourSphere

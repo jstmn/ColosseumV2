@@ -39,6 +39,13 @@ class TwoFingerGripperMotionPlanningSolver(BaseMotionPlanningSolver):
     def _update_grasp_visual(self, target: sapien.Pose) -> None:
         if self.grasp_pose_visual is not None:
             self.grasp_pose_visual.set_pose(target)
+            print("||| IN _update_grasp_visual")
+            vis = self.base_env.render_human()
+            vis.paused = True
+            self.base_env.render_human()
+            # from time import sleep
+            # sleep(100)
+
     
     def follow_path(self, result, refine_steps: int = 0):
         n_step = result["position"].shape[0]
@@ -56,7 +63,9 @@ class TwoFingerGripperMotionPlanningSolver(BaseMotionPlanningSolver):
                     f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}"
                 )
             if self.vis:
-                self.base_env.render_human()
+                print(f"{i} / {n_step + refine_steps}: rendered ")
+                vis = self.base_env.render_human()
+                # vis.paused = True
         return obs, reward, terminated, truncated, info
 
     def open_gripper(self, t=6, gripper_state=None):
