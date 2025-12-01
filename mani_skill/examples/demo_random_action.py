@@ -53,14 +53,9 @@ class Args:
     quiet: bool = False
     """Disable verbose output."""
 
-    seed: Annotated[Optional[Union[int, List[int]]], tyro.conf.arg(aliases=["-s"])] = None
+    seed: Annotated[Optional[Union[int, list[int]]], tyro.conf.arg(aliases=["-s"])] = None
     """Seed(s) for random actions and simulator. Can be a single integer or a list of integers. Default is None (no seeds)"""
 
-    camera_width: int = 640
-    """Camera width"""
-
-    camera_height: int = 480
-    """Camera height"""
 
 def main(args: Args):
     if args.render_mode == "none":
@@ -90,18 +85,24 @@ def main(args: Args):
         render_backend=args.render_backend,
         enable_shadow=True,
         parallel_in_single_scene=parallel_in_single_scene,
-        camera_width=args.camera_width,
-        camera_height=args.camera_height,
         distraction_set=DistractionSet(),
     )
     if args.robot_uids is not None:
         env_kwargs["robot_uids"] = tuple(args.robot_uids.split(","))
         if len(env_kwargs["robot_uids"]) == 1:
             env_kwargs["robot_uids"] = env_kwargs["robot_uids"][0]
-    env: BaseEnv = gym.make(
-        args.env_id,
-        **env_kwargs
-    )
+    try:
+        env: BaseEnv = gym.make(
+            args.env_id,
+            **env_kwargs
+        )
+    except TypeError as e:
+        assert "got an unexpected keyword argument 'distraction_set'" in str(e)
+        del env_kwargs["distraction_set"]
+        env = gym.make(
+            args.env_id,
+            **env_kwargs
+        )
     record_dir = args.record_dir
     if record_dir:
         record_dir = record_dir.format(env_id=args.env_id)

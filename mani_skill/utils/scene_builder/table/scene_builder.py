@@ -70,7 +70,7 @@ class TableSceneBuilder(SceneBuilder):
             self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}"
         )
         self.table = table
-        self.scene_objects: List[sapien.Entity] = [self.table, self.ground]
+        self.scene_objects: list[sapien.Entity] = [self.table, self.ground]
 
     def initialize(self, env_idx: torch.Tensor, table_z_rotation_angle: float = np.pi/2.0, qpos_0: Optional[np.ndarray] = None):
         # table_height = 0.9196429

@@ -88,10 +88,10 @@ def parse_args(args=None):
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
-    if args.camera_width is not None and args.camera_height is not None:
-        distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
-        print("Distraction set:")
-        print(json.dumps(distraction_set.to_dict(), indent=2))
+    distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
+    print("Distraction set:")
+    print(json.dumps(distraction_set.to_dict(), indent=2))
+    try:
         env = gym.make(
             env_id,
             obs_mode=args.obs_mode,
@@ -102,11 +102,10 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             human_render_camera_configs=dict(shader_pack=args.shader),
             viewer_camera_configs=dict(shader_pack=args.shader),
             sim_backend=args.sim_backend,
-            camera_width=args.camera_width,
-            camera_height=args.camera_height,
             distraction_set=distraction_set
         )
-    else:
+    except TypeError as e:
+        assert "got an unexpected keyword argument 'distraction_set'" in str(e)
         env = gym.make(
             env_id,
             obs_mode=args.obs_mode,
@@ -116,8 +115,9 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             sensor_configs=dict(shader_pack=args.shader),
             human_render_camera_configs=dict(shader_pack=args.shader),
             viewer_camera_configs=dict(shader_pack=args.shader),
-            sim_backend=args.sim_backend
+            sim_backend=args.sim_backend,
         )
+
     if env_id not in MP_SOLUTIONS:
         raise RuntimeError(f"No already written motion planning solutions for {env_id}. Available options are {list(MP_SOLUTIONS.keys())}")
 
