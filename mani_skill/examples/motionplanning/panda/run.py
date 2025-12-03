@@ -23,11 +23,12 @@ from mani_skill.examples.motionplanning.panda.solutions import (
     solveDrawTriangle,
     solveDrawSVG,
     solvePlaceSphere,
-    solveOpenDrawer,
-    solveRaiseCube,
+    # solveOpenDrawer,  # Commented out - OpenDrawerV1Env doesn't exist
+    # solveRaiseCube,   # Commented out - RaiseCubeEnv doesn't exist
     solveOpenLaptop,
     solveStackPyramid,
     solvePlaceDishInRack,
+    solvePickDishFromRack,
     solveHammerNail,
     solvePourSphere,
 )
@@ -48,10 +49,11 @@ MP_SOLUTIONS = {
     "DrawSVG-v1" : solveDrawSVG,
     "StackPyramid-v1": solveStackPyramid,
     "PlaceDishInRack-v1": solvePlaceDishInRack,
+    "PickDishFromRack-v1": solvePickDishFromRack,
     "HammerNail-v1": solveHammerNail,
     "PourSphere-v1": solvePourSphere,
-    "RaiseCube-v1": solveRaiseCube,
-    "OpenDrawer-v1": solveOpenDrawer,               # new
+    # "RaiseCube-v1": solveRaiseCube,  # Commented out - RaiseCubeEnv doesn't exist
+    # "OpenDrawer-v1": solveOpenDrawer,  # Commented out - OpenDrawerV1Env doesn't exist
     "PushCube-v2": solvePushCube,                   # new
     "StackCube-v2": solveStackCube,                 # new
     "PullCube-v2": solvePullCube,                   # new
@@ -197,15 +199,17 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             if args.save_video:
                 env.flush_video()
             pbar.update(1)
-            pbar.set_postfix(
-                dict(
-                    success_rate=np.mean(successes),
-                    failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+            postfix_dict = dict(
+                success_rate=np.mean(successes),
+                failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+            )
+            if len(solution_episode_lengths) > 0:
+                postfix_dict.update(dict(
                     avg_episode_length=np.mean(solution_episode_lengths),
                     max_episode_length=np.max(solution_episode_lengths),
                     min_episode_length=np.min(solution_episode_lengths)
-                )
-            )
+                ))
+            pbar.set_postfix(postfix_dict)
             seed += 1
             passed += 1
             if passed == args.num_traj:

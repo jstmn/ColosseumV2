@@ -28,9 +28,10 @@ class SequentialSolver:
         pass
 
     def raise_cup1(self):
+        pass
 
     def move_above_cup2(self):
-        
+        pass
 
 
 def solve(env: PourSphereEnv, seed=None, debug=False, vis=False):

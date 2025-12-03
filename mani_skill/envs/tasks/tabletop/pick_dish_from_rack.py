@@ -56,7 +56,7 @@ class PickDishFromRackEnv(BaseEnv):
     _rack_extent = np.array([0.12060600281, 0.16782440567, 0.085])  # Normal rack size
     # STL is now centered at origin, no offset needed
 
-    _rack_position = np.array([-0.2, -0.1, 0])  # Rack position
+    _rack_position = np.array([0.1, -0.15, 0])  # Rack position closer to robot
     _plate_goal_position = np.array([0.2, -0.2, 0])  # Target position on table for plate
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
@@ -175,47 +175,34 @@ class PickDishFromRackEnv(BaseEnv):
     def _build_rack(self):
         builder = self.scene.create_actor_builder()
 
-        # Use simplified collision geometry with clear gaps for plates
-        # Instead of the complex STL collision, use boxes for the base and dividers
-        rack_width = self._rack_extent[0]   # 0.12m
-        rack_depth = self._rack_extent[1]   # 0.168m
-        rack_height = self._rack_extent[2]  # 0.085m
-        guard_material = PhysxMaterial(
-            static_friction=0.1,
-            dynamic_friction=0.1,
-            restitution=0.0,
+        # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
+        # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
+        # (Same as place_dish_in_rack.py for consistency)
+
+        # Base plate dimensions (extracted from STL)
+        base_width = 0.180906  # X
+        base_depth = 0.251737  # Y
+        base_thickness = 0.009999  # Z (about 1cm)
+        base_center = [0.004323, 0.007770, -0.057710]
+
+        builder.add_box_collision(
+            half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
+            pose=sapien.Pose(p=base_center)
         )
 
-        # Base plate of the rack
-        builder.add_box_collision(
-            half_size=[rack_width / 2, rack_depth / 2, 0.005],
-            pose=sapien.Pose(p=[0, 0, 0.005])
-        )
+        # Vertical divider positions and heights (extracted from STL)
+        rack_width = self._rack_extent[0]  # Width for dividers to span across
+        divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+        divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
+        divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
+        divider_thickness = 0.003  # 3mm thick
 
-        # Back wall
-        builder.add_box_collision(
-            half_size=[rack_width / 2, 0.005, rack_height / 2],
-            pose=sapien.Pose(p=[0, -rack_depth / 2, rack_height / 2])
-        )
-
-        # Side walls (left and right)
-        builder.add_box_collision(
-            half_size=[0.005, rack_depth / 2, rack_height / 2],
-            pose=sapien.Pose(p=[-rack_width / 2, 0, rack_height / 2])
-        )
-        builder.add_box_collision(
-            half_size=[0.005, rack_depth / 2, rack_height / 2],
-            pose=sapien.Pose(p=[rack_width / 2, 0, rack_height / 2])
-        )
-
-        # Add a single wide slot with two guide rails that leave enough clearance for the plate
-        guide_thickness = 0.003
-        guide_offset = self._plate_outer_radius + 0.005  # 5mm clearance on each side
-        for direction in (-1, 1):
+        # Add vertical dividers on top of base
+        # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
+        for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
             builder.add_box_collision(
-                half_size=[guide_thickness, rack_depth / 2, rack_height / 2],
-                pose=sapien.Pose(p=[direction * guide_offset, 0, rack_height / 2]),
-                material=guard_material,
+                half_size=[rack_width / 2, divider_thickness, height / 2],
+                pose=sapien.Pose(p=[0, y_pos, z_center])
             )
 
         # Keep the visual mesh (now centered at origin)
@@ -262,13 +249,16 @@ class PickDishFromRackEnv(BaseEnv):
             plate_pos = rack_pos.clone()
             plate_pos[:, 0] += slot_centers[slot_indices]
 
-            # Push plate toward the back wall so it leans against the rack instead of tipping
-            slot_depth = self._plate_total_height + 0.004
-            slot_mid_local = -rack_depth / 2 + slot_depth / 2
-            plate_pos[:, 1] = rack_pos[:, 1] + slot_mid_local
+            # Position plate more forward (closer to the front) for easier grasping
+            # Instead of being deep in the rack, place it near the front edge
+            plate_pos[:, 1] = rack_pos[:, 1] + rack_depth / 4  # Front quarter of the rack
 
-            # Standing on its rim: set center height so the bottom just touches the tabletop
-            plate_pos[:, 2] = table_top_z + self._plate_outer_radius
+            # Position plate vertically at the proper height in the rack
+            # The dividers are about 0.12m tall and centered around 0, so position plate center
+            # at a height that places it nicely between the dividers (not sitting on the base)
+            rack_base_height = rack_pos[:, 2] - float(self._rack_extent[2]) / 2.0  # Bottom of rack
+            divider_height = 0.123  # Average divider height from STL
+            plate_pos[:, 2] = rack_base_height + divider_height / 2.0  # Center of divider height
 
             # Keep the plate perfectly vertical (normal toward -Y)
             vertical_quat = torch.tensor(
