@@ -34,25 +34,27 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
         print(f"\n=== PLATE POSITION IN RACK ===")
         print(f"Plate position: {plate_pos}")
 
-    # Plate is vertical standing on its edge in the rack
-    # Normal points in -Y direction (plate faces backward)
-    # Approach from TOP (down) to grasp the rim
+    # Plate is vertical standing in the rack (rotated 90° around X)
+    # Circular face is perpendicular to Y direction
+    # Grasp from the TOP and lift straight up (simplest approach)
 
     # Approach from above (down in -Z direction)
     approaching = np.array([0, 0, -1])
 
-    # Closing direction left-right (X direction) to pinch across the rim
-    closing = np.array([1, 0, 0])
+    # Closing direction front-back (Y direction) to pinch across the plate's diameter
+    # Since plate face is perpendicular to Y, we close in Y direction
+    closing = np.array([0, 1, 0])
 
-    # Position the grasp point on the TOP of the vertical plate
+    # Position the grasp point at the TOP of the vertical plate
     center = plate_pos.copy()
     # Plate geometry parameters
     plate_outer_radius = env_sim._plate_outer_radius
     plate_inner_radius = env_sim._plate_inner_radius
     plate_rim_height = env_sim._plate_rim_height
 
-    # Grasp slightly below the top of the plate for stability
-    center[2] = plate_pos[2] + plate_outer_radius * 0.7  # Near the top
+    # Grasp at the top of the vertical plate
+    center[1] = plate_pos[1] - 0.07
+    center[2] = plate_pos[2] + plate_outer_radius * 0.8  # Near the top rim
 
     # Build grasp pose
     grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, center)
@@ -70,7 +72,7 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 1: REACH ===")
 
-    # Back away 10cm before approaching (move up in gripper's local frame)
+    # Back away 10cm before approaching (move up in gripper's local Z frame)
     reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
     result = planner.move_to_pose_with_RRTConnect(reach_pose)
     if result == -1:
@@ -120,8 +122,8 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 3: PULL OUT ===")
 
-    # Pull straight up out of the rack
-    pullout_pose = grasp_pose * sapien.Pose([0, 0, -0.15])
+    # Lift straight up out of the rack
+    pullout_pose = grasp_pose * sapien.Pose([0, 0, -0.20])
     res = planner.move_to_pose_with_screw(pullout_pose)
 
     if debug:
@@ -134,9 +136,9 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 4: ROTATE TO HORIZONTAL ===")
 
-    # Rotate 90 degrees around Y axis to make plate horizontal
-    # (normal was pointing -Y, gripper pointing down, rotate plate to lie flat)
-    rotation = sapien.Pose(q=[0.7071068, 0, 0.7071068, 0])  # 90 deg around Y
+    # Rotate -90 degrees around X axis to make plate horizontal
+    # (plate was vertical standing up, rotate to lie flat)
+    rotation = sapien.Pose(q=[0.7071068, -0.7071068, 0, 0])  # -90 deg around X
     horizontal_pose = pullout_pose * rotation
 
     res = planner.move_to_pose_with_screw(horizontal_pose)
