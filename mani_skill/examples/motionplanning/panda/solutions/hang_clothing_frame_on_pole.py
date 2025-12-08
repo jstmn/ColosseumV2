@@ -5,7 +5,7 @@ import math
 from mani_skill.envs.tasks.tabletop.HangClothingFrameOnPole import HangClothingFrameOnPoleEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
-
+import time
 def main():
     env: HangClothingFrameOnPoleEnv = gym.make(
         "HangClothingFrameOnPole-v1",
@@ -17,7 +17,7 @@ def main():
     for seed in range(100):
         res = solve(env, seed=seed, debug=True, vis=True)
         print(res)
-        env.close()
+    env.close()
 
 def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     env.reset(seed=seed)
@@ -113,7 +113,7 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     # -------------------------------------------------------------------------- #
     # Rotation about the y axis and translation along the local z axis
     # -------------------------------------------------------------------------- #
-    # theta = -np.pi/2
+    # theta = -np.pi/2lander
     # rotation_quat = np.array([np.cos(theta / 2), np.sin(theta / 2), 0.0 , 0.0])
     # final_pose = final_pose * sapien.Pose(
     #     p=[0, 0, 0],
@@ -125,7 +125,7 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     # # -------------------------------------------------------------------------- #
     # # Lower
     # # -------------------------------------------------------------------------- #
-    final_pose = sapien.Pose([0,0.45,0])*final_pose
+    final_pose = sapien.Pose([0,0.4,0])*final_pose
     res = planner.move_to_pose_with_RRTStar(final_pose)
     if res == -1: return res
 
@@ -133,6 +133,10 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     res = planner.move_to_pose_with_screw(final_pose)
     if res == -1: return res
 
+    # Retreat
+    retreat_pose = sapien.Pose([0, -0.4,0])*final_pose
+    res = planner.move_to_pose_with_RRTStar(retreat_pose)
+    if res == -1: return res
     planner.close()
     
     return res
