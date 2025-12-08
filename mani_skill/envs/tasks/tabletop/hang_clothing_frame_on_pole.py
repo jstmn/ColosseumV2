@@ -95,23 +95,23 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # Optionally keep a handle:
         # self.open_cabinet = built
         self.clothing_frame = self.load_glb_as_actor(self.scene, 
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb",
-                                            sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
-                                            name="soda_can",
-                                            scale=[1,1,1],
-                                            type="dynamic")
+            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
+            sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
+            name="soda_can",
+            scale=[1,1,1],
+            type="dynamic")
         self.stand1 = self.load_glb_as_actor(self.scene,
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
-                                            sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
-                                            name="stand1",
-                                            scale=[0.01,0.004,0.005],
-                                            type="static")
+            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/clothes_rack.glb'),
+            sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
+            name="stand1",
+            scale=[0.01,0.004,0.005],
+            type="static")
         self.stand2 = self.load_glb_as_actor(self.scene,
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
-                                            sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
-                                            name="stand2",
-                                            scale=[0.01,0.004,0.005],
-                                            type="static")
+            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/clothes_rack.glb'),
+            sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
+            name="stand2",
+            scale=[0.01,0.004,0.005],
+            type="static")
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
@@ -124,7 +124,6 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
-        print(f"{name} imported successfully")
         return actor
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

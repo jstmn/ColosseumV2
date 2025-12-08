@@ -72,35 +72,6 @@ class RoboCasaDemoEnv(BaseEnv):
             env=self, init_robot_base_pos=sapien.Pose(p=[4, -0.6, 0.94], q=[ 0.7071, 0, 0, 0.7071]) )
         self.cabinet_scene.build(build_config_idxs=[1])
         
-        # If you previously built the full robocasa scene, skip it and use this:
-        # programmatic open cabinet only:
-        # size is width, depth, height (meters)
-        # cab_size = [0.6, 0.4, 0.9]  # adjust to taste
-        # open_cab = OpenCabinet(
-        #     scene=self.scene,
-        #     name="open_cabinet",
-        #     size=cab_size,
-        #     num_shelves=3,
-        #     thickness=0.03,
-        #     texture=None,
-        #     pos=[0.0, 0.5, 0.2],  # center pos in world coordinates (x,y,z)
-        #     rng=np.random.default_rng(),  # or pass your env rng
-        # )
-        # # Build into the scene (for single env index, pass [0]; for batched envs use proper indices):
-        # open_cab.quat = sapien.Pose(q=[0.7071,0,0,-0.7071]).q  # default orientation
-        # open_cab.pos = np.array([0.26, 0.1, 0.456])
-        # # choose scene indices to build into; if you have a batch, build into all relevant indices
-        # built = open_cab.build(scene_idxs=[0])
-        # # If environment uses multiple envs, repeat build for each environment index you care about.
-        # # Optionally keep a handle:
-        # self.open_cabinet = built
-        # self.soda = self.load_glb_as_actor(self.scene, 
-        #                                      "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/place_soda_in_cabinet/opened_soda_can.glb",
-        #                                     sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-        #                                     name="soda_can",
-        #                                     scale=[0.05,0.05,0.05],
-        #                                     type="dynamic")
-
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
@@ -112,7 +83,6 @@ class RoboCasaDemoEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
-        print(f"{name} imported successfully")
         return actor
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

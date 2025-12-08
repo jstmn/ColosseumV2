@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import sapien
 import math
-from mani_skill.envs.tasks.tabletop.HangClothingFrameOnPole import HangClothingFrameOnPoleEnv
+from mani_skill.envs.tasks.tabletop.hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 

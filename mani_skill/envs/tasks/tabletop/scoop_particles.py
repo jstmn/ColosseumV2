@@ -1,5 +1,5 @@
 from typing import Any, Dict, Union
-
+import os
 import numpy as np
 import sapien
 import torch
@@ -103,7 +103,7 @@ class ScoopParticlesEnv(BaseEnv):
 
         self.dustpan = self.load_glb_as_actor(
             self.scene,
-            glb_file_path="/home/prajwal/Downloads/ManiSkill-main/mani_skill/assets/scoop_particles/dustpan.glb",
+            glb_file_path=os.path.join(os.path.dirname(__file__), '../../../assets/scoop_particles/dustpan.glb'),
             pose=sapien.Pose(p=[0, 0, 0.015]),
             name="dustpan",
             type="dynamic"
@@ -123,7 +123,6 @@ class ScoopParticlesEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
-        print(f"{name} imported successfully")
         return actor
 
 

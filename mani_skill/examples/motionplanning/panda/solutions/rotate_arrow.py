@@ -4,13 +4,13 @@ import gymnasium as gym
 import torch
 import time
 from transforms3d.euler import euler2quat
-from mani_skill.envs.tasks import PushArrowEnv
+from mani_skill.envs.tasks.tabletop.rotate_arrow import RotateArrowEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 from copy import deepcopy
 def main():
-    env: PushArrowEnv = gym.make(
-        "PushArrow-v1",
+    env: RotateArrowEnv = gym.make(
+        "RotateArrow-v1",
         obs_mode="none",
         control_mode="pd_joint_pos",
         render_mode="rgb_array",
@@ -21,7 +21,7 @@ def main():
         print(res)
     env.close()
 
-def solve(env: PushArrowEnv, seed=None, debug=False, vis=False):
+def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     env.reset(seed=seed)
     planner = PandaArmMotionPlanningSolver(
         env,
@@ -62,7 +62,6 @@ def solve(env: PushArrowEnv, seed=None, debug=False, vis=False):
     arrow_init_x_axis = deepcopy(arrow_x_axis)
 
     while(np.dot(arrow_x_axis, arrow_init_x_axis) > -0.95): # while angle < 170 degrees
-        print("Current dot product:", np.dot(arrow_x_axis, arrow_init_x_axis))
         # z_rot = env.quat_to_z_euler(env.arrow.pose.q)
         # reach_pose_1 = reach_pose_1 * sapien.Pose([0, 0.01, 0]) # 15 cm above grasp pose
         # reach_pose_1.set_q(euler2quat(np.pi,0,z_rot)) # set orientation to arrow orientation

@@ -2,7 +2,7 @@ import numpy as np
 import sapien
 import gymnasium as gym
 import time
-from mani_skill.envs.tasks import ScoopParticlesEnv
+from mani_skill.envs.tasks.tabletop.scoop_particles import ScoopParticlesEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 

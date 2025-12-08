@@ -14,6 +14,7 @@ from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
+import os
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
@@ -72,17 +73,15 @@ class PlaceBookEnv(BaseEnv):
         #                    ([0.30/2,0.02/2,0.25/2],sapien.Pose(p=[0.0,0.161,-0.1],q=[0.707,0.707,0,0])),
         #                    ([0.312/2,0.27/2,0.0302/2],sapien.Pose(p=[0.0,0.286,0.018],q=[0.707,-0.707,0,0]))]
         self.shelf = self.load_glb_as_actor(self.scene, 
-                                            "/home/prajwal/Downloads/ManiSkill-main/mani_skill/assets/book_in_shelf/BookShelf.glb", 
-                                            sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
-                                            name="custom_glb_shelf",
-                                            type="static")
-                                            
-        
+            os.path.join(os.path.dirname(__file__), '../../../assets/book_in_shelf/BookShelf.glb'), 
+            sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
+            name="custom_glb_shelf",
+            type="static")
         self.book_A = self.load_glb_as_actor(self.scene, 
-                                             "/home/prajwal/Downloads/ManiSkill-main/mani_skill/assets/book_in_shelf/simple_book_1.glb",
-                                            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-                                            name="book_A",
-                                            type="dynamic")
+            os.path.join(os.path.dirname(__file__), '../../../assets/book_in_shelf/simple_book_1.glb'),
+            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
+            name="book_A",
+            type="dynamic")
         # self.book_B = self.load_glb_as_actor(self.scene, 
         #                                      "mani_skill/assets/book_in_shelf/simple_book_2.glb",
         #                                     [([0.04,0.015,0.1], sapien.Pose(p=[0,0,0], q=[1,0,0,0]))],
@@ -133,7 +132,6 @@ class PlaceBookEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
-        print(f"{name} imported successfully")
         return actor
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
