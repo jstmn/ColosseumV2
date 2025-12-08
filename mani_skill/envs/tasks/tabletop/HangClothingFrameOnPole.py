@@ -4,6 +4,7 @@ import sapien
 import torch
 import trimesh
 import os
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
@@ -95,19 +96,22 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # Optionally keep a handle:
         # self.open_cabinet = built
         self.clothing_frame = self.load_glb_as_actor(self.scene, 
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb",
+                                            #  "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb",
+                                            os.path.join(PACKAGE_ASSET_DIR, "ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb"),
                                             sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
                                             name="soda_can",
                                             scale=[1,1,1],
                                             type="dynamic")
         self.stand1 = self.load_glb_as_actor(self.scene,
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
+                                            #  "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
+                                            os.path.join(PACKAGE_ASSET_DIR, "ClothHangingFrameTransfer/clothes_rack.glb"),
                                             sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
                                             name="stand1",
                                             scale=[0.01,0.004,0.005],
                                             type="static")
         self.stand2 = self.load_glb_as_actor(self.scene,
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
+                                            #  "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/ClothHangingFrameTransfer/clothes_rack.glb",
+                                            os.path.join(PACKAGE_ASSET_DIR, "ClothHangingFrameTransfer/clothes_rack.glb"),
                                             sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
                                             name="stand2",
                                             scale=[0.01,0.004,0.005],
