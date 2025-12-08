@@ -63,6 +63,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[0, 0, 0])) # Loads the panda arm
 
     def _load_scene(self, options: dict):
+        self._check_robocasa_dataset()
         self.table_scene = TableSceneBuilder(
             env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
@@ -221,3 +222,50 @@ class PickSodaFromCabinetEnv(BaseEnv):
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
         return self.compute_dense_reward(obs=obs, action=action, info=info) / 8
+
+    def _check_robocasa_dataset(self):
+        """
+        Check if RoboCasa dataset is available.
+        If not, provide helpful error message with download instructions.
+        """
+        import pathlib
+        
+        # Check for a key RoboCasa fixture file
+        robocasa_data_path = pathlib.Path.home() / ".maniskill" / "data" / "scene_datasets" / "robocasa_dataset"
+        cabinet_fixture_path = robocasa_data_path / "assets" / "fixtures" / "cabinets" / "cabinet_open.xml"
+        
+        if not cabinet_fixture_path.exists():
+            error_msg = f"""
+================================================================================
+ERROR: RoboCasa dataset not found!
+================================================================================
+
+The PickSodaFromCabinet-v1 environment requires the RoboCasa dataset.
+
+Expected location: {robocasa_data_path}
+Missing file: {cabinet_fixture_path}
+
+To download the dataset, run the following commands:
+
+    # Using ManiSkill's dataset download tool
+    python -m mani_skill.utils.download_asset robocasa_dataset
+    
+OR manually:
+
+    # Navigate to your ManiSkill data directory
+    mkdir -p ~/.maniskill/data/scene_datasets
+    cd ~/.maniskill/data/scene_datasets
+    
+    # Download the RoboCasa dataset (adjust URL as needed)
+    # Check the official ManiSkill/RoboCasa documentation for the correct link
+    
+After downloading, verify the path exists:
+    ls -la ~/.maniskill/data/scene_datasets/robocasa_dataset/assets/fixtures/cabinets/
+
+For more information, see:
+    - https://github.com/haosulab/ManiSkill
+    - https://github.com/haosulab/RoboCasa
+
+================================================================================
+"""
+            raise FileNotFoundError(error_msg)
