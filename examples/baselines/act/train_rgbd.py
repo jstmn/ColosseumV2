@@ -45,7 +45,9 @@ OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
 @dataclass
 class Args:
 
-    distraction_set: str
+    # distraction_set: str
+    hardware_dataset: bool = False
+    """If set, train only from offline demo HDF5 and do not create any ManiSkill environment."""
 
     exp_name: Optional[str] = None
     """the name of this experiment"""
@@ -463,10 +465,12 @@ if __name__ == "__main__":
     args = tyro.cli(Args)
 
     if args.exp_name is None:
-        args.exp_name = os.path.basename(__file__)[: -len(".py")]
-        run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+        args.exp_name = os.path.basename(__file__)[:-3]
+
+    if args.hardware_dataset:
+        run_name = f"hardware__{args.exp_name}__{args.seed}__{int(time.time())}"
     else:
-        run_name = args.exp_name
+        run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     if args.demo_path.endswith('.h5'):
         import json
@@ -492,13 +496,15 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        # distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
     )
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
     wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth)]
-    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
+    envs=None
+    if not args.hardware_dataset:
+        envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
     # dataloader setup
     dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, include_depth=args.include_depth)
@@ -537,6 +543,19 @@ if __name__ == "__main__":
     )
 
     # agent setup
+    if args.hardware_dataset:
+        # build a fake space from dataset example
+        example = dataset[0]["observations"]
+        class DummySpace:
+            def __init__(self, shape): self.shape = shape
+        class DummyEnv:
+            single_observation_space = {
+                "state": DummySpace(example["state"].shape),
+                "rgb": DummySpace(example["rgb"].shape),
+                "depth": DummySpace(example["depth"].shape) if args.include_depth else None,
+            }
+            single_action_space = DummySpace(dataset.trajectories['actions'][0].shape[1:])
+        env = DummyEnv()
     agent = Agent(envs, args).to(device)
 
     # optimizer setup
@@ -606,6 +625,19 @@ if __name__ == "__main__":
             last_tick = time.time()
 
             ema.copy_to(ema_agent.parameters())
+            eval_stats = None
+            if dataset.norm_stats is not None:
+                eval_stats = {k: (v.to(device) if torch.is_tensor(v) else v)
+                            for k, v in dataset.norm_stats.items()}
+
+            eval_kwargs = dict(
+                stats=eval_stats,
+                num_queries=args.num_queries,
+                temporal_agg=args.temporal_agg,
+                max_timesteps=args.max_episode_steps,
+                device=device,
+                sim_backend=args.sim_backend
+            )
 
             eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, eval_kwargs)
             timings["eval"] += time.time() - last_tick
