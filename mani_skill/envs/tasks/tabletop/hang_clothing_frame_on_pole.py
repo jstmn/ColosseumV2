@@ -233,3 +233,5 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
         return self.compute_dense_reward(obs=obs, action=action, info=info) / 8
+
+# TODO: Add assets file path
