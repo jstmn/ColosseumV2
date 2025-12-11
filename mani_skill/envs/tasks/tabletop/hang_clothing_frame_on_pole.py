@@ -4,6 +4,7 @@ import sapien
 import torch
 import trimesh
 import os
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
@@ -95,19 +96,19 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # Optionally keep a handle:
         # self.open_cabinet = built
         self.clothing_frame = self.load_glb_as_actor(self.scene, 
-            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
+            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
             sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
             name="soda_can",
             scale=[1,1,1],
             type="dynamic")
         self.stand1 = self.load_glb_as_actor(self.scene,
-            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/clothes_rack.glb'),
+            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand1",
             scale=[0.01,0.004,0.005],
             type="static")
         self.stand2 = self.load_glb_as_actor(self.scene,
-            os.path.join(os.path.dirname(__file__), '../../assets/ClothHangingFrameTransfer/clothes_rack.glb'),
+            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand2",
             scale=[0.01,0.004,0.005],
@@ -130,7 +131,13 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             self.table_scene.initialize(env_idx)
-
+            xyz = torch.zeros((b, 3))
+            x = -torch.rand((b, 1))*0.3-0.1
+            xyz[:, 0] = x
+            xyz[:, 1] = -0.4
+            xyz[:, 2] = 0.431
+            self.clothing_frame.set_pose(Pose.create_from_pq(p=xyz, q=torch.tensor([0.548,0.5,0.5,0.453]).repeat(b,1)))
+            return
             # xyz = torch.zeros((b, 3))
             # xyz[:, 2] = 0.405
             # # xy = torch.rand((b, 2)) * 0.2 - 0.1
@@ -174,14 +181,14 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # is_book_in_shelf = torch.logical_and(torch.logical_and(x_flag, y_flag),  z_flag)
 
         # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
-        is_soda_static = self.clothing_frame.is_static(lin_thresh=1e-2, ang_thresh=0.5)
+        is_soda_static = self.clothing_frame.is_static(lin_thresh=1e-1, ang_thresh=1) # Not working well
         print(self.clothing_frame.pose.p)
-        is_soda_on_table = self.clothing_frame.pose.p[0][2] < 0.1
+        is_soda_on_table = (self.clothing_frame.pose.p[0][2] < 0.43) and (self.clothing_frame.pose.p[0][2] > 0.4)
         success = is_soda_static * (is_soda_on_table)
         return {
             # "is_book_grasped": is_book_grasped,
-            "is_soda_on_table": is_soda_on_table,
-            "is_soda_static": is_soda_static,
+            "is_frame_on_pole": is_soda_on_table,
+            "is_frame_static": is_soda_static,
             "success": success.bool()
         }
         
@@ -233,5 +240,3 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
         return self.compute_dense_reward(obs=obs, action=action, info=info) / 8
-
-# TODO: Add assets file path
