@@ -3,7 +3,7 @@ import os
 import numpy as np
 import sapien
 import torch
-
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
@@ -103,7 +103,7 @@ class ScoopParticlesEnv(BaseEnv):
 
         self.dustpan = self.load_glb_as_actor(
             self.scene,
-            glb_file_path=os.path.join(os.path.dirname(__file__), '../../../assets/scoop_particles/dustpan.glb'),
+            glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),
             pose=sapien.Pose(p=[0, 0, 0.015]),
             name="dustpan",
             type="dynamic"
