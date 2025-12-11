@@ -58,9 +58,7 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     # Height should be lower on the rim for a more secure grip
     # center[2] = plate_pos[2] + plate_base_thickness + plate_rim_height * 0.3  # Low-mid on rim
-    center[2] = plate_pos[2] + plate_base_thickness + plate_rim_height/2 - 0.03 # Low-mid on rim / center: [-0.24 -0.26  0.025]
-    print("center:", center)
-    # exit()
+    center[2] = plate_pos[2] + plate_base_thickness + plate_rim_height/2 - 0.01  # Low-mid on rim
 
 
     # Build grasp pose
@@ -98,7 +96,7 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 2: GRASP ===")
 
-    result = planner.move_to_pose_with_screw(grasp_pose)
+    result = planner.move_to_pose_with_RRTConnect(grasp_pose)
     if result == -1:
         if debug:
             print("❌ Failed to grasp position")
@@ -150,8 +148,9 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     # Position directly above rack CENTER
     target_pos = rack_pos.copy()
-    # No X offset - keep at rack center X
     # No Y offset - keep at rack center Y
+    target_pos[0] += 0.05  # Centered in X
+    target_pos[1] += 0.03  # 10cm above rack for clearance
     target_pos[2] += rack_height + 0.10  # 10cm above rack for clearance
 
     # Keep horizontal orientation (same as lift pose)
@@ -185,39 +184,6 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
         plate_vertical = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Rotated to vertical: {plate_vertical}")
 
-    # -------------------------------------------------------------------------- #
-    # Move vertical plate to rack center (keep same height)
-    # -------------------------------------------------------------------------- #
-    if debug:
-        print(f"\n=== STEP 5.5: ALIGN OVER RACK ===")
-
-    # Get current height from vertical pose
-    current_height = vertical_pose.p[2]
-    rack_center = env_sim.dish_rack.pose.p[0].cpu().numpy()
-    target_pos = np.array([rack_center[0], rack_center[1], current_height])
-
-    # Create pose at (0, 0) with vertical orientation
-    target_pose = sapien.Pose(p=target_pos, q=vertical_pose.q)
-
-    res = planner.move_to_pose_with_RRTConnect(target_pose)
-
-    if debug:
-        plate_at_target = env_sim.plate.pose.p[0].cpu().numpy()
-        rack_now = env_sim.dish_rack.pose.p[0].cpu().numpy()
-        print(f"✓ Plate above rack | plate: {plate_at_target}, rack center: {rack_now}")
-
-    # Hold position to let plate settle before release
-    qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for i in range(30):  # Hold steady for 30 steps
-        if planner.control_mode == "pd_joint_pos":
-            action = np.hstack([qpos, -1.0])  # Keep gripper closed
-        else:
-            action = np.hstack([qpos, qpos * 0, -1.0])
-        env_sim.step(action)
-
-    if debug:
-        plate_before_release = env_sim.plate.pose.p[0].cpu().numpy()
-        print(f"  Plate before release: {plate_before_release}")
 
     # -------------------------------------------------------------------------- #
     # Release plate
@@ -225,6 +191,8 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 6: RELEASE ===")
 
+    release_pose = vertical_pose * sapien.Pose([-0.05, 0, 0])  # Move down 5cm to release position
+    res = planner.move_to_pose_with_RRTConnect(release_pose)
     planner.open_gripper()
 
     if debug:
@@ -238,7 +206,7 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
         print(f"\n=== STEP 7: RETURN TO SAFE POSITION ===")
 
     # Move up and back to a safe position away from the plate
-    retreat_pose = target_pose * sapien.Pose([0, 0, 0.15])  # Move up 15cm from release position
+    retreat_pose = vertical_pose * sapien.Pose([0, 0, -0.15])  # Move up 15cm from release position
     res = planner.move_to_pose_with_RRTConnect(retreat_pose)
 
     if debug:

@@ -202,42 +202,33 @@ class PlaceDishInRackEnv(BaseEnv):
     def _build_rack(self):
         builder = self.scene.create_actor_builder()
 
-        # Use simplified collision geometry with clear gaps for plates
-        # Instead of the complex STL collision, use boxes for the base and dividers
-        rack_width = self._rack_extent[0]   # 0.12m
-        rack_depth = self._rack_extent[1]   # 0.168m
-        rack_height = self._rack_extent[2]  # 0.085m
+        # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
+        # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
 
-        # Base plate of the rack
+        # Base plate dimensions (extracted from STL)
+        base_width = 0.180906  # X
+        base_depth = 0.251737  # Y
+        base_thickness = 0.009999  # Z (about 1cm)
+        base_center = [0.004323, 0.007770, -0.057710]
+
         builder.add_box_collision(
-            half_size=[rack_width / 2, rack_depth / 2, 0.005],
-            pose=sapien.Pose(p=[0, 0, 0.000])
+            half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
+            pose=sapien.Pose(p=base_center)
         )
 
-        # Back wall
-        builder.add_box_collision(
-            half_size=[rack_width / 2, 0.005, rack_height / 2],
-            pose=sapien.Pose(p=[0, -rack_depth / 2, rack_height / 2])
-        )
+        # Vertical divider positions and heights (extracted from STL)
+        rack_width = self._rack_extent[0]  # Width for dividers to span across
+        divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+        divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
+        divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
+        divider_thickness = 0.003  # 3mm thick
 
-        # Side walls (left and right)
-        builder.add_box_collision(
-            half_size=[0.005, rack_depth / 2, rack_height / 2],
-            pose=sapien.Pose(p=[-rack_width / 2, 0, rack_height / 2])
-        )
-        builder.add_box_collision(
-            half_size=[0.005, rack_depth / 2, rack_height / 2],
-            pose=sapien.Pose(p=[rack_width / 2, 0, rack_height / 2])
-        )
-
-        # Add vertical dividers (slots for plates) - 3 dividers creating 4 slots
-        divider_thickness = 0.003
-        num_dividers = 3
-        for i in range(num_dividers):
-            x_pos = -rack_width / 2 + (i + 1) * rack_width / (num_dividers + 1)
+        # Add vertical dividers on top of base
+        # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
+        for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
             builder.add_box_collision(
-                half_size=[divider_thickness, rack_depth / 2, rack_height / 2],
-                pose=sapien.Pose(p=[x_pos, 0, rack_height / 2])
+                half_size=[rack_width / 2, divider_thickness, height / 2],
+                pose=sapien.Pose(p=[0, y_pos, z_center])
             )
 
         # Keep the visual mesh (now centered at origin)

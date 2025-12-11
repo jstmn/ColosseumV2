@@ -23,11 +23,12 @@ from mani_skill.examples.motionplanning.panda.solutions import (
     solveDrawTriangle,
     solveDrawSVG,
     solvePlaceSphere,
-    solveOpenDrawer,
-    solveRaiseCube,
+    # solveOpenDrawer,  # Commented out - OpenDrawerV1Env doesn't exist
+    # solveRaiseCube,   # Commented out - RaiseCubeEnv doesn't exist
     solveOpenLaptop,
     solveStackPyramid,
     solvePlaceDishInRack,
+    solvePickDishFromRack,
     solveHammerNail,
     solvePourSphere,
 )
@@ -48,41 +49,40 @@ MP_SOLUTIONS = {
     "DrawSVG-v1" : solveDrawSVG,
     "StackPyramid-v1": solveStackPyramid,
     "PlaceDishInRack-v1": solvePlaceDishInRack,
+    "PickDishFromRack-v1": solvePickDishFromRack,
     "HammerNail-v1": solveHammerNail,
     "PourSphere-v1": solvePourSphere,
-    #
-
-    # New tasks:
-    "RaiseCube-v1": solveRaiseCube,
-    "LiftPegUpright-v2": solveLiftPegUpright,
-    "OpenDrawer-v1": solveOpenDrawer,               # new
-    "PlaceSphere-v2": solvePlaceSphere,             # new  
-    "PickCube-v2": solvePickCube,                   # new
-    "PickCube-v3": solvePickCube,                   # new
-    "PickCube-v4": solvePickCube,                   # new
-    "PickCube-v3-VisibleSphere": solvePickCube,     # new
-    "StackCube-v2": solveStackCube,                 # new
-    # "PlugCharger-v2": solvePlugCharger,             # new
+    # "RaiseCube-v1": solveRaiseCube,  # Commented out - RaiseCubeEnv doesn't exist
+    # "OpenDrawer-v1": solveOpenDrawer,  # Commented out - OpenDrawerV1Env doesn't exist
     "PushCube-v2": solvePushCube,                   # new
+    "StackCube-v2": solveStackCube,                 # new
     "PullCube-v2": solvePullCube,                   # new
-    # "PullCubeTool-v2": solvePullCubeTool,           # new
     "PegInsertionSide-v2": solvePegInsertionSide,   # new
     "OpenLaptop-v1": solveOpenLaptop,
 }
 
 """
+# New Colosseum V2 Tasks
+ENV_ID=OpenDrawer-v1
+ENV_ID=PushCube-v2
+ENV_ID=StackCube-v2
 ENV_ID=RaiseCube-v1
+
+DISTRACTION_SET=all
+# ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --camera-width 640 --camera-height 480 \
     --env-id ${ENV_ID} \
     --num-traj 10 \
-    --distraction-set "none" \
+    --distraction-set ${DISTRACTION_SET} \
     --num-procs 1 \
     --reward-mode "none" \
     --random-seed \
     --vis
 
+
+# Or, simply spawn the environment and send random actions:
 python -m mani_skill.examples.demo_random_action -e ${ENV_ID} --render-mode="human" --shader="rt-fast" --seed 3 --reward_mode "sparse" --pause
 """
 
@@ -199,15 +199,17 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             if args.save_video:
                 env.flush_video()
             pbar.update(1)
-            pbar.set_postfix(
-                dict(
-                    success_rate=np.mean(successes),
-                    failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+            postfix_dict = dict(
+                success_rate=np.mean(successes),
+                failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+            )
+            if len(solution_episode_lengths) > 0:
+                postfix_dict.update(dict(
                     avg_episode_length=np.mean(solution_episode_lengths),
                     max_episode_length=np.max(solution_episode_lengths),
                     min_episode_length=np.min(solution_episode_lengths)
-                )
-            )
+                ))
+            pbar.set_postfix(postfix_dict)
             seed += 1
             passed += 1
             if passed == args.num_traj:
