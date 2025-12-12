@@ -1,3 +1,0 @@
-from .pick_banana_from_open_drawer import solve as solvePickBananaFromOpenDrawer
-from .place_lightbulb_socket import solve as solvePlaceLightbulbSocket
-from .place_apple_on_plate import solve as solvePlaceAppleOnPlate

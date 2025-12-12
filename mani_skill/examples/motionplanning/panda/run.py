@@ -58,6 +58,15 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --random-seed \
     --save-video \
     --vis
+
+python mani_skill/examples/motionplanning/panda/run.py \
+    --env-id PickBananaFromOpenDrawer-v1 \
+    --num-traj 10 \
+    --distraction-set none \
+    --num-procs 1 \
+    --reward-mode "sparse" \
+    --random-seed \
+    --vis
 """
 
 

@@ -98,6 +98,8 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
         self.cabinet_z = -collision_mesh.bounding_box.bounds[0, 2]
 
     def _load_banana(self):
+        # TODO(@orhun): Throw an error if the banana is not found.
+        # TODO(@orhun): Add a command line
         try:
             banana_builder = actors.get_actor_builder(self.scene, id="ycb:011_banana")
             banana_builder.initial_pose = sapien.Pose(p=[0.15, 0, 0.1])

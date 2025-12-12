@@ -3,9 +3,9 @@ import numpy as np
 import sapien
 from transforms3d.euler import euler2quat
 
-import mani_skill.envs.tasks.tabletop.pick_lightbulb_place_socket_env
+from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.place_lightbulb_socket import PickLightbulbPlaceSocketEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
-from mani_skill.examples.motionplanning.panda.utils import compute_grasp_info_by_obb, get_actor_obb
+from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 
 def solve(env, debug=False, vis=False):
