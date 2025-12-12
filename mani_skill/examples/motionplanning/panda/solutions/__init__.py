@@ -19,3 +19,5 @@ from .hang_clothing_frame_on_pole import solve as solveHangClothingFrameOnPole
 from .pick_soda_from_cabinet import solve as solvePickSodaFromCabinet
 from .rotate_arrow import solve as solveRotateArrow
 from .scoop_particles import solve as solveScoopParticles
+from .place_lightbulb_socket import solve as solvePlaceLightbulbSocket
+from .place_apple_on_plate import solve as solvePlaceAppleOnPlate
