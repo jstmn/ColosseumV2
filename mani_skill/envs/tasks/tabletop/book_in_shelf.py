@@ -3,6 +3,7 @@ import numpy as np
 import sapien
 import torch
 import trimesh
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
@@ -73,12 +74,12 @@ class PlaceBookEnv(BaseEnv):
         #                    ([0.30/2,0.02/2,0.25/2],sapien.Pose(p=[0.0,0.161,-0.1],q=[0.707,0.707,0,0])),
         #                    ([0.312/2,0.27/2,0.0302/2],sapien.Pose(p=[0.0,0.286,0.018],q=[0.707,-0.707,0,0]))]
         self.shelf = self.load_glb_as_actor(self.scene, 
-            os.path.join(os.path.dirname(__file__), '../../../assets/book_in_shelf/BookShelf.glb'), 
+            os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'), 
             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
             name="custom_glb_shelf",
             type="static")
         self.book_A = self.load_glb_as_actor(self.scene, 
-            os.path.join(os.path.dirname(__file__), '../../../assets/book_in_shelf/simple_book_1.glb'),
+            os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
             sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             name="book_A",
             type="dynamic")

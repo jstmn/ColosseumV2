@@ -63,7 +63,9 @@ class PickSodaFromCabinetEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[0, 0, 0])) # Loads the panda arm
 
     def _load_scene(self, options: dict):
+        # Check if RoboCasa dataset is available
         self._check_robocasa_dataset()
+        
         self.table_scene = TableSceneBuilder(
             env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
@@ -72,7 +74,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
         # self.cabinet_scene = RoboCasaSceneBuilder(
         #     env=self, init_robot_base_pos=sapien.Pose(p=[4, -0.6, 0.94], q=[ 0.7071, 0, 0, 0.7071]) )
         # self.cabinet_scene.build(build_config_idxs=[1])
-
+        
         # If you previously built the full robocasa scene, skip it and use this:
         # programmatic open cabinet only:
         # size is width, depth, height (meters)
@@ -95,13 +97,37 @@ class PickSodaFromCabinetEnv(BaseEnv):
         # If environment uses multiple envs, repeat build for each environment index you care about.
         # Optionally keep a handle:
         self.open_cabinet = built
-        self.soda = self.load_glb_as_actor(self.scene,
-            os.path.join(os.path.dirname(__file__), '../../../assets/place_soda_in_cabinet/opened_soda_can.glb'),
-            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-            name="soda_can",
-            scale=[0.04,0.04,0.04],
-            type="dynamic")
-
+        self.left = actors.build_box(
+            self.scene,
+            half_sizes=[0.38/2, 0.01, 0.272],
+            color=np.array([141, 117, 105, 255]) / 255,
+            name="left",
+            body_type="static",
+            initial_pose=sapien.Pose(p=[0.252629, 0.195302, 0.309642]),
+        )
+        self.right = actors.build_box(
+            self.scene,
+            half_sizes=[0.38/2, 0.01, 0.272],
+            color=np.array([141, 117, 105, 255]) / 255,
+            name="right",
+            body_type="static",
+            initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
+        )
+        self.back = actors.build_box(
+            self.scene,
+            half_sizes=[0.58/2, 0.01, 0.272],
+            color=np.array([141, 117, 105, 255]) / 255,
+            name="back",
+            body_type="static",
+            initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
+        )
+        self.soda = self.load_glb_as_actor(self.scene, 
+                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/place_soda_in_cabinet/opened_soda_can.glb",
+                                            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
+                                            name="soda_can",
+                                            scale=[0.04,0.04,0.04],
+                                            type="dynamic")
+        
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
@@ -113,6 +139,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
+        print(f"{name} imported successfully")
         return actor
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -141,7 +168,9 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # [0.854,0.471,0.212,0.068] - q for sleeping book
             # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
             self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.0, 0, 0.7071, 0.7071]).repeat(b,1)))
-
+            self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.254005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.254005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.44, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
             # xyz[:, :2] = cubeB_xy
             # qs = randomization.random_quaternions(
             #     b,
