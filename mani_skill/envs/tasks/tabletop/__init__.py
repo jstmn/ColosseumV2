@@ -12,6 +12,8 @@ from .turn_faucet import TurnFaucetEnv
 from .two_robot_pick_cube import TwoRobotPickCube
 from .two_robot_stack_cube import TwoRobotStackCube
 from .poke_cube import PokeCubeEnv
+from .place_dish_in_rack import PlaceDishInRackEnv
+from .pick_dish_from_rack import PickDishFromRackEnv
 from .place_sphere import PlaceSphereEnv
 from .roll_ball import RollBallEnv
 from .push_t import PushTEnv
@@ -20,3 +22,4 @@ from .stack_pyramid import StackPyramidEnv
 from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 # 
 from .colosseum_v2_versions import *
+from .pour_sphere import PourSphereEnv
