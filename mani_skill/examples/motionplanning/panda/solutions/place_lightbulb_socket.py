@@ -8,7 +8,7 @@ from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotio
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 
-def solve(env, debug=False, vis=False):
+def solve(env, debug=False,seed=None,  vis=False):
     planner = PandaArmMotionPlanningSolver(
         env,
         debug=debug,
@@ -21,6 +21,7 @@ def solve(env, debug=False, vis=False):
     )
 
     env = env.unwrapped
+    env.reset(seed=seed)
     obb = get_actor_obb(env.lightbulb)
 
     approaching = np.array([1, 0, 0])

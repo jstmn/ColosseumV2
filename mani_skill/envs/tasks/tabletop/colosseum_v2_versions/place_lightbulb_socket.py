@@ -11,6 +11,8 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.agents.robots import Panda, Fetch
 import os
+from mani_skill.envs.distraction_set import DistractionSet
+
 
 @register_env("PickLightbulbPlaceSocket-v1", max_episode_steps=100000)
 class PickLightbulbPlaceSocketEnv(BaseEnv):
@@ -39,6 +41,8 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
     
     def __init__(self, *args, robot_uids="panda", num_envs=1, 
                  reconfiguration_freq=None, **kwargs):
+        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
+        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         if reconfiguration_freq is None:
             reconfiguration_freq = 1 if num_envs == 1 else 0
         super().__init__(*args, robot_uids=robot_uids, 
