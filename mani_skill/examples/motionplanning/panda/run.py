@@ -42,6 +42,7 @@ MP_SOLUTIONS = {
 }
 
 """
+ENV_ID=StackCube-v1
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
@@ -171,8 +172,8 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
                     success_rate=np.mean(successes),
                     failed_motion_plan_rate=failed_motion_plans / (seed + 1),
                     avg_episode_length=np.mean(solution_episode_lengths),
-                    max_episode_length=np.max(solution_episode_lengths),
-                    min_episode_length=np.min(solution_episode_lengths)
+                    max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
+                    min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
                 )
             )
             seed += 1
