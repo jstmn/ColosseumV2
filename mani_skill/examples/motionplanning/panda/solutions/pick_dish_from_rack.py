@@ -53,7 +53,7 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
     plate_rim_height = env_sim._plate_rim_height
 
     # Grasp at the top of the vertical plate
-    center[1] = plate_pos[1] - 0.07
+    center[1] = plate_pos[1] # Center Y
     center[2] = plate_pos[2] + plate_outer_radius * 0.8  # Near the top rim
 
     # Build grasp pose
@@ -131,5 +131,14 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
         print(f"✓ Pulled plate out to: {plate_after_pull}")
 
 
+    if debug:
+        print(f"\n=== STEP 4: MOVE TO CENTER ===")
+
+    move_pose = pullout_pose * sapien.Pose([0, -0.25, 0])
+    res = planner.move_to_pose_with_screw(move_pose)
+    if debug:
+        plate_after_move = env_sim.plate.pose.p[0].cpu().numpy()
+        print(f"✓ Moved plate to: {plate_after_move}")
+    # -------------------------------------------------------------------------- #
     planner.close()
     return res

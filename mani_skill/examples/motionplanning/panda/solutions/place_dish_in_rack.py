@@ -26,6 +26,19 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     env_sim = env.unwrapped
 
+    def move_or_abort(target_pose, prefer_rrt=False):
+        if prefer_rrt:
+            res = planner.move_to_pose_with_RRTConnect(target_pose)
+            if res == -1:
+                res = planner.move_to_pose_with_screw(target_pose)
+        else:
+            res = planner.move_to_pose_with_screw(target_pose)
+            if res == -1:
+                res = planner.move_to_pose_with_RRTConnect(target_pose)
+        if res == -1:
+            planner.close()
+        return res
+
     # Get plate position and orientation
     plate_pose = env_sim.plate.pose
     plate_pos = plate_pose.p[0].cpu().numpy()
@@ -78,13 +91,12 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 1: REACH ===")
 
-    # Back away 8cm before approaching (move opposite to approaching direction in local frame)
-    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.1])
-    result = planner.move_to_pose_with_RRTConnect(reach_pose)
+    # Back away 5cm before approaching (move opposite to approaching direction in local frame)
+    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.05])
+    result = move_or_abort(reach_pose, prefer_rrt=True)
     if result == -1:
         if debug:
             print("❌ Failed to reach")
-        planner.close()
         return result
 
     if debug:
@@ -96,19 +108,18 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 2: GRASP ===")
 
-    result = planner.move_to_pose_with_RRTConnect(grasp_pose)
+    result = move_or_abort(grasp_pose, prefer_rrt=True)
     if result == -1:
         if debug:
             print("❌ Failed to grasp position")
-        planner.close()
         return result
 
     # Close gripper with maximum force and longer duration to prevent slipping
-    planner.close_gripper(t=40, gripper_state=-1.0)  # Close for 40 steps with full force
+    planner.close_gripper(t=15, gripper_state=-1.0)  # Close for 15 steps with full force
 
     # Let physics settle after grasping to ensure firm grip
     qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for i in range(20):  # Hold position for 20 more steps
+    for i in range(5):  # Hold position briefly
         if planner.control_mode == "pd_joint_pos":
             action = np.hstack([qpos, -1.0])
         else:
@@ -128,8 +139,8 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 3: LIFT ===")
 
-    lift_pose = sapien.Pose([0, 0, 0.15]) * grasp_pose
-    res = planner.move_to_pose_with_screw(lift_pose)
+    lift_pose = sapien.Pose([0, 0, 0.12]) * grasp_pose
+    res = move_or_abort(lift_pose)
 
     if debug:
         plate_after_lift = env_sim.plate.pose.p[0].cpu().numpy()
@@ -144,23 +155,20 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     # Get rack position and dimensions
     rack_pos = env_sim.dish_rack.pose.p[0].cpu().numpy()
     rack_height = env_sim._rack_extent[2]  # 0.085m
-    rack_depth = env_sim._rack_extent[1]  # 0.168m
 
-    # Position directly above rack CENTER
+    # Position directly above rack center
     target_pos = rack_pos.copy()
-    # No Y offset - keep at rack center Y
-    target_pos[0] += 0.05  # Centered in X
-    target_pos[1] += 0.03  # 10cm above rack for clearance
-    target_pos[2] += rack_height + 0.10  # 10cm above rack for clearance
+    target_pos[0] += 0.11  # center in X
+    target_pos[1] += 0.038  # center in Y
+    target_pos[2] += rack_height + 0.10  # clearance above rack
 
     # Keep horizontal orientation (same as lift pose)
     transport_pose = sapien.Pose(p=target_pos, q=lift_pose.q)
 
-    res = planner.move_to_pose_with_RRTConnect(transport_pose)
+    res = move_or_abort(transport_pose, prefer_rrt=True)
     if res == -1:
         if debug:
             print("❌ Failed to move to rack")
-        planner.close()
         return res
 
     if debug:
@@ -178,43 +186,32 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     rotation = sapien.Pose(q=[0.7071068, 0, 0.7071068, 0])  # 90 deg around Y
     vertical_pose = transport_pose * rotation
 
-    res = planner.move_to_pose_with_screw(vertical_pose)
+    res = move_or_abort(vertical_pose)
+    if res == -1:
+        return res
 
     if debug:
         plate_vertical = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Rotated to vertical: {plate_vertical}")
 
 
+
     # -------------------------------------------------------------------------- #
     # Release plate
     # -------------------------------------------------------------------------- #
     if debug:
-        print(f"\n=== STEP 6: RELEASE ===")
+        print(f"\n=== STEP 7: RELEASE ===")
 
-    release_pose = vertical_pose * sapien.Pose([-0.05, 0, 0])  # Move down 5cm to release position
-    res = planner.move_to_pose_with_RRTConnect(release_pose)
+    release_pos = vertical_pose.p.copy()
+    release_pos[1] -= 0.02  # Move forward in X to clear rack
+    release_pos[2] -= 0.08
+    release_pose = sapien.Pose(release_pos, vertical_pose.q)
+    res = move_or_abort(release_pose)
     planner.open_gripper()
 
     if debug:
         final_plate_pos = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Released plate at: {final_plate_pos}")
-
-    # -------------------------------------------------------------------------- #
-    # Move back to safe position
-    # -------------------------------------------------------------------------- #
-    if debug:
-        print(f"\n=== STEP 7: RETURN TO SAFE POSITION ===")
-
-    # Move up and back to a safe position away from the plate
-    retreat_pose = vertical_pose * sapien.Pose([0, 0, -0.15])  # Move up 15cm from release position
-    res = planner.move_to_pose_with_RRTConnect(retreat_pose)
-
-    if debug:
-        if res == -1:
-            print("❌ Failed to retreat")
-        else:
-            print("✓ Moved to safe retreat position")
-        print(f"✓ Task complete!")
 
     planner.close()
     return res

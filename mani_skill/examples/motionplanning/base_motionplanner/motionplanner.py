@@ -63,7 +63,14 @@ class BaseMotionPlanningSolver:
             user_joint_names=joint_names,
             move_group=move_group,
         )
-        planner.set_base_pose(np.hstack([self.base_pose.p, self.base_pose.q]))
+        # Convert to mplib.Pose for newer mplib versions
+        base_pose_array = np.hstack([self.base_pose.p, self.base_pose.q])
+        try:
+            # Try new API (mplib >= 0.2.0)
+            planner.set_base_pose(mplib.Pose(base_pose_array[:3], base_pose_array[3:]))
+        except (TypeError, AttributeError):
+            # Fall back to old API (mplib < 0.2.0)
+            planner.set_base_pose(base_pose_array)
         planner.joint_vel_limits = np.asarray(planner.joint_vel_limits) * self.joint_vel_limits
         planner.joint_acc_limits = np.asarray(planner.joint_acc_limits) * self.joint_acc_limits
         return planner
@@ -100,14 +107,12 @@ class BaseMotionPlanningSolver:
         pose = to_sapien_pose(pose)
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
-        result = self.planner.plan_qpos_to_pose(
-            np.concatenate([pose.p, pose.q]),
+        result = self.planner.plan_pose(
+            pose,
             self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
-            use_point_cloud=self.use_point_cloud,
-            rrt_range=0.0,
+            rrt_range=0.1,
             planning_time=1,
-            planner_name="RRTstar",
             wrt_world=True,
         )
         if result["status"] != "Success":
@@ -125,11 +130,10 @@ class BaseMotionPlanningSolver:
         pose = to_sapien_pose(pose)
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
-        result = self.planner.plan_qpos_to_pose(
-            np.concatenate([pose.p, pose.q]),
+        result = self.planner.plan_pose(
+            pose,
             self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
-            use_point_cloud=self.use_point_cloud,
             wrt_world=True,
         )
         if result["status"] != "Success":
@@ -149,17 +153,15 @@ class BaseMotionPlanningSolver:
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
         result = self.planner.plan_screw(
-            np.concatenate([pose.p, pose.q]),
+            pose,
             self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
-            use_point_cloud=self.use_point_cloud,
         )
         if result["status"] != "Success":
             result = self.planner.plan_screw(
-                np.concatenate([pose.p, pose.q]),
+                pose,
                 self.robot.get_qpos().cpu().numpy()[0],
                 time_step=self.base_env.control_timestep,
-                use_point_cloud=self.use_point_cloud,
             )
             if result["status"] != "Success":
                 print(result["status"])
