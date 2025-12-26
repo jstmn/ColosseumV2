@@ -174,12 +174,10 @@ class PlaceBookEnv(BaseEnv):
     def evaluate(self):
         pos_shelf = self.shelf.pose.p
         pos_book = self.book_A.pose.p
-        offset = pos_shelf - pos_book
-        x_flag = torch.abs(offset[..., 0]) <= 0.13 + 0.005
-        y_flag = (
-            torch.abs(offset[..., 1]) <= 0.18 + 0.005
-        )
-        z_flag = torch.abs(offset[..., 2]) <= 0.16 + 0.005
+        offset = pos_book
+        x_flag = torch.logical_and((offset[..., 0]) <= 0.36, (offset[..., 0] >= 0.21))
+        y_flag = torch.logical_and(-0.08 >= (offset[..., 1]), (offset[..., 1]) >= -0.17)
+        z_flag = torch.logical_and(offset[..., 2] <= 0.16 + 0.005, offset[..., 2] >= 0.14)
         is_book_in_shelf = torch.logical_and(torch.logical_and(x_flag, y_flag),  z_flag)
 
         # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
