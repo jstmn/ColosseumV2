@@ -1,0 +1,34 @@
+<?xml version="1.0" ?>
+<robot name="dual_panda_table">
+    <disable_collisions link1="panda_1_link1" link2="panda_1_link2" reason="Default"/>
+    <disable_collisions link1="panda_1_link3" link2="panda_1_link4" reason="Default"/>
+    <disable_collisions link1="panda_1_link4" link2="panda_1_link5" reason="Default"/>
+    <disable_collisions link1="panda_1_link5" link2="panda_1_link6" reason="Default"/>
+    <disable_collisions link1="panda_1_link7" link2="panda_1_hand" reason="Default"/>
+    <disable_collisions link1="panda_1_hand" link2="panda_1_leftfinger" reason="Default"/>
+    <disable_collisions link1="panda_1_hand" link2="panda_1_rightfinger" reason="Default"/>
+    <disable_collisions link1="panda_2_link1" link2="panda_2_link2" reason="Default"/>
+    <disable_collisions link1="panda_2_link3" link2="panda_2_link4" reason="Default"/>
+    <disable_collisions link1="panda_2_link4" link2="panda_2_link5" reason="Default"/>
+    <disable_collisions link1="panda_2_link5" link2="panda_2_link6" reason="Default"/>
+    <disable_collisions link1="panda_2_link7" link2="panda_2_hand" reason="Default"/>
+    <disable_collisions link1="panda_2_hand" link2="panda_2_leftfinger" reason="Default"/>
+    <disable_collisions link1="panda_2_hand" link2="panda_2_rightfinger" reason="Default"/>
+    <!-- <disable_collisions link1="table" link2="panda_1_link5" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_1_link6" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_link5" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_link6" reason="Default"/>-->
+    <disable_collisions link1="table" link2="panda_1_link0" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_link0" reason="Default"/>
+    <!-- <disable_collisions link1="table" link2="panda_1_hand" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_hand" reason="Default"/> -->
+    <disable_collisions link1="table" link2="panda_1_leftfinger" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_leftfinger" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_1_rightfinger" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_rightfinger" reason="Default"/>
+    <disable_collisions link1="panda_2_leftfinger" link2="panda_2_rightfinger" reason="Default"/>
+    <disable_collisions link1="panda_1_leftfinger" link2="panda_1_rightfinger" reason="Default"/>
+    <!-- <disable_collisions link1="panda_1_leftfinger" link2="panda_2_rightfinger" reason="Default"/> -->
+    <!-- <disable_collisions link1="panda_1_leftfinger" link2="panda_1_rightfinger" reason="Default"/> -->
+    
+</robot>
