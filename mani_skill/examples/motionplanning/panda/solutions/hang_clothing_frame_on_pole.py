@@ -125,7 +125,7 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     # # -------------------------------------------------------------------------- #
     # # Lower
     # # -------------------------------------------------------------------------- #
-    final_pose = sapien.Pose([0,0.4,0])*final_pose
+    final_pose = sapien.Pose([0,0.35,0])*final_pose
     res = planner.move_to_pose_with_RRTStar(final_pose)
     if res == -1: return res
 
