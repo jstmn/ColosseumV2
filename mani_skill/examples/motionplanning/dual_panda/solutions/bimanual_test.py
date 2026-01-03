@@ -88,7 +88,7 @@ def test_independent_motion(env, seed=None, debug=False, vis=False):
         # Move arm 1 - TINY movement, SAME orientation
         print("\n1. Moving right arm by +0.05m in X...")
         
-        target_p1 = tcp_1_p + np.array([0.1, 0.1, 0.1])
+        target_p1 = tcp_1_p + np.array([0.1, -0.2, 0.2])
         target_q1 = tcp_1_q.copy()  # Explicit copy
         
         print(f"  Target p={target_p1}, q={target_q1}")
@@ -100,10 +100,9 @@ def test_independent_motion(env, seed=None, debug=False, vis=False):
         
         target_pose_1 = sapien.Pose(p=target_p1, q=target_q1)
         
-        result = planner.move_arm_to_pose_with_RRTConnect(
+        result = planner.move_to_pose_with_screw(
             target_pose_1, 
-            arm_index=1,
-            refine_steps=10
+            arm_index=1
         )
         
         if result == -1:
@@ -111,7 +110,6 @@ def test_independent_motion(env, seed=None, debug=False, vis=False):
             return False
         
         print("\n✓ Independent motion test completed successfully")
-        time.sleep(5)
         return True
         
     except Exception as e:
@@ -164,19 +162,19 @@ def test_synchronized_motion(env, seed=None, debug=False, vis=False):
         # Define target poses (move both arms forward and up)
         # Now we are adding numpy array to numpy array (Safe)
         left_target = sapien.Pose(
-            p=p2 + np.array([0.15, 0.0, 0.1]),
+            p=p2 + np.array([0.15, 0.0, -0.1]),
             q=q2
         )
         
         right_target = sapien.Pose(
-            p=p1 + np.array([0.15, 0.0, 0.1]),
+            p=p1 + np.array([0.15, 0.15, 0.15]),
             q=q1
         )
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
+        result = planner.move_to_pose_pair_with_screw(
             left_target,
             right_target,
-            refine_steps=10
+            dry_run=False
         )
         
         if result == -1:
@@ -275,10 +273,10 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
             q=q2
         )
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
+        result = planner.move_to_pose_pair_with_screw(
             approach_2,  # left
             approach_1,  # right
-            refine_steps=5
+            # refine_steps=5
         )
         
         if result == -1:
@@ -296,10 +294,10 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
             q=q2
         )
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
+        result = planner.move_to_pose_pair_with_screw(
             grasp_2,  # left
             grasp_1,  # right
-            refine_steps=5
+            # refine_steps=5
         )
         
         if result == -1:
@@ -324,7 +322,7 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
         result = planner.move_to_pose_pair_with_RRTConnect(
             lift_2,  # left
             lift_1,  # right
-            refine_steps=5
+            # refine_steps=5
         )
         
         if result == -1:
@@ -346,7 +344,7 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
         result = planner.move_to_pose_pair_with_RRTConnect(
             lift_2,  # left
             lift_1,  # right
-            refine_steps=5
+            # refine_steps=5
         )
         
         if result == -1:
@@ -356,24 +354,48 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
         # 6. Open grippers
         print("\n6. Releasing...")
         planner.close_gripper(arm_index=2, t=10)
-        planner.open_gripper(arm_index=1, t=10)
-        print("\n✓ Sequential tasks test completed successfully")
+        planner.close_gripper(arm_index=1, t=10)
         
-        print("\n3. Moving to grasp positions...")
-        grasp_1 = sapien.Pose(
-            p=np.array([-0.2, -0.141, 0.83]),
-            q=q1
-        )
-        grasp_2 = sapien.Pose(
-            p=np.array([0.2, 0.141, 0.9]),
-            q=q2
+        current_pos = env.unwrapped.obj.pose
+        tcp_1_pose = env.unwrapped.agent.tcp_1_pose
+        tcp_2_pose = env.unwrapped.agent.tcp_2_pose
+        if hasattr(current_pos.q, 'cpu'):
+            q = current_pos.q.cpu().numpy().flatten()
+        else:
+            q = np.array(current_pos.q).flatten()
+        position = np.array([-0.333, 0.14, 1.5])
+        orientation = q  # assuming q is already a numpy array
+        goal_pos = sapien.Pose(p=position, q=orientation)
+        # goal_pos = np.concatenate([position, orientation])
+        
+        # Screw motion is not working so great, but this is what we have for now
+        result = planner.move_dual_arm_screw_constrained(
+            goal_pos,
+            current_pos,
+            tcp_1_pose,
+            tcp_2_pose,
+            # refine_steps=5
         )
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
-            grasp_2,  # left
-            grasp_1,  # right
-            refine_steps=5
-        )
+        print(f"FINAL LOCATION: {env.unwrapped.obj.pose.p}")
+        # planner.open_gripper(arm_index=1, t=10)
+        # print("\n✓ Sequential tasks test completed successfully")
+        
+        # print("\n3. Moving to grasp positions...")
+        # grasp_1 = sapien.Pose(
+        #     p=np.array([-0.2, -0.141, 0.83]),
+        #     q=q1
+        # )
+        # grasp_2 = sapien.Pose(
+        #     p=np.array([0.2, 0.141, 0.9]),
+        #     q=q2
+        # )
+        
+        # result = planner.move_to_pose_pair_with_RRTConnect(
+        #     grasp_2,  # left
+        #     grasp_1,  # right
+        #     refine_steps=5
+        # )
         
         return True
         

@@ -28,7 +28,7 @@
     <disable_collisions link1="table" link2="panda_2_rightfinger" reason="Default"/>
     <disable_collisions link1="panda_2_leftfinger" link2="panda_2_rightfinger" reason="Default"/>
     <disable_collisions link1="panda_1_leftfinger" link2="panda_1_rightfinger" reason="Default"/>
-    <!-- <disable_collisions link1="panda_1_leftfinger" link2="panda_2_rightfinger" reason="Default"/> -->
-    <!-- <disable_collisions link1="panda_1_leftfinger" link2="panda_1_rightfinger" reason="Default"/> -->
+    <disable_collisions link1="panda_1_leftfinger" link2="panda_2_rightfinger" reason="Default"/>
+    <disable_collisions link1="panda_2_leftfinger" link2="panda_1_rightfinger" reason="Default"/>
     
 </robot>

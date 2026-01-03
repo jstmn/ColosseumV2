@@ -43,8 +43,8 @@ class DualPanda(BaseAgent):
         rest=Keyframe(
             qpos=np.array(
                 [
-                    0.0,
-                    0.0,
+                    np.pi/2,
+                    np.pi/2,
                     np.pi / 8,
                     np.pi / 8,
                     0,
