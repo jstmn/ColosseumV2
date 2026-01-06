@@ -58,19 +58,21 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 60 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 1 \
+    --num-procs 10 \
     --reward-mode "sparse" \
     --random-seed \
     --only-count-success \
-    --save-video \
-    --vis
+    --traj-name "trajectory" \
+    --save-video      # <- optional
+    # --vis           # <- optional
 
 # Convert to ee_delta_pos with:
 python mani_skill/trajectory/replay_trajectory.py \
-    --traj-path demos/PickCube-v1/motionplanning/<TRAJ_NAME>.h5 \
+    --traj-path demos/PickCube-v1/motionplanning/trajectory.h5 \
     --obs-mode "rgb" \
     --target_control_mode "pd_ee_delta_pos" \
-    --save-traj
+    --save-traj \
+    --save-video      # <- optional
 """
 
 
@@ -129,7 +131,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         raise RuntimeError(f"No already written motion planning solutions for {env_id}. Available options are {list(MP_SOLUTIONS.keys())}")
 
     if not args.traj_name:
-        new_traj_name = time.strftime("%Y%m%d_%H%M%S")
+        new_traj_name = time.strftime("%Y-%m-%d_%H:%M:%S")
     else:
         new_traj_name = args.traj_name
 
@@ -182,7 +184,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         else:
             env.flush_trajectory()
             if args.save_video:
-                env.flush_video()
+                env.flush_video(name=f"{new_traj_name}___n:{len(successes)}")
             pbar.update(1)
             pbar.set_postfix(
                 dict(
