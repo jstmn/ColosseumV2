@@ -266,6 +266,8 @@ def replay_cpu_sim(
         for _ in range(args.max_retry + 1):
             # Each trial for each trajectory to replay, we reset the environment
             # and optionally set the first environment state
+            if reset_kwargs["options"] is None:
+                reset_kwargs["options"] = {}
             reset_kwargs["options"]["reconfigure"] = True
             # Note(@jstmn): ^ You need this for some reason i can't remember now. I think without it, the texture always
             # overwrites the color.

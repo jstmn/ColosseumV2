@@ -48,13 +48,13 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=PickBananaFromOpenDrawer-v1
+ENV_ID=PickCube-v1
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
-    --num-traj 10 \
+    --num-traj 60 \
     --distraction-set ${DISTRACTION_SET} \
     --num-procs 1 \
     --reward-mode "sparse" \
@@ -63,14 +63,12 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --save-video \
     --vis
 
-python mani_skill/examples/motionplanning/panda/run.py \
-    --env-id PickBananaFromOpenDrawer-v1 \
-    --num-traj 10 \
-    --distraction-set none \
-    --num-procs 1 \
-    --reward-mode "sparse" \
-    --random-seed \
-    --vis
+# Convert to ee_delta_pos with:
+python mani_skill/trajectory/replay_trajectory.py \
+    --traj-path demos/PickCube-v1/motionplanning/<TRAJ_NAME>.h5 \
+    --obs-mode "rgb" \
+    --target_control_mode "pd_ee_delta_pos" \
+    --save-traj
 """
 
 
