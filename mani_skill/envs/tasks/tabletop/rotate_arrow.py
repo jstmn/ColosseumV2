@@ -5,7 +5,8 @@ import sapien
 import torch
 import torch.random
 from transforms3d.euler import euler2quat
-
+import os
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import PandaStick
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
@@ -81,7 +82,7 @@ class RotateArrowEnv(BaseEnv):
         #                    ([0.30/2,0.02/2,0.25/2],sapien.Pose(p=[0.0,0.161,-0.1],q=[0.707,0.707,0,0])),
         #                    ([0.312/2,0.27/2,0.0302/2],sapien.Pose(p=[0.0,0.286,0.018],q=[0.707,-0.707,0,0]))]
         self.arrow = self.load_glb_as_actor(self.scene, 
-                                            "mani_skill/assets/push_arrow/arrow.glb", 
+                                            os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"), 
                                             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
                                             name="arrow",
                                             type="dynamic")
@@ -154,8 +155,8 @@ class RotateArrowEnv(BaseEnv):
 
             q_euler_angle = torch.rand(b) * (2 * torch.pi)
             q = torch.zeros((b, 4))
-            q = euler2quat(np.pi/2, 0, q_euler_angle)
-            self.init_angle = q_euler_angle
+            q = euler2quat(np.pi/2, 0, 0)
+            self.init_angle = 0
             obj_pose = Pose.create_from_pq(p=target_region_xyz, q=q)
             self.arrow.set_pose(obj_pose)
 
