@@ -23,3 +23,4 @@ from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 # 
 from .colosseum_v2_versions import *
 from .pour_sphere import PourSphereEnv
+from .dual_panda_test import DualArmEmptyEnv

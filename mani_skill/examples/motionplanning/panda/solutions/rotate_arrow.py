@@ -90,8 +90,8 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
         # Set pose
         reach_pose_1.set_q(q)
         # Translate in local Y (will follow new orientation)
-        reach_pose_1 = reach_pose_1 * sapien.Pose([0.001, 0.01, 0])
-        res = planner.move_to_pose_with_RRTConnect(reach_pose_1)
+        reach_pose_1 = reach_pose_1 * sapien.Pose([0.003, 0.03, 0])
+        res = planner.move_to_pose_with_screw(reach_pose_1)
         if res == -1: return res
     # -------------------------------------------------------------------------- #
     # Grasp

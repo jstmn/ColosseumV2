@@ -275,25 +275,17 @@ Expected location: {robocasa_data_path}
 Missing file: {cabinet_fixture_path}
 
 To download the dataset, run the following commands:
-
-    # Using ManiSkill's dataset download tool
-    python -m mani_skill.utils.download_asset robocasa_dataset
-    
-OR manually:
-
-    # Navigate to your ManiSkill data directory
-    mkdir -p ~/.maniskill/data/scene_datasets
-    cd ~/.maniskill/data/scene_datasets
-    
-    # Download the RoboCasa dataset (adjust URL as needed)
-    # Check the official ManiSkill/RoboCasa documentation for the correct link
+    i) Locate the utils directory under maniskill folder.
+    ii) Find the download_asset.py file
+    iii) Run it as python3 download_asset.py RoboCasa
+    This should start the download.
     
 After downloading, verify the path exists:
-    ls -la ~/.maniskill/data/scene_datasets/robocasa_dataset/assets/fixtures/cabinets/
+    ls -la {cabinet_fixture_path}
 
 For more information, see:
     - https://github.com/haosulab/ManiSkill
-    - https://github.com/haosulab/RoboCasa
+    - https://github.com/robocasa/robocasa
 
 ================================================================================
 """

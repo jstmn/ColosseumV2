@@ -109,8 +109,8 @@ class ScoopParticlesEnv(BaseEnv):
             type="dynamic"
         )
 
-        self.wall = actors.build_box(self.scene, half_sizes=[0.5, 0.02, 0.2], color=
-                                     [0.8, 0.3, 0.3, 1], name="wall", body_type="static", add_collision=True, initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071]))
+        self.wall = actors.build_box(self.scene, half_sizes=[0.2, 0.02, 0.1], color=
+                                     [201/255, 204/255, 182/255, 1], name="wall", body_type="static", add_collision=True, initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071]))
 
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):
@@ -143,7 +143,7 @@ class ScoopParticlesEnv(BaseEnv):
             ball_xyz[..., 0] = (
                 self.arm_reach
                 + torch.rand(b, device=self.device) * (self.handle_length)
-                - 0.3
+                - 0.4
             )
             ball_xyz[..., 1] = torch.rand(b, device=self.device) * 0.3 - 0.25
             ball_xyz[..., 2] = self.ball_radius + 0.01
@@ -162,7 +162,7 @@ class ScoopParticlesEnv(BaseEnv):
             wall_xyz = torch.zeros((b, 3), device=self.device)
             wall_xyz[..., 0] = ball_xyz[..., 0] + 0.07
             wall_xyz[..., 1] = ball_xyz[..., 1]
-            wall_xyz[..., 2] = 0.2
+            wall_xyz[..., 2] = 0.1
             self.wall.set_pose(Pose.create_from_pq(p=wall_xyz, q=torch.tensor([0.7071, 0, 0, 0.7071], dtype=torch.float32)))
 
     def _get_obs_extra(self, info: Dict):
