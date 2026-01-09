@@ -138,7 +138,7 @@ def main():
         # Generate actions
         if use_openpi:
             with torch.no_grad():
-                actions = policy(rgbd)  # π₀ policy returns Tensor
+                actions = policy(rgbd)
                 actions = actions.cpu().numpy()
         else:
             actions = pi0_policy_placeholder(rgbd, envs)
@@ -155,18 +155,35 @@ def main():
             truncateds = truncateds.cpu().numpy()
 
         episode_returns += rewards
-
-        # Determine which environments are done
         done_envs = np.logical_or(terminateds, truncateds)
+
         for idx in np.where(done_envs)[0]:
-            print(f"Env {idx} finished episode {episode_counts[idx]+1}, return = {episode_returns[idx]:.3f}")
+            print(
+                f"Env {idx} finished episode {episode_counts[idx] + 1}, "
+                f"return = {episode_returns[idx]:.3f}"
+            )
             episode_counts[idx] += 1
             episode_returns[idx] = 0.0
 
-        # Reset done environments
-        obs, _ = envs.reset(seed=args.seed + step)
+        # Reset ONLY finished envs
+        if done_envs.any():
+            obs_reset, _ = envs.reset(
+                seed=args.seed + step,
+                options={"reset_indices": np.where(done_envs)[0]},
+            )
+            obs_new["sensor_data"]["base_camera"]["rgb"][done_envs] = \
+                obs_reset["sensor_data"]["base_camera"]["rgb"][done_envs]
+            obs_new["sensor_data"]["base_camera"]["depth"][done_envs] = \
+                obs_reset["sensor_data"]["base_camera"]["depth"][done_envs]
+
+        obs = obs_new
         rgbd = preprocess_rgbd(obs, camera_name="base_camera", device=device)
+
+        if step % 50 == 0:
+            print(f"Step {step}, episodes completed: {episode_counts.sum()}")
+
         step += 1
+
 
 
 if __name__ == "__main__":
