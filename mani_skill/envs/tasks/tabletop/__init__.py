@@ -25,3 +25,8 @@ from .cook_item_in_pan import CookItemInPanEnv
 from .colosseum_v2_versions import *
 from .pour_sphere import PourSphereEnv
 from .dual_panda_test import DualArmEmptyEnv
+from .dual_panda_pick_cube import DualArmPickCubeEnv
+from .dual_panda_drawer_place import DualArmDrawerPlaceEnv
+from .dual_panda_drawer_open import DualArmDrawerOpenEnv
+from .dual_panda_pick_bottle import DualArmPickBottleEnv
+from .dual_panda_pick_pour_pot import DualArmPourPotEnv
