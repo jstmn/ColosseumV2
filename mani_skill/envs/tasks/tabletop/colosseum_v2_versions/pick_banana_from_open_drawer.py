@@ -101,27 +101,16 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
         self.cabinet_z = -collision_mesh.bounding_box.bounds[0, 2]
 
     def _load_banana(self):
-        # TODO(@orhun): Throw an error if the banana is not found.
         # TODO(@orhun): Add a command line
         try:
             banana_builder = actors.get_actor_builder(self.scene, id="ycb:011_banana")
-            banana_builder.initial_pose = sapien.Pose(p=[0.15, 0, 0.1])
-            self.banana = banana_builder.build(name="banana")
         except Exception as e:
-            builder = self.scene.create_actor_builder()
-            builder.add_capsule_visual(
-                radius=0.015,
-                half_length=0.05,
-                color=[1.0, 0.9, 0.1, 1],
-                pose=sapien.Pose(q=[0.707, 0, 0.707, 0])
-            )
-            builder.add_capsule_collision(
-                radius=0.015,
-                half_length=0.05,
-                pose=sapien.Pose(q=[0.707, 0, 0.707, 0])
-            )
-            builder.initial_pose = sapien.Pose(p=[0.15, 0, 0.1])
-            self.banana = builder.build(name="banana")
+            print(f"Error loading banana: {e}")
+            print("Run the following command to download the banana asset:")
+            print("python mani_skill/utils/download_asset.py ycb")
+            exit(1)
+        banana_builder.initial_pose = sapien.Pose(p=[0.15, 0, 0.1])
+        self.banana = banana_builder.build(name="banana")
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):

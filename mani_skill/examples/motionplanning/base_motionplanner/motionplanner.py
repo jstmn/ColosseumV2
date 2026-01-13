@@ -100,19 +100,16 @@ class BaseMotionPlanningSolver:
                 self.base_env.render_human()
         return obs, reward, terminated, truncated, info
 
-        
     def move_to_pose_with_RRTStar(
         self, pose: sapien.Pose, dry_run: bool = False, refine_steps: int = 0
     ):
         pose = to_sapien_pose(pose)
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
-        result = self.planner.plan_pose(
-            pose,
-            self.robot.get_qpos().cpu().numpy()[0],
+        result = self.planner.plan_qpos_to_pose(
+            goal_pose=np.concatenate([pose.p, pose.q]),
+            current_qpos=self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
-            rrt_range=0.1,
-            planning_time=1,
             wrt_world=True,
         )
         if result["status"] != "Success":
@@ -130,9 +127,9 @@ class BaseMotionPlanningSolver:
         pose = to_sapien_pose(pose)
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
-        result = self.planner.plan_pose(
-            pose,
-            self.robot.get_qpos().cpu().numpy()[0],
+        result = self.planner.plan_qpos_to_pose(
+            goal_pose=np.concatenate([pose.p, pose.q]),
+            current_qpos=self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
             wrt_world=True,
         )
@@ -153,13 +150,13 @@ class BaseMotionPlanningSolver:
         self._update_grasp_visual(pose)
         pose = self._transform_pose_for_planning(pose)
         result = self.planner.plan_screw(
-            pose,
+            np.concatenate([pose.p, pose.q]),
             self.robot.get_qpos().cpu().numpy()[0],
             time_step=self.base_env.control_timestep,
         )
         if result["status"] != "Success":
             result = self.planner.plan_screw(
-                pose,
+                np.concatenate([pose.p, pose.q]),
                 self.robot.get_qpos().cpu().numpy()[0],
                 time_step=self.base_env.control_timestep,
             )
