@@ -20,6 +20,7 @@ from .push_t import PushTEnv
 from .pull_cube_tool import PullCubeToolEnv
 from .stack_pyramid import StackPyramidEnv
 from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
+from .cook_item_in_pan import CookItemInPanEnv
 # 
 from .colosseum_v2_versions import *
 from .pour_sphere import PourSphereEnv

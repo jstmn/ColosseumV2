@@ -21,9 +21,11 @@ from .rotate_arrow import solve as solveRotateArrow
 from .scoop_particles import solve as solveScoopParticles
 from .place_lightbulb_socket import solve as solvePickLightbulbPlaceSocket
 from .place_apple_on_plate import solve as solvePlaceAppleOnPlate
+from .cook_item_in_pan import solve as solveCookItemInPan
 from .pick_banana_from_open_drawer import solve as solvePickBananaFromOpenDrawer
 # new
 from .place_sphere import solve as solvePlaceSphere
 from .place_dish_in_rack import solve as solvePlaceDishInRack
 from .pick_dish_from_rack import solve as solvePickDishFromRack
 from .pour_sphere import solve as solvePourSphere
+from .hammer_nail import solve as solveHammerNail

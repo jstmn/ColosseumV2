@@ -5,6 +5,7 @@ import sapien
 import sapien.physx as physx
 import torch
 
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
@@ -15,6 +16,13 @@ from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.envs.distraction_set import DistractionSet
+
+try:  # Optional dependency for convex decomposition
+    import coacd  # noqa: F401
+
+    _HAS_COACD = True
+except ImportError:
+    _HAS_COACD = False
 
 
 @register_env("PourSphere-v1", max_episode_steps=200)
@@ -28,7 +36,7 @@ class PourSphereEnv(BaseEnv):
     - The sphere starts in the first cup.
 
     **Success Conditions:**
-    - The sphere is inside the second cup (target cup).
+    - The sphere is within the bounding box of the second cup.
     """
 
     agent: Union[Panda, Fetch]
@@ -44,6 +52,7 @@ class PourSphereEnv(BaseEnv):
     # Cup positions on table
     _cup1_position = np.array([0.05, -0.15, 0.0])
     _cup2_position = np.array([0.05, 0.15, 0.0])
+    _cup_mesh_path = PACKAGE_ASSET_DIR / "pour_sphere/hollow_cylinder_with_floor.stl"
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
@@ -115,15 +124,21 @@ class PourSphereEnv(BaseEnv):
         # Build sphere that will be poured from cup1 to cup2
         builder = self.scene.create_actor_builder()
         sphere_material = physx.PhysxMaterial(
-            static_friction=0.5, dynamic_friction=0.3, restitution=0.2
+            static_friction=1.5, dynamic_friction=1.0, restitution=0.0
         )
-        builder.add_sphere_collision(radius=self._sphere_radius, material=sphere_material, density=1000)
+        builder.add_sphere_collision(
+            radius=self._sphere_radius, material=sphere_material, density=1000
+        )
         builder.add_sphere_visual(
             radius=self._sphere_radius,
             material=sapien.render.RenderMaterial(base_color=[0.2, 0.6, 0.8, 1])
         )
         builder.set_initial_pose(sapien.Pose(p=[0, 0, 0]))
         self.sphere = builder.build_dynamic(name="sphere")
+        self.sphere.set_linear_damping(1.0)
+        self.sphere.set_angular_damping(1.0)
+        if hasattr(self.sphere, "set_sleep_threshold"):
+            self.sphere.set_sleep_threshold(0.02)
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
@@ -147,8 +162,13 @@ class PourSphereEnv(BaseEnv):
 
             # Position sphere inside cup1 (at bottom of cup)
             sphere_xyz = cup1_xyz.copy()
-            sphere_xyz[2] = cup1_xyz[2] * 2  # Place sphere at bottom, resting on cup floor
+            sphere_xyz[2] = (
+                cup1_xyz[2] + self._cup_thickness + self._sphere_radius + 0.001
+            )
             self.sphere.set_pose(Pose.create_from_pq(p=sphere_xyz, q=np.array([1, 0, 0, 0])))
+            zero_velocity = torch.zeros((b, 3), device=self.device)
+            self.sphere.set_linear_velocity(zero_velocity)
+            self.sphere.set_angular_velocity(zero_velocity)
 
     def _build_hollow_cup(self, name: str, body_type: str = "kinematic"):
         """Build a hollow cylindrical cup from STL file"""
@@ -157,7 +177,7 @@ class PourSphereEnv(BaseEnv):
             static_friction=1.5, dynamic_friction=1.0, restitution=0.01
         )
 
-        cup_stl_path = "/home/ashvin/Downloads/hollow-cylinder-with-floor-2025-11-05-03-04-58.stl"
+        cup_stl_path = str(self._cup_mesh_path)
         stl_scale = 0.10 / 35.0
 
         builder.add_visual_from_file(
@@ -165,12 +185,24 @@ class PourSphereEnv(BaseEnv):
             scale=[stl_scale, stl_scale, stl_scale],
             material=sapien.render.RenderMaterial(base_color=[0.8, 0.6, 0.4, 1]),
         )
-        builder.add_nonconvex_collision_from_file(
-            filename=cup_stl_path,
-            scale=[stl_scale, stl_scale, stl_scale],
-            material=cup_material,
-            density=2000,
-        )
+        if body_type == "dynamic":
+            if _HAS_COACD:
+                builder.add_multiple_convex_collisions_from_file(
+                    filename=cup_stl_path,
+                    scale=[stl_scale, stl_scale, stl_scale],
+                    material=cup_material,
+                    density=2000,
+                    decomposition="coacd",
+                )
+            else:
+                self._add_cup_wall_collisions(builder, cup_material, density=2000)
+        else:
+            builder.add_nonconvex_collision_from_file(
+                filename=cup_stl_path,
+                scale=[stl_scale, stl_scale, stl_scale],
+                material=cup_material,
+                density=2000,
+            )
 
         builder.set_initial_pose(sapien.Pose(p=[0, 0, 0]))
         if body_type == "dynamic":
@@ -181,21 +213,60 @@ class PourSphereEnv(BaseEnv):
             return builder.build_static(name=name)
         raise ValueError(f"Unsupported body type: {body_type}")
 
+    def _add_cup_wall_collisions(
+        self, builder: sapien.ActorBuilder, material: physx.PhysxMaterial, density: float
+    ):
+        wall_thickness = float(self._cup_thickness)
+        outer_radius = float(self._cup_radius)
+        inner_radius = max(outer_radius - wall_thickness, wall_thickness)
+        wall_half_thickness = wall_thickness / 2.0
+        wall_half_height = float(self._cup_height) / 2.0
+        wall_center_z = wall_half_height
+
+        builder.add_box_collision(
+            half_size=[wall_half_thickness, inner_radius, wall_half_height],
+            pose=sapien.Pose(p=[inner_radius + wall_half_thickness, 0.0, wall_center_z]),
+            material=material,
+            density=density,
+        )
+        builder.add_box_collision(
+            half_size=[wall_half_thickness, inner_radius, wall_half_height],
+            pose=sapien.Pose(p=[-(inner_radius + wall_half_thickness), 0.0, wall_center_z]),
+            material=material,
+            density=density,
+        )
+        builder.add_box_collision(
+            half_size=[inner_radius, wall_half_thickness, wall_half_height],
+            pose=sapien.Pose(p=[0.0, inner_radius + wall_half_thickness, wall_center_z]),
+            material=material,
+            density=density,
+        )
+        builder.add_box_collision(
+            half_size=[inner_radius, wall_half_thickness, wall_half_height],
+            pose=sapien.Pose(p=[0.0, -(inner_radius + wall_half_thickness), wall_center_z]),
+            material=material,
+            density=density,
+        )
+        bottom_half_height = wall_half_thickness
+        builder.add_box_collision(
+            half_size=[inner_radius, inner_radius, bottom_half_height],
+            pose=sapien.Pose(p=[0.0, 0.0, bottom_half_height]),
+            material=material,
+            density=density,
+        )
+
 
     def evaluate(self):
-        """Evaluate task success - sphere must be in cup2"""
+        """Evaluate task success - sphere must be within cup2's bounding box."""
         sphere_pos = self.sphere.pose.p
         cup2_pos = self.cup2.pose.p
 
-        # Check if sphere is within cup2's horizontal bounds
-        xy_dist = torch.linalg.norm(sphere_pos[:, :2] - cup2_pos[:, :2], dim=1)
-        in_cup_xy = xy_dist < self._cup_radius
+        within_x = torch.abs(sphere_pos[:, 0] - cup2_pos[:, 0]) <= self._cup_radius
+        within_y = torch.abs(sphere_pos[:, 1] - cup2_pos[:, 1]) <= self._cup_radius
+        within_z = sphere_pos[:, 2] >= (cup2_pos[:, 2] - self._cup_height / 2)
+        within_z &= sphere_pos[:, 2] <= (cup2_pos[:, 2] + self._cup_height / 2)
 
-        # Check if sphere is at appropriate height (above cup2 base)
-        in_cup_z = sphere_pos[:, 2] > (cup2_pos[:, 2] - self._cup_height / 2)
-        in_cup_z &= sphere_pos[:, 2] < (cup2_pos[:, 2] + self._cup_height / 2)
-
-        success = in_cup_xy & in_cup_z
+        success = within_x & within_y & within_z
 
         return {
             "success": success,
