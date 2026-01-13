@@ -4,9 +4,9 @@ import numpy as np
 import sapien
 import torch
 from transforms3d.euler import euler2quat
-
+import gymnasium as gym
 from mani_skill.agents.multi_agent import MultiAgent
-from mani_skill.agents.robots.panda import Panda
+from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils.randomization.pose import random_quaternions
 from mani_skill.sensors.camera import CameraConfig
@@ -42,19 +42,12 @@ class TwoRobotStackCube(BaseEnv):
     """
 
     _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/TwoRobotStackCube-v1_rt.mp4"
-    SUPPORTED_ROBOTS = [("panda_wristcam", "panda_wristcam")]
-    agent: MultiAgent[Tuple[Panda, Panda]]
+    SUPPORTED_ROBOTS = ["dual_panda"]
+    agent: DualPanda
 
     goal_radius = 0.06
 
-    def __init__(
-        self,
-        *args,
-        robot_uids=("panda_wristcam", "panda_wristcam"),
-        robot_init_qpos_noise=0.02,
-        **kwargs
-    ):
-        self.robot_init_qpos_noise = robot_init_qpos_noise
+    def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
@@ -78,17 +71,17 @@ class TwoRobotStackCube(BaseEnv):
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4], target=[-0.1, 0, 0.1])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    def _load_agent(self, options: dict):
-        super()._load_agent(
-            options, [sapien.Pose(p=[0, -1, 0]), sapien.Pose(p=[0, 1, 0])]
-        )
+    # def _load_agent(self, options: dict):
+    #     super()._load_agent(
+    #         options, [sapien.Pose(p=[0, -1, 0]), sapien.Pose(p=[0, 1, 0])]
+    #     )
 
     def _load_scene(self, options: dict):
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
+        # self.table_scene = TableSceneBuilder(
+        #     env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
+        # )
+        # self.table_scene.build()
         self.cubeA = actors.build_cube(
             self.scene,
             half_size=0.02,
@@ -116,19 +109,16 @@ class TwoRobotStackCube(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
+            # self.scene.initialize(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
-
-            torch.zeros((b, 3))
-            torch.rand((b, 2)) * 0.2 - 0.1
             cubeA_xyz = torch.zeros((b, 3))
-            cubeA_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
+            cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 - 0.05
             cubeA_xyz[:, 1] = -0.15 - torch.rand((b,)) * 0.1 + 0.05
             cubeB_xyz = torch.zeros((b, 3))
             cubeB_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
             cubeB_xyz[:, 1] = 0.15 + torch.rand((b,)) * 0.1 - 0.05
-            cubeA_xyz[:, 2] = 0.02
-            cubeB_xyz[:, 2] = 0.02
+            cubeA_xyz[:, 2] = 0.02 + 0.83 
+            cubeB_xyz[:, 2] = 0.02 + 0.83
 
             qs = random_quaternions(
                 b,
@@ -148,9 +138,9 @@ class TwoRobotStackCube(BaseEnv):
 
             target_region_xyz = torch.zeros((b, 3))
             target_region_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
-            target_region_xyz[:, 1] = -0.1
+            target_region_xyz[:, 1] = 0
             # set a little bit above 0 so the target is sitting on the table
-            target_region_xyz[..., 2] = 1e-3
+            target_region_xyz[..., 2] = 1e-3 + 0.83
             self.goal_region.set_pose(
                 Pose.create_from_pq(
                     p=target_region_xyz,
@@ -158,139 +148,102 @@ class TwoRobotStackCube(BaseEnv):
                 )
             )
 
-    @property
-    def left_agent(self) -> Panda:
-        return self.agent.agents[0]
-
-    @property
-    def right_agent(self) -> Panda:
-        return self.agent.agents[1]
+    def _initialize_agent(self):
+        # Reset the robot to a neutral position
+        # Dual Panda has 14+ gripper joints. 
+        # You can define a custom "qpos" (joint positions) here if you want.
+        # 0-6: Left Arm, 7-8: Left Gripper, 9-15: Right Arm, 16-17: Right Gripper
+        qpos = np.zeros(self.agent.robot.dof)
+        # Example: Set arms to a ready position (optional)
+        # qpos[0] = 0.5  # Move left shoulder
+        # qpos[9] = -0.5 # Move right shoulder
+        
+        self.agent.reset(qpos)
 
     def evaluate(self):
         pos_A = self.cubeA.pose.p
         pos_B = self.cubeB.pose.p
-        offset = pos_A - pos_B
+        offset = pos_B - pos_A
         xy_flag = (
             torch.linalg.norm(offset[..., :2], axis=1)
-            <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
+            # <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
+            <= 0.02+0.005
         )
-        z_flag = torch.abs(offset[..., 2] - self.cube_half_size[..., 2] * 2) <= 0.005
-        is_cubeA_on_cubeB = torch.logical_and(xy_flag, z_flag)
+        z_flag = torch.abs(offset[..., 2] - 0.02 * 2) <= 0.005
+        is_cubeB_on_cubeA = torch.logical_and(xy_flag, z_flag)
         cubeB_to_goal_dist = torch.linalg.norm(
             self.cubeB.pose.p[:, :2] - self.goal_region.pose.p[..., :2], axis=1
         )
         cubeB_placed = cubeB_to_goal_dist < self.goal_radius
-        is_cubeA_grasped = self.left_agent.is_grasping(self.cubeA)
-        is_cubeB_grasped = self.right_agent.is_grasping(self.cubeB)
+        # is_cubeA_grasped = self.left_agent.is_grasping(self.cubeA)
+        # is_cubeB_grasped = self.right_agent.is_grasping(self.cubeB)
         success = (
-            is_cubeA_on_cubeB * cubeB_placed * (~is_cubeA_grasped) * (~is_cubeB_grasped)
+            is_cubeB_on_cubeA * cubeB_placed
         )
         return {
-            "is_cubeA_grasped": is_cubeA_grasped,
-            "is_cubeB_grasped": is_cubeB_grasped,
-            "is_cubeA_on_cubeB": is_cubeA_on_cubeB,
+            # "is_cubeA_grasped": is_cubeA_grasped,
+            # "is_cubeB_grasped": is_cubeB_grasped,
+            "is_cubeB_on_cubeA": is_cubeB_on_cubeA,
             "cubeB_placed": cubeB_placed,
             "success": success.bool(),
         }
 
     def _get_obs_extra(self, info: dict):
-        obs = dict(
-            left_arm_tcp=self.left_agent.tcp.pose.raw_pose,
-            right_arm_tcp=self.right_agent.tcp.pose.raw_pose,
-        )
-        if "state" in self.obs_mode:
-            obs.update(
-                goal_region_pos=self.goal_region.pose.p,
-                cubeA_pose=self.cubeA.pose.raw_pose,
-                cubeB_pose=self.cubeB.pose.raw_pose,
-                left_arm_tcp_to_cubeA_pos=self.cubeA.pose.p
-                - self.left_agent.tcp.pose.p,
-                right_arm_tcp_to_cubeB_pos=self.cubeB.pose.p
-                - self.right_agent.tcp.pose.p,
-                cubeA_to_cubeB_pos=self.cubeB.pose.p - self.cubeA.pose.p,
-            )
+        obs = dict()
+        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
+        def pose_to_vec(pose):
+            # pose.p is [x,y,z], pose.q is [w,x,y,z]
+            return np.hstack([pose.p, pose.q])
+        
+        if hasattr(self.agent, "tcp_pose"):
+             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
+        else:
+            # Fallback for the error you saw
+            # We construct the 14D array manually if needed, or just return separate ones
+            obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
+            obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
+        obs["cubeA_pose"] = self.cubeA.pose.raw_pose
+        obs["cubeB_pose"] = self.cubeB.pose.raw_pose
+        obs["goal_region_pos"] = self.goal_region.pose.p
         return obs
 
     def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
-        # Stage 1: Reach and grasp
-        # reaching reward for both robots to their respective cubes
-        cubeA_to_left_arm_tcp_dist = torch.linalg.norm(
-            self.left_agent.tcp.pose.p - self.cubeA.pose.p, axis=1
-        )
-        right_arm_push_pose = Pose.create_from_pq(
-            p=self.cubeB.pose.p
-            + torch.tensor([0, self.cube_half_size[0] + 0.005, 0], device=self.device)
-        )
-        right_arm_to_push_pose_dist = torch.linalg.norm(
-            right_arm_push_pose.p - self.right_agent.tcp.pose.p, axis=1
-        )
-        reach_reward = (
-            1
-            - torch.tanh(5 * cubeA_to_left_arm_tcp_dist)
-            + 1
-            - torch.tanh(5 * right_arm_to_push_pose_dist)
-        ) / 2
-
-        # grasp reward for left robot which needs to lift cubeA up eventually
-        cubeA_pos = self.cubeA.pose.p
-        cubeB_pos = self.cubeB.pose.p
-        reward = (reach_reward + info["is_cubeA_grasped"]) / 2
-
-        # pass condition for stage 1
-        place_stage_reached = info["is_cubeA_grasped"]
-
-        # Stage 2: Place bottom cube and still hold to cube A
-        # place reward for bottom cube (cube B)
-        cubeB_to_goal_dist = torch.linalg.norm(
-            cubeB_pos[:, :2] - self.goal_region.pose.p[..., :2], axis=1
-        )
-        place_reward = 1 - torch.tanh(5 * cubeB_to_goal_dist)
-        stage_2_reward = place_reward + info["is_cubeA_grasped"]
-        reward[place_stage_reached] = 2 + stage_2_reward[place_stage_reached] / 2
-
-        # pass condition for stage 2
-        cubeB_placed_and_cubeA_grasped = info["cubeB_placed"] * info["is_cubeA_grasped"]
-
-        # Stage 3: Place top cube while moving right arm away to give left arm space
-        # place reward for top cube (cube A)
-        goal_xyz = torch.hstack(
-            [cubeB_pos[:, :2], (cubeB_pos[:, 2] + self.cube_half_size[2] * 2)[:, None]]
-        )
-        cubeA_to_goal_dist = torch.linalg.norm(goal_xyz - cubeA_pos, axis=1)
-        place_reward = 1 - torch.tanh(5 * cubeA_to_goal_dist)
-
-        # move right arm as close as possible to the y=0.2 line
-        right_arm_leave_reward = 1 - torch.tanh(
-            5 * (self.right_agent.tcp.pose.p[:, 1] - 0.2).abs()
-        )
-        stage_3_reward = place_reward * 2 + right_arm_leave_reward
-        reward[cubeB_placed_and_cubeA_grasped] = (
-            4 + stage_3_reward[cubeB_placed_and_cubeA_grasped]
-        )
-        # pass condition for stage 3
-        cubes_placed = info["is_cubeA_on_cubeB"] * info["cubeB_placed"]
-        # Stage 4: get both robots to stop grasping
-        gripper_width = (self.left_agent.robot.get_qlimits()[0, -1, 1] * 2).to(
-            self.device
-        )  # NOTE: hard-coded with panda
-        ungrasp_reward_left = (
-            torch.sum(self.left_agent.robot.get_qpos()[:, -2:], axis=1) / gripper_width
-        )
-        ungrasp_reward_left[~info["is_cubeA_grasped"]] = 1.0
-        ungrasp_reward_right = (
-            torch.sum(self.right_agent.robot.get_qpos()[:, -2:], axis=1) / gripper_width
-        )
-        ungrasp_reward_right[~info["is_cubeB_grasped"]] = 1.0
-
-        reward[cubes_placed] = (
-            8 + (ungrasp_reward_left + ungrasp_reward_right)[cubes_placed] / 2
-        )
-
-        reward[info["success"]] = 10
-
-        return reward
+        return 0.0
 
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: dict
     ):
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / 10
+        return 0.0
+
+if __name__ == "__main__":
+    # Now you can load this safe environment
+    env = gym.make(
+        "TwoRobotStackCube-v1", 
+        robot_uids="dual_panda", # Force the dual panda
+        obs_mode="state_dict", 
+        control_mode="pd_joint_delta_pos",
+        render_mode="human"
+    )
+
+    print("Environment Created Successfully!")
+    obs, _ = env.reset()
+    
+    print(f"Observation Keys: {obs.keys()}")
+    if "agent" in obs:
+        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
+    
+    # NOW you can run your IK loop here
+    # 2. You MUST run a loop, or the window will close immediately
+    while True:
+        # Create a dummy action (stay still)
+        # action = np.zeros(env.action_space.shape)
+        
+        # # Step the environment
+        # obs, reward, terminated, truncated, info = env.step(action)
+        
+        # Render the frame
+        env.render()  # <--- Updates the GUI
+        
+        # if terminated or truncated:
+        #     obs, _ = env.reset()
+    

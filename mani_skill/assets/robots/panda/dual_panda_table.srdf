@@ -22,6 +22,8 @@
     <disable_collisions link1="table" link2="panda_2_link0" reason="Default"/>
     <!-- <disable_collisions link1="table" link2="panda_1_hand" reason="Default"/>
     <disable_collisions link1="table" link2="panda_2_hand" reason="Default"/> -->
+    <disable_collisions link1="table" link2="panda_1_hand" reason="Default"/>
+    <disable_collisions link1="table" link2="panda_2_hand" reason="Default"/>
     <disable_collisions link1="table" link2="panda_1_leftfinger" reason="Default"/>
     <disable_collisions link1="table" link2="panda_2_leftfinger" reason="Default"/>
     <disable_collisions link1="table" link2="panda_1_rightfinger" reason="Default"/>

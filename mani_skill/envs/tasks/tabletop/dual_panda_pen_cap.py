@@ -15,17 +15,16 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.building import articulations
 from mani_skill import PACKAGE_ASSET_DIR
-
 import torch
 
 # 1. Define the Empty Environment
-@register_env("DualArmPickBottle-v0", max_episode_steps=1000)
-class DualArmPickBottleEnv(BaseEnv):
+@register_env("DualArmPenCap-v0", max_episode_steps=1000)
+class DualArmPenCapEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
     """
-    cube_half_size = 0.02
+    # cube_half_size = 0.02
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
@@ -33,12 +32,19 @@ class DualArmPickBottleEnv(BaseEnv):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         
     def _load_scene(self, options: dict):
-        self.obj = self.load_glb_as_actor(self.scene, 
-                                        os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
+        self.cap = self.load_glb_as_actor(self.scene, 
+                                        os.path.join(PACKAGE_ASSET_DIR,"pen_in_cap/cap.glb"),
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-                                        name="bottle",
-                                        scale=[0.06,0.06,0.08],
+                                        name="cap",
+                                        scale=[0.3,0.3,0.2],
                                         type="dynamic")
+        
+        self.pen = self.load_glb_as_actor(self.scene,
+                                          os.path.join(PACKAGE_ASSET_DIR, "pen_in_cap/pen.glb"),
+                                          sapien.Pose(p=[0.055, -0.158, 0.5], q=[0.854,0.471,0.212,0.068]),
+                                          name="pen",
+                                          scale=[0.19,0.19,0.2],
+                                          type="dynamic")
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
@@ -58,11 +64,16 @@ class DualArmPickBottleEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3))
+            xyz[..., :2] = -torch.rand((b, 2)) * 0.3 - 0.1
+            xyz[..., 2] = 0.84
+            q = [0, 0, 0.707, 0.707]
+            self.cap.set_pose(Pose.create_from_pq(p=xyz, q=q))
+            
             xyz[..., :2] = torch.rand((b, 2)) * 0.3 - 0.1
-            xyz[..., 2] = self.cube_half_size+0.83
-            q = [0.707, 0.707, 0, 0]
-            self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
-        
+            xyz[..., 2] = 0.84
+            q = [0, 0, 0.707, 0.707]
+            self.pen.set_pose(Pose.create_from_pq(p=xyz, q=q))
+            
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
@@ -98,21 +109,10 @@ class DualArmPickBottleEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["obj_pose"] = self.obj.pose.raw_pose
+        obs["pen_pose"] = self.pen.pose.raw_pose
+        obs["cap_pose"] = self.cap.pose.raw_pose
         return obs
 
-    def evaluate(self):
-        pos_1 = self.agent.tcp_1_pose.p
-        pos_2 = self.agent.tcp_2_pose.p
-        obj_pos = self.obj.pose.p
-        offset_1 = pos_1 - obj_pos
-        offset_2 = pos_2 - obj_pos
-        dist_1 = torch.linalg.norm(offset_1, dim=-1)
-        dist_2 = torch.linalg.norm(offset_2, dim=-1)
-        
-        success = dist_2 <= dist_1
-        return {"success": success}
-    
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL
         return 0.0
@@ -127,7 +127,7 @@ class DualArmPickBottleEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmPickBottle-v0", 
+        "DualArmPenCap-v0", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

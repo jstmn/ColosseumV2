@@ -3,15 +3,15 @@ import numpy as np
 import sapien
 import time
 from mani_skill.examples.motionplanning.dual_panda.motionplanner import DualPandaMotionPlanningSolver
-from mani_skill.envs.tasks import DualArmPourPotEnv
+from mani_skill.envs.tasks import DualArmLiftPotEnv
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 def main():
     """
     Test the dual panda motion planner with various scenarios.
     """
-    env:DualArmPourPotEnv = gym.make(
-        'DualArmPourPot-v0',
+    env:DualArmLiftPotEnv = gym.make(
+        'DualArmLiftPot-v0',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -30,7 +30,7 @@ def main():
     env.close()
     print("\n=== All tests completed ===")
 
-def solve(env:DualArmPourPotEnv, seed, debug, vis):
+def solve(env:DualArmLiftPotEnv, seed, debug, vis):
     env.reset(seed=seed)
     
     planner = DualPandaMotionPlanningSolver(
@@ -140,12 +140,12 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
             print("Failed to lift")
             return False
         
-        # 5. Lift up
-        print("\n5. Lifting...")
+        # 5. Move
+        print("\n5. Move...")
         
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
+        lift_1 = lift_1*sapien.Pose(p=[-0.3,0,0])
+        lift_2 = lift_2*sapien.Pose(p=[-0.3,0,0])
         
         result = planner.move_to_pose_pair_with_screw(
             lift_2,  # left
@@ -157,8 +157,10 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
             print("Failed to lift")
             return False
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
+        # Place down
+        
+        lift_1 = lift_1*sapien.Pose(p=[0,0.2,0])
+        lift_2 = lift_2*sapien.Pose(p=[0,-0.2,0])
         
         result = planner.move_to_pose_pair_with_screw(
             lift_2,  # left

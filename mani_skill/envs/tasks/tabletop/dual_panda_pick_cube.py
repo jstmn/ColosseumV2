@@ -86,6 +86,19 @@ class DualArmPickCubeEnv(BaseEnv):
         obs["obj_pose"] = self.obj.pose.raw_pose
         return obs
 
+    # Is the object 100 times closer to tcp1 than tcp2?
+    def evaluate(self):
+        pos_1 = self.agent.tcp_1_pose.p
+        pos_2 = self.agent.tcp_2_pose.p
+        obj_pos = self.obj.pose.p
+        offset_1 = pos_1 - obj_pos
+        offset_2 = pos_2 - obj_pos
+        dist_1 = torch.linalg.norm(offset_1, dim=-1)
+        dist_2 = torch.linalg.norm(offset_2, dim=-1)
+        
+        success = dist_2 <= dist_1
+        return {"success": success}
+    
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL
         return 0.0

@@ -3,15 +3,16 @@ import numpy as np
 import sapien
 import time
 from mani_skill.examples.motionplanning.dual_panda.motionplanner import DualPandaMotionPlanningSolver
-from mani_skill.envs.tasks import DualArmPourPotEnv
+from mani_skill.envs.tasks import DualPandaThreadingEnv
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
+from mani_skill.utils.structs.pose import Pose
 
 def main():
     """
     Test the dual panda motion planner with various scenarios.
     """
-    env:DualArmPourPotEnv = gym.make(
-        'DualArmPourPot-v0',
+    env:DualPandaThreadingEnv = gym.make(
+        'DualPandaThreading-v0',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -30,7 +31,7 @@ def main():
     env.close()
     print("\n=== All tests completed ===")
 
-def solve(env:DualArmPourPotEnv, seed, debug, vis):
+def solve(env:DualPandaThreadingEnv, seed, debug, vis):
     env.reset(seed=seed)
     
     planner = DualPandaMotionPlanningSolver(
@@ -40,7 +41,6 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         print_env_info=True
     )
     
-        
     try:
         # Get initial poses
         tcp_1_pose = env.unwrapped.agent.tcp_1_pose
@@ -67,114 +67,105 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         env = env.unwrapped
 
         # retrieves the object oriented bounding box (trimesh box object)
-        obb = get_actor_obb(env.pot)
-
-        # Get approaching vector along pot's x-axis
-        pot_transform = env.pot.pose.sp.to_transformation_matrix()
-        if hasattr(pot_transform, 'cpu'):  # if it's a tensor
-            approaching = pot_transform[:3, 0].cpu().numpy()
+        obb_needle = get_actor_obb(env.needle)
+        needle_transform = env.needle.pose.sp.to_transformation_matrix()
+        # Along the x axis of the needle
+        if hasattr(needle_transform, 'cpu'):  # if it's a tensor
+            approaching = -needle_transform[:3, 2].cpu().numpy()
         else:
-            approaching = np.array(pot_transform[:3, 0])
-        # # get transformation matrix of the tcp pose, is default batched and on torch
+            approaching = -np.array(needle_transform[:3, 2])
+
         target_closing = env.agent.tcp_1.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
-        # # we can build a simple grasp pose using this information for Panda
         grasp_info = compute_grasp_info_by_obb(
-            obb,
+            obb_needle,
             approaching=approaching,
             target_closing=target_closing,
             depth=FINGER_LENGTH,
         )
         closing, center = grasp_info["closing"], grasp_info["center"]
-        grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.pot.pose.sp.p)
-        grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0,-0.15,-0.1])
-        approaching = -approaching
+        grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.needle.pose.sp.p)
+        grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0.02,0,0.04])
+        result = planner.move_to_pose_with_screw(
+            grasp_1_pose,  # left
+            arm_index=1
+        )
+        if result==-1:
+            print("Failed grasp_approach")
+            return False
+        
+        obb_tripod = get_actor_obb(env.ring_tripod)
+        tripod_transform = env.ring_tripod.pose.sp.to_transformation_matrix()
+        # Along the x axis of the tripod
+        if hasattr(tripod_transform, 'cpu'):  # if it's a tensor
+            approaching = -tripod_transform[:3, 1].cpu().numpy()
+        else:
+            approaching = -np.array(tripod_transform[:3, 1])
+
         target_closing = env.agent.tcp_2.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
         grasp_info = compute_grasp_info_by_obb(
-            obb,
+            obb_tripod,
             approaching=approaching,
             target_closing=target_closing,
             depth=FINGER_LENGTH
         )
         closing, center = grasp_info["closing"], grasp_info["center"]
-        grasp_2_pose = env.agent.build_grasp_pose(approaching, closing, env.pot.pose.sp.p)     
-        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0, 0.15, -0.1])
-        # grasp_2_pose = sapien.Pose(
-        #     p=np.array([0.2, 0.15, 1.0]),
-        #     q=np.array([-0.707, -0.707, 0, 0])
-        # )
         
-        grasp_1_approach_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.1])
-        grasp_2_approach_pose = grasp_2_pose*sapien.Pose(p=[0, 0, -0.1])
-        result = planner.move_to_pose_pair_with_RRTConnect(
-            grasp_2_approach_pose,
-            grasp_1_approach_pose  # left
-        )
-
-        if result==-1:
-            print("Failed grasp_approach")
-            return False
-        
-        result = planner.move_to_pose_pair_with_screw(
-            grasp_2_pose,
-            grasp_1_pose  # left
-        )
-
-        if result==-1:
-            print("Failed grasp_approach")
-            return False
-        
+        lift_1_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.1])
         planner.close_gripper(arm_index=1, t=10)
+        grasp_2_pose = env.agent.build_grasp_pose(approaching, closing, env.ring_tripod.pose.sp.p)
+        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,-0.05,-0.1])
+        grasp_2_pose.q = [0,0,0.707,-0.707]
+        result = planner.move_to_pose_pair_with_RRTConnect(
+            grasp_2_pose,
+            lift_1_pose
+        )
+        if result==-1:
+            print("Failed grasp_approach")
+            return False
+        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,0,0.07])
+        result = planner.move_to_pose_with_screw(
+            grasp_2_pose,
+            arm_index=2
+        )
+        if result==-1:
+            print("Failed grasp_approach")
+            return False
         planner.close_gripper(arm_index=2, t=10)
         
-        print("\n5. Lifting...")
-        lift_1 = grasp_1_pose*sapien.Pose(p=[0,-0.2,0])
-        lift_2 = grasp_2_pose*sapien.Pose(p=[0,0.2,0])
+        lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186],q=[0,0,0.707,-0.707])
+        lift_2_pose = lift_2_pose*sapien.Pose(p=[0,0.0,-0.03])
+        lift_1_pose = sapien.Pose(p=[-0.287, -0.011, 1.36], q=[0.707,-0.707,0,0])
+        lift_1_approach_pose = lift_1_pose*sapien.Pose(p=[-0.4,0,0])
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
-            lift_2,  # left
-            lift_1
-            # refine_steps=5
+        result = planner.move_to_pose_with_screw(
+            lift_1_approach_pose,
+            arm_index=1
         )
-        
-        if result == -1:
-            print("Failed to lift")
+        if result==-1:
+            print("Failed grasp_approach")
             return False
         
-        # 5. Lift up
-        print("\n5. Lifting...")
-        
-        
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
-        
-        result = planner.move_to_pose_pair_with_screw(
-            lift_2,  # left
-            lift_1,  # right
-            # refine_steps=5
+        result = planner.move_to_pose_with_screw(
+            lift_2_pose,
+            arm_index=2
         )
-        
-        if result == -1:
-            print("Failed to lift")
+        if result==-1:
+            print("Failed grasp_approach")
             return False
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
-        
-        result = planner.move_to_pose_pair_with_screw(
-            lift_2,  # left
-            lift_1,  # right
-            # refine_steps=5
+        result = planner.move_to_pose_with_screw(
+            lift_1_pose,
+            arm_index=1
         )
-        
-        if result == -1:
-            print("Failed to lift")
+        if result==-1:
+            print("Failed grasp_approach")
             return False
+        planner.render_wait()
         
         return True
-    
     except Exception as e:
         print("Exception during Motion Planning:", e)
-        return False    
-
+        return False
+    
 if __name__ == "__main__":
     main()

@@ -7,6 +7,8 @@ from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.building import actors
+from mani_skill.utils.structs import Pose
+
 import torch
 import os
 from mani_skill import PACKAGE_ASSET_DIR
@@ -62,8 +64,25 @@ class DualArmPourPotEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            self.pot.set_pose(sapien.Pose(p=[0.2, 0, 0.83+self.cube_half_size],q=[0.5,0.5,0.5,0.5]))
-            self.ball.set_pose(sapien.Pose(p=[0.2, 0, 0.9]))
+            xyz = torch.zeros((b, 3))
+            xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            xyz[..., 2] = self.cube_half_size+0.83
+            theta_by_2 = 0  # -pi/2 to pi/2
+            
+            # Set poses for each environment in the batch
+            for i in range(b):
+                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[0.5,0.5,0.5,0.5])
+                # Convert tensors to numpy float32 arrays
+                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
+                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
+                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
+                # rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
+                # init_pose_sapien = rotation_pose * init_pose_sapien
+                self.pot.set_pose(init_pose_sapien)
+            
+            xyz[..., 2] = 0.9
+            self.ball.set_pose(Pose.create_from_pq(p=xyz,q=[1,0,0,0]))
+            
             
     def _initialize_agent(self):
         # Reset the robot to a neutral position
@@ -101,9 +120,15 @@ class DualArmPourPotEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
-
+        obs["pot_pose"] = self.pot.pose.raw_pose
+        obs["ball_pose"] = self.ball.pose.raw_pose
         return obs
 
+    def evaluate(self):
+        ball_pos = self.ball.pose.p
+        success = ball_pos[..., 2] <= 0.82
+        return {"success": success}
+    
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL
         return 0.0
