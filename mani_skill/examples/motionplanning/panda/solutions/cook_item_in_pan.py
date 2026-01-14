@@ -227,7 +227,7 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     move_arm_to_qpos(home_arm_qpos)
 
     # Wait for objects to settle
-    for _ in range(60):
+    for _ in range(120):
         if env_sim.control_mode == "pd_joint_pos":
             action = np.hstack([home_arm_qpos, planner.gripper_state])
         else:
