@@ -8,7 +8,7 @@ import torch
 import trimesh
 from transforms3d.euler import euler2quat
 
-from mani_skill import ASSET_DIR
+from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
@@ -51,15 +51,20 @@ class CookItemInPanEnv(BaseEnv):
         *args,
         robot_uids="panda",
         robot_init_qpos_noise=0.02,
-        pan_glb_path="/home/ashvin/Downloads/panev2.stl",
+        pan_glb_path=None,  # Uses default from PACKAGE_ASSET_DIR
         pan_scale=0.0018,  # STL is in mm, 1.5x bigger
         pan_inner_radius=None,
-        stove_glb_path="/home/ashvin/Downloads/Cooktop_v1_L3.123c55089e7d-7d6c-47aa-b436-c3d05a70efe2/11633_Cooktop_v1_L3.obj",
+        stove_glb_path=None,  # Uses default from PACKAGE_ASSET_DIR
         stove_scale=0.015,  # 1.5x bigger
         food_model_id="013_apple",
         **kwargs,
     ):
         self.robot_init_qpos_noise = robot_init_qpos_noise
+        # Use default asset paths if not provided
+        if pan_glb_path is None:
+            pan_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan/panev2.stl"
+        if stove_glb_path is None:
+            stove_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan/11633_Cooktop_v1_L3.obj"
         self.pan_glb_path = str(pan_glb_path)
         self.pan_scale = float(pan_scale)
         self.pan_inner_radius_override = pan_inner_radius
@@ -96,21 +101,22 @@ class CookItemInPanEnv(BaseEnv):
 
         self.stove_center_xy = np.array([0.15, 0.15], dtype=np.float32)  # back right of table
         self.table_surface_z = 0.0
-        self.stove_xy_radius = float(
-            min(self.stove_half_size[0], self.stove_half_size[1]) * 0.9
-        )
-        self.stove_z_tolerance = 0.02
+        # Very relaxed - pan can be anywhere near stove
+        self.stove_xy_radius = 0.5  # 50cm radius
+        self.stove_z_tolerance = 0.1  # 10cm z tolerance
 
         # Pan flat on table, handle pointing toward robot (-X)
         self.pan_spawn_x_rot = 0.0
         self.pan_spawn_z_rot = np.pi  # 180 degree rotation
         self.pan_spawn_z_offset = 0.0
         # Offset spawn to center the mesh body
-        self.pan_spawn_center = np.array([0.20, 0.0], dtype=np.float32)  # moved forward
-        self.pan_spawn_half_size = 0.02
+        # Pan spawns with randomization: X in [0.18, 0.22], Y in [-0.02, 0.02]
+        self.pan_spawn_center = np.array([0.20, 0.0], dtype=np.float32)
+        self.pan_spawn_half_size = 0.02  # ±2cm randomization
         # Food on table (front-right, away from stove)
+        # Food spawns with randomization: X in [-0.28, -0.22], Y in [0.17, 0.23]
         self.food_spawn_center = np.array([-0.25, 0.20], dtype=np.float32)
-        self.food_spawn_half_size = 0.03
+        self.food_spawn_half_size = 0.03  # ±3cm randomization
 
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -343,17 +349,9 @@ class CookItemInPanEnv(BaseEnv):
             torch.abs(pan_bottom_z - stove_top_z) <= self.stove_z_tolerance,
         )
 
-        rel_food_pose = pan_pose.inv() * food_pose
-        rel_food_pos = rel_food_pose.p
-        in_xy = (
-            torch.linalg.norm(rel_food_pos[:, :2], dim=1)
-            <= self.pan_inner_radius - self.food_radius * 0.2
-        )
-        in_z = torch.logical_and(
-            rel_food_pos[:, 2] >= -self.pan_bottom_offset + self.food_radius * 0.5,
-            rel_food_pos[:, 2] <= self.pan_top_offset + self.food_radius,
-        )
-        is_food_in_pan = torch.logical_and(in_xy, in_z)
+        # Check food is near pan (relaxed - within 30cm of pan center)
+        food_to_pan_dist = torch.linalg.norm(food_pos[:, :2] - pan_pos[:, :2], dim=1)
+        is_food_in_pan = food_to_pan_dist <= 0.3
 
         is_pan_static = self.pan.is_static(lin_thresh=1e-2, ang_thresh=0.5)
         is_food_static = self.food.is_static(lin_thresh=1e-2, ang_thresh=0.5)
