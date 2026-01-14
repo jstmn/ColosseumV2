@@ -55,7 +55,7 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Position above center of pan
     above_pan = pan_pos.copy()
-    above_pan[0] -= 0.4  # centered along X
+    above_pan[0] -= 0.45  # centered along X
     above_pan[1] -= 0.10  # centered along Y
     above_pan[2] = 0.15  # 15cm above table
 
@@ -102,8 +102,8 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     print(f"Stove pos: {stove_pos}")
 
     move_to_stove = lift_pos.copy()
-    move_to_stove[0] = stove_pos[0] - 0.10  # move to stove X
-    move_to_stove[1] = stove_pos[1] - 0.05  # move to stove Y
+    move_to_stove[0] = stove_pos[0] - 0.15  # move to stove X
+    move_to_stove[1] = stove_pos[1] - 0.15  # move to stove Y
     stove_pose = env_sim.agent.build_grasp_pose(approaching, closing, move_to_stove)
     res = move_to_pose(stove_pose)
     if res == -1:
@@ -191,10 +191,14 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Move apple above pan (now on stove)
     pan_on_stove = env_sim.pan.pose.p[0].cpu().numpy()
-    above_pan_pos = pan_on_stove.copy()
-    above_pan_pos[0] -= 0.18  # centered along X
-    above_pan_pos[1] += 0.20  # centered along Y
-    above_pan_pos[2] = 0.25
+    print(f"Pan on stove pos: {pan_on_stove}")
+
+    # The pan bowl center is roughly at the pan position with small offset
+    # Pan is rotated 180 degrees, so handle points toward robot (+X direction in world)
+    # The bowl center is behind the handle
+    above_pan_pos = move_to_stove.copy()
+    above_pan_pos[0] += 0.1  # slight offset toward bowl center (away from handle)
+    above_pan_pos[2] = 0.20  # above pan
     above_pan_pose = env_sim.agent.build_grasp_pose(approaching, closing, above_pan_pos)
     res = move_to_pose(above_pan_pose)
     if res == -1:
@@ -203,7 +207,7 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Lower apple into pan
     place_apple_pos = above_pan_pos.copy()
-    place_apple_pos[2] = above_pan_pos[2] - 0.20  # lower into pan
+    place_apple_pos[2] = pan_on_stove[2] + 0.08  # lower to just above pan surface
     place_apple_pose = env_sim.agent.build_grasp_pose(approaching, closing, place_apple_pos)
     res = move_to_pose(place_apple_pose)
     if res == -1:

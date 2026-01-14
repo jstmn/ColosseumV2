@@ -8,7 +8,7 @@ import torch
 import trimesh
 from transforms3d.euler import euler2quat
 
-from mani_skill import ASSET_DIR
+from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
@@ -51,14 +51,19 @@ class CookItemInPanEnv(BaseEnv):
         *args,
         robot_uids="panda",
         robot_init_qpos_noise=0.02,
-        pan_glb_path="/home/ashvin/Downloads/panev2.stl",
+        pan_glb_path=None,
         pan_scale=0.0018,  # STL is in mm, 1.5x bigger
         pan_inner_radius=None,
-        stove_glb_path="/home/ashvin/Downloads/Cooktop_v1_L3.123c55089e7d-7d6c-47aa-b436-c3d05a70efe2/11633_Cooktop_v1_L3.obj",
+        stove_glb_path=None,
         stove_scale=0.015,  # 1.5x bigger
         food_model_id="013_apple",
         **kwargs,
     ):
+        # Set default paths using PACKAGE_ASSET_DIR if not provided
+        if pan_glb_path is None:
+            pan_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan" / "panev2.stl"
+        if stove_glb_path is None:
+            stove_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan" / "cooktop" / "11633_Cooktop_v1_L3.obj"
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self.pan_glb_path = str(pan_glb_path)
         self.pan_scale = float(pan_scale)
@@ -106,11 +111,13 @@ class CookItemInPanEnv(BaseEnv):
         self.pan_spawn_z_rot = np.pi  # 180 degree rotation
         self.pan_spawn_z_offset = 0.0
         # Offset spawn to center the mesh body
-        self.pan_spawn_center = np.array([0.20, 0.0], dtype=np.float32)  # moved forward
-        self.pan_spawn_half_size = 0.02
+        # Pan spawns with randomization: X in [0.17, 0.23], Y in [-0.03, 0.03]
+        self.pan_spawn_center = np.array([0.20, 0.0], dtype=np.float32)
+        self.pan_spawn_half_size = 0.03  # ±3cm randomization
         # Food on table (front-right, away from stove)
+        # Food spawns with randomization: X in [-0.29, -0.21], Y in [0.16, 0.24]
         self.food_spawn_center = np.array([-0.25, 0.20], dtype=np.float32)
-        self.food_spawn_half_size = 0.03
+        self.food_spawn_half_size = 0.04  # ±4cm randomization
 
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
