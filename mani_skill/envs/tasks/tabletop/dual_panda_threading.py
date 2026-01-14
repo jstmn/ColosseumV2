@@ -56,7 +56,7 @@ class DualPandaThreadingEnv(BaseEnv):
             ring_radius = 0.03,
             ring_thickness = 0.01,
             density=1000.0,
-            color=np.array([0.8, 0.8, 0.8, 1.0]),
+            color=np.array([110/255, 38/255, 14/255, 1.0]),
             initial_pose=sapien.Pose(p=[0.3, 0.0, 0.9]),
         )
     
@@ -82,8 +82,9 @@ class DualPandaThreadingEnv(BaseEnv):
                 
             xyz[..., :2] = torch.rand((b, 2)) * 0.3 - 0.4
             xyz[..., 2]=0.85
-            theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
-            self.needle.set_pose(sapien.Pose(p=list(xyz[0]), q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))]))
+            # theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
+            # self.needle.set_pose(sapien.Pose(p=list(xyz[0]), q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))]))
+            self.needle.set_pose(sapien.Pose(p=list(xyz[0])))
             # self.ring_tripod.set_pose(sapien.Pose(p=[0.3, 0.0, 0.9]))
     
     def _initialize_agent(self):

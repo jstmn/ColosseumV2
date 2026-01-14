@@ -104,13 +104,13 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     grasp_C_pose = env.agent.build_grasp_pose(approaching, closing, env.cubeC.pose.sp.p)
 
     place_A_pose = sapien.Pose(p=np.array(env.goal_region.pose.p[0]), q=grasp_A_pose.get_q())
-    place_A_pose = place_A_pose * sapien.Pose(p=[0,0,-0.1])
+    place_A_pose = place_A_pose * sapien.Pose(p=[0,0,-0.05])
     
     place_B_pose = sapien.Pose(p=np.array(env.goal_region.pose.p[0]), q=grasp_B_pose.get_q())
     place_B_pose = place_B_pose * sapien.Pose(p=[0,0,-0.1])
 
     place_C_pose = sapien.Pose(p=np.array(env.goal_region.pose.p[0]), q=grasp_C_pose.get_q())
-    place_C_pose = place_C_pose * sapien.Pose(p=[0,0,-0.2])
+    place_C_pose = place_C_pose * sapien.Pose(p=[0,0,-0.15])
 
     grasp_A_approach_pose = grasp_A_pose*sapien.Pose(p=[0,0,-0.1])
     grasp_B_approach_pose = grasp_B_pose*sapien.Pose(p=[0,0,-0.1])

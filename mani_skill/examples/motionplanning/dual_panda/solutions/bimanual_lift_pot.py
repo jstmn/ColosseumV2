@@ -114,6 +114,8 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
             print("Failed grasp_approach")
             return False
         
+        planner.render_wait()
+        
         result = planner.move_to_pose_pair_with_screw(
             grasp_2_pose,
             grasp_1_pose  # left

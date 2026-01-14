@@ -117,13 +117,13 @@ class TwoRobotStack3Cube(BaseEnv):
             # self.scene.initialize(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
             cubeA_xyz = torch.zeros((b, 3))
-            cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 + 0.05
+            cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 + 0.1
             cubeA_xyz[:, 1] = -0.15 - torch.rand((b,)) * 0.1 - 0.05
             cubeB_xyz = torch.zeros((b, 3))
             cubeB_xyz[:, 0] = torch.rand((b,)) * 0.1 + 0.05
             cubeB_xyz[:, 1] = 0.15 + torch.rand((b,)) * 0.1 + 0.05
             cubeC_xyz = torch.zeros((b, 3))
-            cubeC_xyz[:, 0] = -torch.rand((b,)) * 0.2 - 0.05
+            cubeC_xyz[:, 0] = -torch.rand((b,)) * 0.2 - 0.1
             cubeC_xyz[:, 1] = -0.15 + torch.rand((b,)) * 0.1 + 0.05
             
             cubeA_xyz[:, 2] = 0.02 + 0.83 

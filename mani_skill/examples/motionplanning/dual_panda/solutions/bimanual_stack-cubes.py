@@ -121,7 +121,7 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     planner.close_gripper(arm_index=1, t=10)
     planner.close_gripper(arm_index=2, t=10)
     
-    place_A_lift_pose = place_A_pose * sapien.Pose(p=[0,0,-0.1])
+    place_A_lift_pose = place_A_pose * sapien.Pose(p=[0,0,-0.05])
     # life A above target
     result = planner.move_to_pose_with_screw(
         place_A_lift_pose,

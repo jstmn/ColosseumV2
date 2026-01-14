@@ -145,23 +145,17 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
         print("Failed to lift")
         return False
     
-            # 6. Open grippers
+    # 6. Open grippers
     print("\n6. Releasing...")
     planner.close_gripper(arm_index=2, t=10)
     planner.open_gripper(arm_index=1, t=10)
     
-    grasp_1 = sapien.Pose(
-        p=np.array([-0.2, -0.141, 0.83]),
-        q=grasp_pose.q
-    )
-    grasp_2 = sapien.Pose(
-        p=np.array([0.2, 0.141, 0.9]),
-        q=grasp_pose.q
-    )
-    
+    lift_1 = lift_1*sapien.Pose(p=[0,0,-0.1])
+    lift_2 = lift_2*sapien.Pose(p=[0,0,-0.1])
+   
     result = planner.move_to_pose_pair_with_RRTConnect(
-        grasp_2,  # left
-        grasp_1,  # right
+        lift_2,  # left
+        lift_1,  # right
         refine_steps=5
     )
     
