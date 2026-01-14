@@ -10,15 +10,22 @@ from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 
 
 def _normalize(vec: np.ndarray, fallback: np.ndarray) -> np.ndarray:
-    """Normalize a vector, returning fallback if norm is too small."""
     norm = np.linalg.norm(vec)
     if norm < 1e-6:
         return fallback
     return vec / norm
 
 
+def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
+    axis = _normalize(axis, np.array([1.0, 0.0, 0.0], dtype=np.float32))
+    return (
+        vec * np.cos(angle)
+        + np.cross(axis, vec) * np.sin(angle)
+        + axis * (axis @ vec) * (1.0 - np.cos(angle))
+    )
+
+
 def _get_joint_axis(joint) -> np.ndarray:
-    """Get the global rotation axis for a joint."""
     axis = None
     axis_is_local = True
     raw_joint = joint._objs[0] if hasattr(joint, "_objs") and joint._objs else None
@@ -52,11 +59,10 @@ def _get_joint_axis(joint) -> np.ndarray:
         if hasattr(joint_pose, "cpu"):
             joint_pose = joint_pose.cpu().numpy()
         axis = joint_pose[:3, :3] @ axis
-    return _normalize(axis, np.array([0.0, 0.0, 1.0], dtype=np.float32))
+    return _normalize(axis, np.array([1.0, 0.0, 0.0], dtype=np.float32))
 
 
 def _get_joint_pivot(joint) -> np.ndarray:
-    """Get the pivot point (position) of a joint in global coordinates."""
     joint_pose = joint.get_global_pose()
     pivot = joint_pose.p
     if hasattr(pivot, "cpu"):
@@ -67,8 +73,22 @@ def _get_joint_pivot(joint) -> np.ndarray:
     return pivot
 
 
+def _rotate_point_about_axis(
+    point: np.ndarray, pivot: np.ndarray, axis: np.ndarray, angle: float
+) -> np.ndarray:
+    axis = _normalize(axis, np.array([1.0, 0.0, 0.0], dtype=np.float32))
+    vec = point - pivot
+    cos_theta = np.cos(angle)
+    sin_theta = np.sin(angle)
+    rotated = (
+        vec * cos_theta
+        + np.cross(axis, vec) * sin_theta
+        + axis * (axis @ vec) * (1.0 - cos_theta)
+    )
+    return pivot + rotated
+
+
 def _get_joint_limits(joint) -> tuple[float, float]:
-    """Get the min and max joint limits."""
     qlimits = joint.limits
     if hasattr(qlimits, "cpu"):
         qlimits = qlimits.cpu().numpy()
@@ -90,7 +110,6 @@ def _get_joint_limits(joint) -> tuple[float, float]:
 
 
 def _get_handle_obb(handle_link):
-    """Get the oriented bounding box of the handle mesh."""
     try:
         meshes = handle_link.generate_mesh(
             filter=lambda _, render_shape: "handle" in render_shape.name,
@@ -112,67 +131,37 @@ def _get_handle_obb(handle_link):
     return merged.bounding_box_oriented
 
 
-def _rotate_point_about_axis(
-    point: np.ndarray, pivot: np.ndarray, axis: np.ndarray, angle: float
-) -> np.ndarray:
-    """Rotate a point about an axis (Rodrigues' rotation formula)."""
-    axis = _normalize(axis, np.array([0.0, 0.0, 1.0], dtype=np.float32))
-    vec = point - pivot
-    cos_theta = np.cos(angle)
-    sin_theta = np.sin(angle)
-    rotated = (
-        vec * cos_theta
-        + np.cross(axis, vec) * sin_theta
-        + axis * (axis @ vec) * (1.0 - cos_theta)
-    )
-    return pivot + rotated
-
-
-def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
-    """Rotate a vector about an axis (Rodrigues' rotation formula)."""
-    axis = _normalize(axis, np.array([0.0, 0.0, 1.0], dtype=np.float32))
-    return (
-        vec * np.cos(angle)
-        + np.cross(axis, vec) * np.sin(angle)
-        + axis * (axis @ vec) * (1.0 - np.cos(angle))
-    )
+def _find_reach_pose(planner, poses: list[sapien.Pose]):
+    for pose in poses:
+        res = planner.move_to_pose_with_RRTConnect(pose, dry_run=True)
+        if res == -1:
+            res = planner.move_to_pose_with_screw(pose, dry_run=True)
+        if res != -1:
+            return pose
+    return None
 
 
 def _open_cabinet_with_planner(
     env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver
 ):
-    """Execute motion plan to open the cabinet door in a smooth, single motion."""
     env_sim = env.unwrapped
-
-    # Get handle and joint information
     handle_pos = env_sim.handle_link_positions()[0].cpu().numpy()
     joint = env_sim.handle_link.joint
     axis = _get_joint_axis(joint)
     pivot = _get_joint_pivot(joint)
     robot_pos = env_sim.agent.robot.pose.p[0].cpu().numpy()
-
-    # Print initial EE-to-handle distance
-    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
-    ee_handle_dist = np.linalg.norm(ee_pos - handle_pos)
-    print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
-
-    # Get handle oriented bounding box for precise grasp
     handle_obb = _get_handle_obb(env_sim.handle_link)
-
-    # Calculate approach direction (from robot to handle)
-    approaching = _normalize(handle_pos - robot_pos, np.array([1.0, 0.0, 0.0], dtype=np.float32))
-
-    # Door normal perpendicular to axis and radial direction
     radial = _normalize(handle_pos - pivot, np.array([1.0, 0.0, 0.0], dtype=np.float32))
     door_normal = np.cross(axis, radial)
     door_normal = _normalize(door_normal, np.array([0.0, 1.0, 0.0], dtype=np.float32))
     if np.dot(door_normal, robot_pos - handle_pos) < 0:
         door_normal = -door_normal
-
-    # Tangent direction for gripper closing
-    tangent = _normalize(np.cross(axis, door_normal), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-
-    # Compute grasp pose
+    approaching = _normalize(
+        handle_pos - robot_pos, np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    )
+    tangent = _normalize(
+        np.cross(axis, door_normal), np.array([0.0, 1.0, 0.0], dtype=np.float32)
+    )
     finger_length = 0.025
     grasp_backoff = -0.005
     if handle_obb is not None:
@@ -185,143 +174,97 @@ def _open_cabinet_with_planner(
         closing = grasp_info["closing"]
         center = grasp_info["center"] + approaching * grasp_backoff
     else:
-        closing = _normalize(np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32))
+        closing = _normalize(
+            np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        )
         center = handle_pos + approaching * grasp_backoff
-
     grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, center)
+    reach_candidates = [
+        grasp_pose * sapien.Pose([0, 0, -0.08]),
+        grasp_pose * sapien.Pose([0, 0, -0.12]),
+    ]
+    reach_pose = _find_reach_pose(planner, reach_candidates)
+    if reach_pose is None:
+        print("Failed to find path to reach pose")
+        planner.close()
+        return -1
 
-    # Phase 1: Approach - move to pre-grasp position
     planner.open_gripper()
-    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
+    res = planner.move_to_pose_with_RRTConnect(reach_pose)
+    if res == -1:
+        res = planner.move_to_pose_with_screw(reach_pose)
+    if res == -1:
+        print("Failed to reach")
+        planner.close()
+        return res
 
-    # Skip reach motion if already at pre-grasp pose (e.g., initialized there)
-    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
-    reach_pos = np.array(reach_pose.p)
-    if np.linalg.norm(ee_pos - reach_pos) > 0.02:  # only move if > 2cm away
-        res = planner.move_to_pose_with_RRTConnect(reach_pose)
-        if res == -1:
-            res = planner.move_to_pose_with_screw(reach_pose)
-        if res == -1:
-            print("Failed to reach pre-grasp pose")
-            planner.close()
-            return -1
-
-    # Phase 2: Move to grasp position
     res = planner.move_to_pose_with_screw(grasp_pose)
     if res == -1:
         res = planner.move_to_pose_with_RRTConnect(grasp_pose)
     if res == -1:
-        print("Failed to reach grasp pose")
+        print("Failed to grasp")
         planner.close()
         return res
 
-    # Phase 3: Grasp the handle
     planner.close_gripper()
-
-    # Get current joint state and limits
+    handle_pos0 = env_sim.handle_link_positions()[0].cpu().numpy()
     qpos = env_sim.handle_link.joint.qpos
     current_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
-
-    # Target: open to 90% of max range for >80% success criterion
-    target_qpos = qmin + 0.90 * abs(qmax - qmin)
-
-    # Phase 4: Open the door by following an arc
-    # Record initial handle position for arc calculation
-    handle_pos0 = env_sim.handle_link_positions()[0].cpu().numpy()
-
+    target_qpos = qmax - 0.01 * abs(qmax - qmin)
     delta = target_qpos - current_qpos
     if abs(delta) < 1e-3:
-        delta = 0.5 * abs(qmax - qmin)
+        delta = 0.7 * abs(qmax - qmin)
 
-    # Use smooth arc motion with small angle steps for reliable planning
-    # Smaller steps = more reliable screw motion planning
-    angle_step = 0.02  # ~1.15 degrees per step
-    num_steps = max(40, int(abs(delta) / angle_step))
+    num_steps = max(36, int(abs(delta) / 0.04))
     step_angle = delta / num_steps
     current_angle = 0.0
-
-    # Pull-back offsets to keep gripper behind the door surface
-    pull_offsets = [-0.02, -0.04, -0.06, -0.08, -0.10]
-    consecutive_failures = 0
-    max_failures = 8  # Allow more failures before giving up
-
-    for _ in range(num_steps):
+    pull_offsets = [0.0, -0.01, -0.02]
+    last_pose = env_sim.agent.tcp_pose.sp
+    for _ in range(1, num_steps + 1):
         target_angle = current_angle + step_angle
-
-        # Calculate where the handle should be at the target angle
-        target_handle = _rotate_point_about_axis(handle_pos0, pivot, axis, target_angle)
-
-        # Rotate approach and closing directions to match door rotation
-        approach_rot = _rotate_vec_about_axis(approaching, axis, target_angle)
-        closing_rot = _rotate_vec_about_axis(closing, axis, target_angle)
-
-        # Build the target pose at the new handle position
-        target_pose = env_sim.agent.build_grasp_pose(
-            approach_rot, closing_rot, target_handle + approach_rot * grasp_backoff
-        )
-
-        # Try different pull-back distances with screw motion (preferred for smooth arc)
+        attempt_angles = [
+            target_angle,
+            current_angle + 0.5 * step_angle,
+            current_angle + 0.25 * step_angle,
+        ]
         res = -1
-        for pull_back in pull_offsets:
-            pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
-            res = planner.move_to_pose_with_screw(pull_pose)
-            if res != -1:
-                current_angle = target_angle
-                consecutive_failures = 0
-                break
-
-        # If screw fails, try RRT (less smooth but may find path)
-        if res == -1:
+        for angle in attempt_angles:
+            target_handle = _rotate_point_about_axis(handle_pos0, pivot, axis, angle)
+            approach_rot = _rotate_vec_about_axis(approaching, axis, angle)
+            closing_rot = _rotate_vec_about_axis(closing, axis, angle)
+            target_pose = env_sim.agent.build_grasp_pose(
+                approach_rot,
+                closing_rot,
+                target_handle + approach_rot * grasp_backoff,
+            )
             for pull_back in pull_offsets:
                 pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
                 res = planner.move_to_pose_with_RRTConnect(pull_pose)
+                if res == -1:
+                    res = planner.move_to_pose_with_screw(pull_pose)
                 if res != -1:
-                    current_angle = target_angle
-                    consecutive_failures = 0
+                    current_angle = angle
                     break
-
+            if res != -1:
+                break
         if res == -1:
-            consecutive_failures += 1
-            # Try smaller step if having trouble
-            if consecutive_failures >= max_failures:
-                # Try to continue from actual current position
-                handle_pos0 = env_sim.handle_link_positions()[0].cpu().numpy()
-                qpos = env_sim.handle_link.joint.qpos
-                qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
-                current_angle = qpos_val - current_qpos
-                consecutive_failures = 0
-                # If we've opened past 85%, we can stop
-                if qpos_val >= qmin + 0.85 * abs(qmax - qmin):
-                    break
-
-        # Check current door opening
-        qpos = env_sim.handle_link.joint.qpos
-        qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
-
-        # Success: door is open enough
-        if qpos_val >= target_qpos - 0.01:
+            print("Failed during arc")
             break
 
-    # Phase 5: Release and retreat
+        last_pose = env_sim.agent.tcp_pose.sp
+        qpos = env_sim.handle_link.joint.qpos
+        qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
+        if qpos_val >= target_qpos - 1e-3:
+            break
+
     planner.open_gripper()
-
-    # Retreat from current position
-    tcp_pose = env_sim.agent.tcp_pose.sp
-    retreat_pose = tcp_pose * sapien.Pose([0, 0, -0.10])
+    retreat_pose = last_pose * sapien.Pose([0, 0, -0.1])
     res = planner.move_to_pose_with_RRTConnect(retreat_pose)
-
-    # Final status
-    qpos = env_sim.handle_link.joint.qpos
-    final_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
-    open_frac = (final_qpos - qmin) / (qmax - qmin) if abs(qmax - qmin) > 1e-6 else 0.0
-    print(f"Cabinet opened to {open_frac*100:.1f}% (qpos={final_qpos:.3f}, target={target_qpos:.3f})")
-
     return res
 
 
 def solve(env: OpenCabinetEnv, seed=None, debug=False, vis=False):
-    """Solve the OpenCabinet task using motion planning."""
     env.reset(seed=seed)
     assert env.unwrapped.control_mode in [
         "pd_joint_pos",

@@ -16,91 +16,8 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.utils.geometry.trimesh_utils import merge_meshes
-from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
 
 CABINET_COLLISION_BIT = 29
-
-
-def _normalize(vec: np.ndarray, fallback: np.ndarray) -> np.ndarray:
-    """Normalize a vector, returning fallback if norm is too small."""
-    norm = np.linalg.norm(vec)
-    if norm < 1e-6:
-        return fallback
-    return vec / norm
-
-
-def _get_joint_axis(joint) -> np.ndarray:
-    """Get the global rotation axis for a joint."""
-    axis = None
-    axis_is_local = True
-    raw_joint = joint._objs[0] if hasattr(joint, "_objs") and joint._objs else None
-    if raw_joint is not None:
-        if hasattr(raw_joint, "get_axis"):
-            try:
-                axis = np.array(raw_joint.get_axis(), dtype=np.float32)
-            except Exception:
-                axis = None
-        if axis is None and hasattr(raw_joint, "axis"):
-            axis = np.array(raw_joint.axis, dtype=np.float32)
-    if axis is None and hasattr(joint, "get_axis"):
-        try:
-            axis = np.array(joint.get_axis(), dtype=np.float32)
-        except Exception:
-            axis = None
-    if axis is None and hasattr(joint, "axis"):
-        axis = np.array(joint.axis, dtype=np.float32)
-    if axis is None:
-        joint_pose = joint.get_global_pose().to_transformation_matrix()
-        if hasattr(joint_pose, "ndim") and joint_pose.ndim == 3:
-            joint_pose = joint_pose[0]
-        if hasattr(joint_pose, "cpu"):
-            joint_pose = joint_pose.cpu().numpy()
-        axis = np.array(joint_pose[:3, 0], dtype=np.float32)
-        axis_is_local = False
-    if axis_is_local:
-        joint_pose = joint.get_global_pose().to_transformation_matrix()
-        if hasattr(joint_pose, "ndim") and joint_pose.ndim == 3:
-            joint_pose = joint_pose[0]
-        if hasattr(joint_pose, "cpu"):
-            joint_pose = joint_pose.cpu().numpy()
-        axis = joint_pose[:3, :3] @ axis
-    return _normalize(axis, np.array([0.0, 0.0, 1.0], dtype=np.float32))
-
-
-def _get_joint_pivot(joint) -> np.ndarray:
-    """Get the pivot point (position) of a joint in global coordinates."""
-    joint_pose = joint.get_global_pose()
-    pivot = joint_pose.p
-    if hasattr(pivot, "cpu"):
-        pivot = pivot.cpu().numpy()
-    pivot = np.array(pivot)
-    if pivot.ndim == 2:
-        pivot = pivot[0]
-    return pivot
-
-
-def _get_handle_obb(handle_link):
-    """Get the oriented bounding box of the handle mesh."""
-    try:
-        meshes = handle_link.generate_mesh(
-            filter=lambda _, render_shape: "handle" in render_shape.name,
-            mesh_name="handle",
-        )
-    except Exception:
-        return None
-    if not meshes:
-        return None
-    merged = merge_meshes([mesh for mesh in meshes if mesh is not None])
-    if merged is None:
-        return None
-    link_pose = handle_link.pose.to_transformation_matrix()
-    if hasattr(link_pose, "ndim") and link_pose.ndim == 3:
-        link_pose = link_pose[0]
-    if hasattr(link_pose, "cpu"):
-        link_pose = link_pose.cpu().numpy()
-    merged.apply_transform(link_pose)
-    return merged.bounding_box_oriented
 
 
 @register_env(
@@ -129,8 +46,8 @@ class OpenCabinetEnv(BaseEnv):
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
     )
 
-    CABINET_X_LIMS = [0.15, 0.22]
-    CABINET_Y_LIMS = [0.0, 0.08]  # Shifted positive to match angled robot
+    CABINET_X_LIMS = [0.15, 0.25]
+    CABINET_Y_LIMS = [-0.05, 0.05]
 
     min_open_frac = 0.5
 
@@ -163,16 +80,14 @@ class OpenCabinetEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        # View from behind-left of robot (right side of scene), looking at cabinet
-        pose = sapien_utils.look_at(eye=[-0.8, -0.6, 0.7], target=[0.1, 0.0, 0.35])
+        pose = sapien_utils.look_at(eye=[0.5, -0.5, 0.8], target=[0.0, 0.0, 0.3])
         return CameraConfig(
             "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
         )
 
     @property
     def _default_sensor_configs(self):
-        # Sensor camera with view of robot arm and cabinet handle
-        pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
+        pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.3])
         return [
             CameraConfig(
                 "base_camera",
@@ -297,136 +212,37 @@ class OpenCabinetEnv(BaseEnv):
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
-        from transforms3d.euler import euler2quat
-
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
-            xy[:, 0] = 0.20  # Fixed X position
-            xy[:, 1] = 0.0   # Fixed Y position
+            cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
+            cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
+            xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
+            xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
             xy[:, 2] = self.cabinet_zs[env_idx]
 
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
 
-            # Close all cabinet doors first so we can get handle position
+            # Initialize robot
+            qpos_0 = np.array(
+                [
+                    -0.13595445,
+                    -1.2611351,
+                    0.24094589,
+                    -2.9000182,
+                    2.5728698,
+                    3.0259767,
+                    0.029944034,
+                    0.039999813,
+                    0.03999985,
+                ]
+            )
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+
+            # Close all cabinet doors
             qlimits = self.cabinet.get_qlimits()
             self.cabinet.set_qpos(qlimits[env_idx, :, 0])
             self.cabinet.set_qvel(self.cabinet.qpos[env_idx] * 0)
-
-            # Position robot angled to pull door arc to 90%
-            robot_angle = np.pi / 12  # 15 degrees
-            robot_base_pos = np.array([-0.615, 0.15, 0])
-            robot_pose = sapien.Pose(
-                p=robot_base_pos,
-                q=euler2quat(0, 0, robot_angle)
-            )
-
-            # Get handle position to compute grasp pose
-            if self.gpu_sim_enabled:
-                self.scene._gpu_apply_all()
-                self.scene.px.gpu_update_articulation_kinematics()
-                self.scene.px.step()
-                self.scene._gpu_fetch_all()
-
-            handle_pos = self.handle_link_positions(env_idx)[0].cpu().numpy()
-
-            # Compute grasp pose using EXACT same logic as motion planning solution
-            # Get joint info
-            joint = self.handle_link.joint
-            axis = _get_joint_axis(joint)
-            pivot = _get_joint_pivot(joint)
-
-            # Calculate approach direction (from robot to handle)
-            approaching = _normalize(handle_pos - robot_base_pos, np.array([1.0, 0.0, 0.0], dtype=np.float32))
-
-            # Door normal perpendicular to axis and radial direction
-            radial = _normalize(handle_pos - pivot, np.array([1.0, 0.0, 0.0], dtype=np.float32))
-            door_normal = np.cross(axis, radial)
-            door_normal = _normalize(door_normal, np.array([0.0, 1.0, 0.0], dtype=np.float32))
-            if np.dot(door_normal, robot_base_pos - handle_pos) < 0:
-                door_normal = -door_normal
-
-            # Tangent direction for gripper closing
-            tangent = _normalize(np.cross(axis, door_normal), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-
-            # Get handle OBB for precise grasp
-            handle_obb = _get_handle_obb(self.handle_link)
-
-            # Compute grasp pose (same as motion planning)
-            finger_length = 0.025
-            grasp_backoff = -0.005
-            if handle_obb is not None:
-                grasp_info = compute_grasp_info_by_obb(
-                    handle_obb,
-                    approaching=approaching,
-                    target_closing=tangent,
-                    depth=finger_length,
-                )
-                closing = grasp_info["closing"]
-                center = grasp_info["center"] + approaching * grasp_backoff
-            else:
-                closing = _normalize(np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-                center = handle_pos + approaching * grasp_backoff
-
-            # Default qpos as fallback
-            default_qpos = np.array([
-                -0.13595445, -1.2611351, 0.24094589, -2.9000182,
-                2.5728698, 3.0259767, 0.029944034, 0.04, 0.04
-            ])
-
-            # First set up robot to build grasp pose
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=default_qpos)
-            self.agent.robot.set_pose(robot_pose)
-
-            # Build grasp pose and pre-grasp pose (10cm back)
-            grasp_pose = self.agent.build_grasp_pose(approaching, closing, center)
-            reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
-
-            # Use IK to find qpos for pre-grasp pose
-            reach_pos = np.array(reach_pose.p)
-            reach_quat = np.array(reach_pose.q)
-            goal_pose = list(reach_pos) + list(reach_quat)
-
-            try:
-                import mplib
-                planner = mplib.Planner(
-                    urdf=self.agent.urdf_path,
-                    srdf=self.agent.urdf_path.replace(".urdf", ".srdf"),
-                    user_link_names=[link.get_name() for link in self.agent.robot.get_links()],
-                    user_joint_names=[j.get_name() for j in self.agent.robot.get_active_joints()],
-                    move_group="panda_hand_tcp",
-                )
-                base_pose_q = euler2quat(0, 0, robot_angle)
-                # Use mplib.Pose for newer mplib versions
-                try:
-                    planner.set_base_pose(mplib.Pose(robot_base_pos, base_pose_q))
-                except (TypeError, AttributeError):
-                    base_pose_array = list(robot_base_pos) + list(base_pose_q)
-                    planner.set_base_pose(np.array(base_pose_array))
-
-                # Use plan_qpos_to_pose like motion planner does (more reliable than raw IK)
-                result = planner.plan_qpos_to_pose(
-                    goal_pose=np.array(goal_pose),
-                    current_qpos=default_qpos,
-                    time_step=1.0 / 20.0,  # control_timestep
-                    wrt_world=True,
-                )
-
-                if result["status"] == "Success":
-                    # Get final qpos from the planned trajectory (7 arm joints)
-                    arm_qpos = result["position"][-1]
-                    # Add gripper joints (open position)
-                    qpos_0 = np.concatenate([arm_qpos, [0.04, 0.04]])
-                else:
-                    qpos_0 = default_qpos
-            except Exception:
-                qpos_0 = default_qpos
-
-            # Set the robot qpos directly (don't re-initialize scene)
-            qpos_tensor = torch.tensor(qpos_0, dtype=torch.float32, device=self.device).unsqueeze(0)
-            self.agent.robot.set_qpos(qpos_tensor)
-            self.agent.robot.set_qvel(qpos_tensor * 0)
-            self.agent.robot.set_pose(robot_pose)
 
             if self.gpu_sim_enabled:
                 self.scene._gpu_apply_all()
