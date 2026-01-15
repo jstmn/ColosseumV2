@@ -26,8 +26,9 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     env_sim = env.unwrapped
 
-    def move_or_abort(target_pose, prefer_rrt=False):
-        if prefer_rrt:
+    def move_or_abort(target_pose, use_rrt_first=False):
+        # Choose planner order based on context
+        if use_rrt_first:
             res = planner.move_to_pose_with_RRTConnect(target_pose)
             if res == -1:
                 res = planner.move_to_pose_with_screw(target_pose)
@@ -39,9 +40,14 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
             planner.close()
         return res
 
-    # Get plate position and orientation
+    # Get plate and rack positions
     plate_pose = env_sim.plate.pose
     plate_pos = plate_pose.p[0].cpu().numpy()
+    rack_pos_initial = env_sim.dish_rack.pose.p[0].cpu().numpy()
+
+    # Always print starting positions
+    print(f"Starting plate position: {plate_pos}")
+    print(f"Starting rack position: {rack_pos_initial}")
 
     if debug:
         print(f"\n=== PLATE POSITION ===")
@@ -91,9 +97,9 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 1: REACH ===")
 
-    # Back away 5cm before approaching (move opposite to approaching direction in local frame)
-    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.05])
-    result = move_or_abort(reach_pose, prefer_rrt=True)
+    # Back away 6cm before approaching for better motion planning success
+    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.065])
+    result = move_or_abort(reach_pose, use_rrt_first=True)
     if result == -1:
         if debug:
             print("❌ Failed to reach")
@@ -108,18 +114,18 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 2: GRASP ===")
 
-    result = move_or_abort(grasp_pose, prefer_rrt=True)
+    result = move_or_abort(grasp_pose, use_rrt_first=True)
     if result == -1:
         if debug:
             print("❌ Failed to grasp position")
         return result
 
     # Close gripper with maximum force and longer duration to prevent slipping
-    planner.close_gripper(t=15, gripper_state=-1.0)  # Close for 15 steps with full force
+    planner.close_gripper(t=25, gripper_state=-1.0)  # Close for 25 steps with full force
 
     # Let physics settle after grasping to ensure firm grip
     qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for i in range(5):  # Hold position briefly
+    for i in range(10):  # Hold position longer
         if planner.control_mode == "pd_joint_pos":
             action = np.hstack([qpos, -1.0])
         else:
@@ -133,13 +139,21 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
         print(f"Gripper closed: {gripper_qpos}")
         print(f"Is grasped: {is_grasped}")
 
+    # Abort early if grasp failed
+    if not is_grasped:
+        if debug:
+            print("❌ Grasp failed - aborting")
+        planner.close()
+        return -1
+
     # -------------------------------------------------------------------------- #
     # Lift
     # -------------------------------------------------------------------------- #
     if debug:
         print(f"\n=== STEP 3: LIFT ===")
 
-    lift_pose = sapien.Pose([0, 0, 0.12]) * grasp_pose
+    # Smaller lift height to reduce motion magnitude
+    lift_pose = sapien.Pose([0, 0, 0.06]) * grasp_pose
     res = move_or_abort(lift_pose)
 
     if debug:
@@ -156,16 +170,21 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     rack_pos = env_sim.dish_rack.pose.p[0].cpu().numpy()
     rack_height = env_sim._rack_extent[2]  # 0.085m
 
-    # Position directly above rack center
+    # Target the center of slot 2 (middle slot)
+    # Slot dividers in rack local Y: [-0.105, -0.047, 0.015, 0.075]
+    # Slot 2 center is at Y = (-0.047 + 0.015) / 2 = -0.016 in local coords
+    # Compensate for grasp offset: we grasp at rim, ~8cm from plate center in X
+    grasp_offset_x = rim_grasp_radius - 0.03  # ~0.0825m offset from plate center
     target_pos = rack_pos.copy()
-    target_pos[0] += 0.11  # center in X
-    target_pos[1] += 0.038  # center in Y
-    target_pos[2] += rack_height + 0.10  # clearance above rack
+    target_pos[0] += grasp_offset_x  # Compensate so plate center lands at rack center
+    target_pos[1] -= 0.02  # Target slot 2 center in Y
+    target_pos[2] += rack_height + 0.1  # clearance above rack
 
     # Keep horizontal orientation (same as lift pose)
     transport_pose = sapien.Pose(p=target_pos, q=lift_pose.q)
 
-    res = move_or_abort(transport_pose, prefer_rrt=True)
+    # Use RRT for transport as it handles large motions better
+    res = move_or_abort(transport_pose, use_rrt_first=True)
     if res == -1:
         if debug:
             print("❌ Failed to move to rack")
@@ -175,6 +194,14 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
         plate_at_rack = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Moved to rack center (horizontal): {target_pos}")
         print(f"  Plate is at: {plate_at_rack}")
+
+    # Check if plate is still grasped after transport
+    still_grasped = env_sim.agent.is_grasping(env_sim.plate)[0].item()
+    if not still_grasped:
+        if debug:
+            print("❌ Plate slipped during transport - aborting")
+        planner.close()
+        return -1
 
     # -------------------------------------------------------------------------- #
     # Rotate to vertical above rack center
@@ -197,21 +224,70 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
 
     # -------------------------------------------------------------------------- #
+    # Lower plate into slot
+    # -------------------------------------------------------------------------- #
+    if debug:
+        print(f"\n=== STEP 6: LOWER INTO SLOT ===")
+
+    # Lower plate straight down into the slot (no horizontal motion)
+    lower_pos = vertical_pose.p.copy()
+    lower_pos[1] -= 0.02  # Adjust Y slightly to center in slot
+    lower_pos[2] -= 0.07  # Lower into slot
+    lower_pose = sapien.Pose(lower_pos, vertical_pose.q)
+    res = move_or_abort(lower_pose)
+
+    if debug:
+        plate_lowered = env_sim.plate.pose.p[0].cpu().numpy()
+        print(f"✓ Lowered plate to: {plate_lowered}")
+
+    # -------------------------------------------------------------------------- #
     # Release plate
     # -------------------------------------------------------------------------- #
     if debug:
         print(f"\n=== STEP 7: RELEASE ===")
 
-    release_pos = vertical_pose.p.copy()
-    release_pos[1] -= 0.02  # Move forward in X to clear rack
-    release_pos[2] -= 0.08
-    release_pose = sapien.Pose(release_pos, vertical_pose.q)
-    res = move_or_abort(release_pose)
+    # Hold position briefly before release to let physics settle
+    qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
+    for _ in range(5):
+        if planner.control_mode == "pd_joint_pos":
+            action = np.hstack([qpos, -1.0])
+        else:
+            action = np.hstack([qpos, qpos * 0, -1.0])
+        env_sim.step(action)
+
     planner.open_gripper()
+
+    # Let plate settle after release
+    for _ in range(20):
+        if planner.control_mode == "pd_joint_pos":
+            action = np.hstack([qpos, 1.0])  # Keep gripper open
+        else:
+            action = np.hstack([qpos, qpos * 0, 1.0])
+        env_sim.step(action)
 
     if debug:
         final_plate_pos = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Released plate at: {final_plate_pos}")
+
+    # -------------------------------------------------------------------------- #
+    # Raise EE after placing
+    # -------------------------------------------------------------------------- #
+    if debug:
+        print(f"\n=== STEP 8: RAISE EE ===")
+
+    # Raise end effector up after releasing the plate
+    raise_pos = lower_pose.p.copy()
+    raise_pos[1] -= 0.1  # Back away slightly in Y
+    raise_pos[2] += 0.02  # Raise 2cm
+    raise_pose = sapien.Pose(raise_pos, lower_pose.q)
+    res = move_or_abort(raise_pose)
+
+    raise_pos[2] += 0.12  # Raise 12cm to clear the rack
+    raise_pose = sapien.Pose(raise_pos, lower_pose.q)
+    res = move_or_abort(raise_pose)
+
+    if debug:
+        print(f"✓ Raised EE to: {raise_pos}")
 
     planner.close()
     return res

@@ -285,10 +285,11 @@ class PlaceDishInRackEnv(BaseEnv):
             table_z = float(table_p_arr[-1])
             table_top_z = table_z + float(self.table_scene.table_height)
 
-            # Place the plate flat on the table with the rim facing up
+            # Place the plate flat on the table with randomized position
             xyz = torch.zeros((b, 3), device=device)
-            xyz[:, 0] = -0.45  # Closer to robot reach zone
-            xyz[:, 1] = -0.25  # More centered for easier access
+            # Randomize plate position within reachable zone
+            xyz[:, 0] = -0.45 + (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in X
+            xyz[:, 1] = -0.25 + (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in Y
             plate_half_height = self._plate_total_height / 2.0
             xyz[:, 2] = table_top_z
 
@@ -299,9 +300,9 @@ class PlaceDishInRackEnv(BaseEnv):
             plate_pose = Pose.create_from_pq(p=xyz, q=flat_quat)
             self.plate.set_pose(plate_pose)
 
+            # Keep rack position fixed for reliable placement
             rack_pos = torch.zeros((b, 3), device=device)
             rack_pos[:] = torch.tensor(self._rack_position, device=device)
-            # Set rack z so its bottom rests on the table surface (use half height)
             rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
