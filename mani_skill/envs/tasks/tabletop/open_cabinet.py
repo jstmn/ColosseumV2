@@ -46,8 +46,8 @@ class OpenCabinetEnv(BaseEnv):
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
     )
 
-    CABINET_X_LIMS = [0.15, 0.25]
-    CABINET_Y_LIMS = [-0.05, 0.05]
+    CABINET_X_LIMS = [0.15, 0.22]
+    CABINET_Y_LIMS = [0.0, 0.08]  # Shifted positive to match angled robot
 
     min_open_frac = 0.5
 
@@ -212,13 +212,13 @@ class OpenCabinetEnv(BaseEnv):
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+        from transforms3d.euler import euler2quat
+
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
-            cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
-            cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
-            xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
-            xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            xy[:, 0] = 0.20  # Fixed X position
+            xy[:, 1] = 0.0   # Fixed Y position
             xy[:, 2] = self.cabinet_zs[env_idx]
 
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
@@ -238,6 +238,14 @@ class OpenCabinetEnv(BaseEnv):
                 ]
             )
             self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+
+            # Position robot angled to pull door arc to 90%
+            robot_angle = np.pi / 12  # 15 degrees
+            robot_pose = sapien.Pose(
+                p=[-0.615, 0.15, 0],
+                q=euler2quat(0, 0, robot_angle)
+            )
+            self.agent.robot.set_pose(robot_pose)
 
             # Close all cabinet doors
             qlimits = self.cabinet.get_qlimits()
