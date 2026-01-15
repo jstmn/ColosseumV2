@@ -233,9 +233,9 @@ def _open_cabinet_with_planner(
     current_angle = 0.0
 
     # Pull-back offsets to keep gripper behind the door surface
-    pull_offsets = [-0.02, -0.04, -0.06, -0.08]
+    pull_offsets = [-0.02, -0.04, -0.06, -0.08, -0.10]
     consecutive_failures = 0
-    max_failures = 5  # Allow a few failures before giving up
+    max_failures = 8  # Allow more failures before giving up
 
     for _ in range(num_steps):
         target_angle = current_angle + step_angle
@@ -282,8 +282,8 @@ def _open_cabinet_with_planner(
                 qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
                 current_angle = qpos_val - current_qpos
                 consecutive_failures = 0
-                # If we've opened past 80%, we can stop
-                if qpos_val >= qmin + 0.80 * abs(qmax - qmin):
+                # If we've opened past 85%, we can stop
+                if qpos_val >= qmin + 0.85 * abs(qmax - qmin):
                     break
 
         # Check current door opening
