@@ -21,6 +21,8 @@ class DualArmPourPotEnv(BaseEnv):
     No cubes, no tasks, just the robot.
     """
     cube_half_size = 0.02
+    tray_half_width = 0.2
+    tray_half_length = 0.12
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
@@ -32,21 +34,32 @@ class DualArmPourPotEnv(BaseEnv):
         # self.add_ground(altitude=0)
         # self._setup_lighting()
         # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
-        self.ball = actors.build_sphere(
-            self.scene,
-            radius=self.cube_half_size,
-            color=np.array([12, 42, 160, 255]) / 255,
-            name="ball",
-            body_type="dynamic",
-            initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
-        )
+        # self.ball = actors.build_sphere(
+        #     self.scene,
+        #     radius=self.cube_half_size,
+        #     color=np.array([12, 42, 160, 255]) / 255,
+        #     name="ball",
+        #     body_type="dynamic",
+        #     initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
+        # )
+        self.ball = self.load_glb_as_actor(self.scene,
+                                           os.path.join(PACKAGE_ASSET_DIR, "pour_pot/tomato.glb"),
+                                           sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
+                                           name="tomato",
+                                           scale=[1,1,1],
+                                           type="dynamic")
         self.pot = self.load_glb_as_actor(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pour_pot/pot.glb"),
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         name="pot",
                                         scale=[1,1,1],
                                         type="dynamic")
-        
+        self.tray = self.load_glb_as_actor(self.scene,
+                                           os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
+                                           sapien.Pose(),
+                                           name="tray",
+                                           scale=[0.4,0.4,0.4],
+                                           type="dynamic")
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
@@ -65,7 +78,8 @@ class DualArmPourPotEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            xyz[..., 0] = 0.1
+            xyz[..., 1] = torch.rand(b) * 0.2 - 0.1
             xyz[..., 2] = self.cube_half_size+0.83
             theta_by_2 = 0  # -pi/2 to pi/2
             
@@ -82,8 +96,10 @@ class DualArmPourPotEnv(BaseEnv):
             
             xyz[..., 2] = 0.9
             self.ball.set_pose(Pose.create_from_pq(p=xyz,q=[1,0,0,0]))
-            
-            
+            xyz[..., 0] = -0.2
+            xyz[..., 2] = 0.83 + self.cube_half_size
+            self.tray.set_pose(Pose.create_from_pq(p=xyz, q=[0.5, 0.5, 0.5, 0.5]))
+
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
@@ -126,8 +142,12 @@ class DualArmPourPotEnv(BaseEnv):
 
     def evaluate(self):
         ball_pos = self.ball.pose.p
-        success = ball_pos[..., 2] <= 0.82
-        return {"success": success}
+        tray_pos = self.tray.pose.p
+        offset = tray_pos - ball_pos
+        in_tray = (torch.abs(offset[..., 1]) < DualArmPourPotEnv.tray_half_width) * (torch.abs(offset[..., 0]) < DualArmPourPotEnv.tray_half_length)
+        success = (ball_pos[..., 2] >= 0.83) * (ball_pos[..., 2] < 0.9) * in_tray
+        # print(success)
+        return {"inside_tray": in_tray,"success": success}
     
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL

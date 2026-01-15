@@ -84,6 +84,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
             target_closing=target_closing,
             depth=FINGER_LENGTH,
         )
+        
         closing, center = grasp_info["closing"], grasp_info["center"]
         grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.pot.pose.sp.p)
         grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0,-0.15,-0.1])
@@ -95,6 +96,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
             target_closing=target_closing,
             depth=FINGER_LENGTH
         )
+        
         closing, center = grasp_info["closing"], grasp_info["center"]
         grasp_2_pose = env.agent.build_grasp_pose(approaching, closing, env.pot.pose.sp.p)     
         grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0, 0.15, -0.1])
@@ -127,8 +129,8 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         planner.close_gripper(arm_index=2, t=10)
         
         print("\n5. Lifting...")
-        lift_1 = grasp_1_pose*sapien.Pose(p=[0,-0.2,0])
-        lift_2 = grasp_2_pose*sapien.Pose(p=[0,0.2,0])
+        lift_1 = grasp_1_pose*sapien.Pose(p=[-0.2,-0.2,0])
+        lift_2 = grasp_2_pose*sapien.Pose(p=[-0.2,0.2,0])
         
         result = planner.move_to_pose_pair_with_RRTConnect(
             lift_2,  # left

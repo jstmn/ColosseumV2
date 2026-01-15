@@ -165,6 +165,28 @@ def build_sphere(
     )
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
+def build_box_target(
+    scene: ManiSkillScene,
+    half_sizes: list[float],
+    thickness: float,
+    name: str,
+    body_type: str = "dynamic",
+    add_collision: bool = True,
+    scene_idxs: Optional[Array] = None,
+    initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+):
+    TARGET_RED = np.array([194, 19, 22, 255]) / 255
+    builder = scene.create_actor_builder()
+    half_sizes.append(thickness)
+    builder.add_box_visual(
+        half_size = half_sizes,
+        material=sapien.render.RenderMaterial(base_color=TARGET_RED),
+    )
+    if add_collision:
+        builder.add_box_collision(
+            half_size=half_sizes
+        )
+    return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
 def build_red_white_target(
     scene: ManiSkillScene,

@@ -31,7 +31,7 @@ from .dual_panda_drawer_open import DualArmDrawerOpenEnv
 from .dual_panda_pick_bottle import DualArmPickBottleEnv
 from .dual_panda_pick_pour_pot import DualArmPourPotEnv
 from .dual_panda_lift_pot import DualArmLiftPotEnv
-from .dual_panda_lift_ball import DualArmLiftBallEnv
+from .dual_panda_lift_tray import DualArmLiftTrayEnv
 from .dual_panda_threading import DualPandaThreadingEnv
 from .dual_panda_stack3cubes import TwoRobotStack3Cube
 from .dual_panda_pen_cap import DualArmPenCapEnv

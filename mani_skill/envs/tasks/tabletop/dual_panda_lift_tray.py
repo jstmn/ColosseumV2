@@ -14,8 +14,8 @@ import os
 from mani_skill import PACKAGE_ASSET_DIR
 
 # 1. Define the Empty Environment
-@register_env("DualArmLiftBall-v0", max_episode_steps=1000)
-class DualArmLiftBallEnv(BaseEnv):
+@register_env("DualArmLiftTray-v0", max_episode_steps=1000)
+class DualArmLiftTrayEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
@@ -32,14 +32,12 @@ class DualArmLiftBallEnv(BaseEnv):
         # self.add_ground(altitude=0)
         # self._setup_lighting()
         # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
-        self.ball = actors.build_sphere(
-            self.scene,
-            radius=self.cube_half_size,
-            color=np.array([12, 42, 160, 255]) / 255,
-            name="ball",
-            body_type="dynamic",
-            initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
-        )
+        self.tray = self.load_glb_as_actor(self.scene,
+                                           os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
+                                           sapien.Pose(),
+                                           name="tray",
+                                           scale=[0.4,0.4,0.4],
+                                           type="dynamic")
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
@@ -65,14 +63,14 @@ class DualArmLiftBallEnv(BaseEnv):
             
             # Set poses for each environment in the batch
             for i in range(b):
-                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[1,0,0,0])
+                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[0.5,0.5,0.5,0.5])
                 # Convert tensors to numpy float32 arrays
                 p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
                 q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
                 init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
                 # rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
                 # init_pose_sapien = rotation_pose * init_pose_sapien
-                self.ball.set_pose(init_pose_sapien)
+                self.tray.set_pose(init_pose_sapien)
                 self.init_pose = init_pose_sapien
             # xyz[..., 2] = 0.9
             # self.ball.set_pose(Pose.create_from_pq(p=xyz,q=[1,0,0,0]))
@@ -114,21 +112,21 @@ class DualArmLiftBallEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["ball_pose"] = self.ball.pose.raw_pose
+        obs["tray_pose"] = self.tray.pose.raw_pose
         # obs["ball_pose"] = self.ball.pose.raw_pose
         return obs
 
     def evaluate(self):
-        curr_pose = self.ball.pose
+        curr_pose = self.tray.pose
         offset = curr_pose.p - self.init_pose.p
-        is_ball_grasped_left = self.agent.is_grasping(self.ball, arm_index=1)
-        is_ball_grasped_right = self.agent.is_grasping(self.ball, arm_index=2)
-        is_ball_grasped = torch.logical_or(is_ball_grasped_left, is_ball_grasped_right)
+        is_tray_grasped_left = self.agent.is_grasping(self.tray, arm_index=1)
+        is_tray_grasped_right = self.agent.is_grasping(self.tray, arm_index=2)
+        is_tray_grasped = torch.logical_or(is_tray_grasped_left, is_tray_grasped_right)
         # print(is_ball_grasped_left, is_ball_grasped_right)
         offset_x = torch.abs(offset[..., 0])
-        success = torch.logical_and(offset_x > 0.2, is_ball_grasped)
+        success = torch.logical_and(offset_x > 0.2, is_tray_grasped)
         # print(success)
-        return {"left_grasped": is_ball_grasped_left, "right_grasped": is_ball_grasped_right, "grasped": is_ball_grasped, "success": success}
+        return {"left_grasped": is_tray_grasped_left, "right_grasped": is_tray_grasped_right, "grasped": is_tray_grasped, "success": success}
     
     
     def compute_dense_reward(self, obs, action, info):
@@ -145,7 +143,7 @@ class DualArmLiftBallEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmLiftBall-v0", 
+        "DualArmLiftTray-v0", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",
