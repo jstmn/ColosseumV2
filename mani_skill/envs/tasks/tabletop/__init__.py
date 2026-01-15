@@ -25,3 +25,4 @@ from .cook_item_in_pan import CookItemInPanEnv
 from .colosseum_v2_versions import *
 from .pour_sphere import PourSphereEnv
 from .dual_panda_test import DualArmEmptyEnv
+from .hammer_nail import HammerNailEnv
