@@ -12,7 +12,7 @@ import os.path as osp
 import mani_skill.envs
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopParticles, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopParticles, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveObjectInCabinet
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot
 
@@ -49,6 +49,7 @@ MP_SOLUTIONS = {
     "PickDishFromRack-v1": solvePickDishFromRack, # new
     "PourSphere-v1": solvePourSphere, # new
     "HammerNail-v1": solveHammerNail,
+    "ObjectInCabinet-v1": solveObjectInCabinet,
 
 
     # Bimanual
