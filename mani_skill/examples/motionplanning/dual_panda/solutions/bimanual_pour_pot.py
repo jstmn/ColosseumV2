@@ -170,9 +170,8 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         
         if result == -1:
             print("Failed to lift")
-            return False
-        
-        return True
+
+        return result
     
     except Exception as e:
         print("Exception during Motion Planning:", e)

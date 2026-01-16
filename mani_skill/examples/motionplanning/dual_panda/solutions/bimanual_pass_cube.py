@@ -159,7 +159,7 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
         refine_steps=5
     )
     
-    return True
+    return result
 
 
 if __name__ == "__main__":

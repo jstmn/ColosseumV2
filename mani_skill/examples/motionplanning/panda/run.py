@@ -14,6 +14,7 @@ from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
 from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopParticles, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
+from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot
 
 MP_SOLUTIONS = {
     "DrawTriangle-v1": solveDrawTriangle,
@@ -48,22 +49,32 @@ MP_SOLUTIONS = {
     "PickDishFromRack-v1": solvePickDishFromRack, # new
     "PourSphere-v1": solvePourSphere, # new
     "HammerNail-v1": solveHammerNail,
+
+
+    # Bimanual
+    "DualArmPickCube-v0": solveBimanualPassCube,
+    "DualArmLiftPot-v0": solveBimanualLiftPot,
+    "DualArmLiftTray-v0": solveBimanualLiftTray,
+    "DualArmPassBottle-v0": solveBimanualPassBottle,
+    "DualArmPourPot-v0": solveBimanualPourPot,
+    "DualArmDrawerPlace-v0": solveBimanualDrawerPlace,
+    "DualArmPourPot-v0": solveBimanualPourPot,
 }
 
 """
-ENV_ID=PickCube-v1
+ENV_ID=DualArmPickCube-v0
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
-    --num-traj 60 \
+    --num-traj 100 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 10 \
+    --num-procs 1 \
     --reward-mode "sparse" \
     --random-seed \
     --only-count-success \
-    --traj-name "trajectory" \
+    --traj-name "trajectory" --vis \
     --save-video      # <- optional
     # --vis           # <- optional
 
