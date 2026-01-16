@@ -12,6 +12,7 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 import os
+from mani_skill.utils.structs import Pose
 
 # 1. Define the Empty Environment
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
@@ -81,11 +82,26 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             # Reset cabinet pose
-            self.open_cabinet.set_pose(sapien.Pose(
-                p=[0.25, 0, 0.456+0.8], 
-                q=[1, 0, 0, 0]
-            ))
-            self.obj.set_pose(sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]))
+            xyz = torch.zeros((b, 3))
+            xyz[..., :2] = -torch.rand((b, 2)) * 0.2 + 0.1
+            xyz[..., 0] += 0.2
+            xyz[..., 2] = 0.456+0.8
+            theta_by_2 = torch.rand(b)*np.pi/16 - np.pi/32
+            for i in range(b):
+                # Reset cabinet pose
+                init_pose = Pose.create_from_pq(
+                    p=xyz[i:i+1], 
+                    q=[np.cos(theta_by_2), 0, 0, np.sin(theta_by_2)])
+                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
+                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
+                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
+
+                self.open_cabinet.set_pose(init_pose_sapien)
+            
+            xyz[..., :2] = torch.rand((b,2)) * 0.1 - 0.05 - 0.25
+            xyz[..., 2] = 0.85
+            
+            self.obj.set_pose(sapien.Pose(p=xyz[0].cpu().numpy()))
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
             self.open_cabinet.set_qvel(np.zeros(self.open_cabinet.dof))
@@ -95,6 +111,16 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         qpos = np.zeros(self.agent.robot.dof)
         self.agent.reset(qpos)
 
+    def evaluate(self):
+        box_pos = self.obj.pose.p
+        drawer_pos = self.open_cabinet.pose.p
+        
+        above_ground = box_pos[..., 2] > 0.9
+        inside = torch.norm(box_pos[..., :2] - drawer_pos[..., :2]) < 0.25
+        success = above_ground * inside
+        print(success)
+        return {"above_ground": above_ground, "inside": inside, "success": success}
+        
     def _get_obs_extra(self, info: dict):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)

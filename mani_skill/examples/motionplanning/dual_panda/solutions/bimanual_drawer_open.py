@@ -78,7 +78,7 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
             meshes.extend(get_component_meshes(obj))
         mesh = merge_meshes(meshes)
     obb = mesh.bounding_box_oriented
-
+    
     # Get approaching vector along pot's x-axis
     open_cabinet_transform = env.open_cabinet.pose.sp.to_transformation_matrix()
     if hasattr(open_cabinet_transform, 'cpu'):  # if it's a tensor
