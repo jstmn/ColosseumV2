@@ -503,7 +503,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             goal_qposes=[ik_result],
             current_qpos=current_qpos,
             time_step=self.base_env.control_timestep,
-            planning_time=10.0,
+            planning_time=20.0,
             planner_name="RRTConnect",
         )
         
@@ -780,6 +780,157 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         if dry_run: return result
         return self.follow_path(result)
     
+    # def move_to_pose_with_screw(
+    # self,
+    # pose: sapien.Pose,
+    # arm_index: int, 
+    # dry_run: bool = False,
+    # use_hybrid: bool = True,  # NEW PARAMETER
+    # rrt_fraction: float = 0.9  # Go 90% with RRT, 10% with screw
+    # ):
+    #     """
+    #     Move a single arm linearly (screw motion).
+    #     Uses hybrid RRT+Screw by default for robustness.
+    #     """
+    #     pose = to_sapien_pose(pose)
+        
+    #     if use_hybrid:
+    #         # HYBRID APPROACH: RRT most of the way, screw for final smooth approach
+    #         print(f"[Hybrid] Using RRT for {rrt_fraction*100:.0f}% + Screw for final {(1-rrt_fraction)*100:.0f}%")
+            
+    #         # Get current TCP pose
+    #         if arm_index == 1:
+    #             current_pose = self.env_agent.tcp_1_pose
+    #         else:
+    #             current_pose = self.env_agent.tcp_2_pose
+            
+    #         # Compute intermediate pose (e.g., 90% of the way)
+    #         alpha = rrt_fraction
+            
+    #         # Linear interpolation of position
+    #         current_p = current_pose.p
+    #         target_p = pose.p
+    #         if hasattr(current_p, 'cpu'):
+    #             current_p = current_p.cpu().numpy()
+    #         if hasattr(target_p, 'cpu'):
+    #             target_p = target_p.cpu().numpy()
+                
+    #         intermediate_p = (1 - alpha) * current_p + alpha * target_p
+            
+    #         # Slerp for orientation
+    #         current_q = current_pose.q
+    #         target_q = pose.q
+    #         if hasattr(current_q, 'cpu'):
+    #             current_q = current_q.cpu().numpy()
+    #         if hasattr(target_q, 'cpu'):
+    #             target_q = target_q.cpu().numpy()
+                
+    #         # Normalize quaternions
+    #         current_q = current_q / np.linalg.norm(current_q)
+    #         target_q = target_q / np.linalg.norm(target_q)
+            
+    #         # Slerp using scipy
+    #         from scipy.spatial.transform import Rotation, Slerp
+    #         key_times = [0, 1]
+    #         key_rots = Rotation.from_quat([current_q, target_q])
+    #         slerp = Slerp(key_times, key_rots)
+    #         intermediate_rot = slerp(alpha)
+    #         intermediate_q = intermediate_rot.as_quat()
+            
+    #         intermediate_pose = sapien.Pose(p=intermediate_p, q=intermediate_q)
+            
+    #         # 1. Use RRT to get to intermediate pose (collision-free, stable)
+    #         print(f"[Hybrid Step 1/2] RRT to intermediate pose...")
+    #         result_rrt = self.move_arm_to_pose_with_RRTConnect(
+    #             intermediate_pose,
+    #             arm_index=arm_index,
+    #             dry_run=False,
+    #             refine_steps=5
+    #         )
+            
+    #         if result_rrt == -1:
+    #             print("[Hybrid] RRT to intermediate failed, trying full RRT to target...")
+    #             # Fallback: just use RRT all the way
+    #             return self.move_arm_to_pose_with_RRTConnect(
+    #                 pose,
+    #                 arm_index=arm_index,
+    #                 dry_run=dry_run,
+    #                 refine_steps=10
+    #             )
+            
+    #         # 2. Use Screw for final smooth approach (short distance, less likely to fail)
+    #         print(f"[Hybrid Step 2/2] Screw motion for final approach...")
+    #         # Note: Don't call use_hybrid again (would infinite loop)
+    #         return self._screw_motion_pure(pose, arm_index, dry_run)
+        
+    #     else:
+    #         # Pure screw motion (original behavior)
+    #         return self._screw_motion_pure(pose, arm_index, dry_run)
+
+
+    # def _screw_motion_pure(
+    #     self,
+    #     pose: sapien.Pose,
+    #     arm_index: int,
+    #     dry_run: bool = False
+    # ):
+    #     """
+    #     Pure screw motion (extracted from move_to_pose_with_screw).
+    #     This is called by the hybrid approach for the final segment.
+    #     """
+    #     pose = to_sapien_pose(pose)
+        
+    #     # Get current qpos
+    #     current_qpos_sapien = self.robot.get_qpos().cpu().numpy()[0]
+    #     current_qpos = self._convert_qpos_sapien_to_planner(current_qpos_sapien)
+    #     self.planner.robot.set_qpos(current_qpos, True)
+        
+    #     # Prepare targets
+    #     target_7d = np.concatenate([pose.p, pose.q])
+    #     print(f"[Screw] Target: {target_7d}")
+        
+    #     left_target = None
+    #     right_target = None
+        
+    #     if arm_index == 1: # Right Arm
+    #         right_target = target_7d
+    #         self._update_grasp_visual(pose, None)
+    #         curr_pose_L = self.planner.pinocchio_model.get_link_pose(
+    #             self.planner.link_name_2_idx["panda_2_hand_tcp"]
+    #         )
+    #         left_target = np.concatenate([curr_pose_L[:3], curr_pose_L[3:]])
+    #     else: # Left Arm
+    #         left_target = target_7d
+    #         self._update_grasp_visual(None, pose)
+    #         curr_pose_R = self.planner.pinocchio_model.get_link_pose(
+    #             self.planner.link_name_2_idx["panda_1_hand_tcp"]
+    #         )
+    #         right_target = np.concatenate([curr_pose_R[:3], curr_pose_R[3:]])
+        
+    #     def screw_vis_callback(q_planner):
+    #         if self.vis:
+    #             q_sapien = self._convert_qpos_planner_to_sapien(q_planner)
+    #             self.robot.set_qpos(q_sapien)
+    #             self.base_env.render_human()
+        
+    #     # Call Planner with SMALLER step size for final approach
+    #     result = self.planner.plan_screw(
+    #         target_pose_L=left_target,
+    #         target_pose_R=right_target,
+    #         current_qpos=current_qpos,
+    #         step_size=0.002,  # Smaller for final approach
+    #         max_steps=1000,   # Shorter timeout for final approach
+    #         visualize_callback=None,
+    #         check_collisions=True
+    #     )
+        
+    #     if result["status"] != "Success":
+    #         print(f"[Screw] Planning failed: {result['status']}")
+    #         return -1
+            
+    #     if dry_run: 
+    #         return result
+    #     return self.follow_path(result, arm_index=arm_index)
     
     def move_to_pose_with_screw(
         self,
@@ -829,7 +980,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             target_pose_L=left_target,
             target_pose_R=right_target,
             current_qpos=current_qpos,
-            step_size=0.01, # 1cm/step roughly
+            step_size=0.005, # 1cm/step roughly
             visualize_callback=None
         )
         # print(result['position'])

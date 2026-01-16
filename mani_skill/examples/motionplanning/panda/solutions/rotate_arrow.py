@@ -49,7 +49,7 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     )
     closing, center = grasp_info["closing"], grasp_info["center"]
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, env.arrow.pose.sp.p)
-    offset = sapien.Pose([0, 0, 0])
+    offset = sapien.Pose([0, 0.05, 0])
     grasp_pose = grasp_pose * (offset)
     reach_pose_1 = grasp_pose
     # -------------------------------------------------------------------------- #
