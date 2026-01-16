@@ -71,10 +71,14 @@ class PickDishFromRackEnv(BaseEnv):
 
     _rack_extent = np.array([0.12060600281, 0.16782440567, 0.085])  # Normal rack size
     _plate_goal_offset = np.array([0.0, 0.0, 0.15])  # Above rack slots (same as place task)
-    _rack_position = np.array([-0.1, 0.25, 0])  # Rack position left of the robot, still reachable
+    _rack_position = np.array([-0.1, 0.0, 0])  # Rack X position, Y will be randomized
     _plate_goal_position = np.array([-0.35, -0.15, 0])  # Reverse of place - where plate started in place task
     _plate_support_radius = 0.015
     _plate_support_height = 0.0  # No pedestal - plate flush with table
+
+    # Randomization bounds (symmetric around robot Y=0)
+    # Rack placed either right [-0.25, -0.15] or left [0.15, 0.25], avoiding center
+    _rack_y_ranges = [(-0.25, -0.15), (0.15, 0.25)]
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
@@ -238,10 +242,16 @@ class PickDishFromRackEnv(BaseEnv):
             table_z = float(table_p_arr[-1])
             table_top_z = table_z + float(self.table_scene.table_height)
 
-            # Position rack on table (SAME AS PLACE_DISH_IN_RACK)
+            # Position rack on table with Y randomization (symmetric around robot)
             rack_pos = torch.zeros((b, 3), device=device)
-            rack_pos[:] = torch.tensor(self._rack_position, device=device)
-            rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])  # Same as place task
+            rack_pos[:, 0] = self._rack_position[0]  # Fixed X
+            # Randomly pick left or right range, then sample within that range
+            for i in range(b):
+                # Pick random range (0 = left/negative, 1 = right/positive)
+                range_idx = torch.randint(0, 2, (1,)).item()
+                y_min, y_max = self._rack_y_ranges[range_idx]
+                rack_pos[i, 1] = torch.rand(1, device=device).item() * (y_max - y_min) + y_min
+            rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
 
