@@ -10,9 +10,11 @@ import torch
 from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR, logger
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
+from mani_skill.envs.utils.randomization.pose import random_quaternions
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
+from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
@@ -185,28 +187,6 @@ class HammerNailEnv(BaseEnv):
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.55, 0.0, 0.0]))
-
-    def _hide_actor_from_cameras(self, actor):
-        """Hide an actor from camera rendering (observations) while keeping physics.
-
-        This is useful when you want an object to participate in physics simulation
-        but not appear in visual observations (e.g., invisible collision guides,
-        hidden goal objects, etc.).
-
-        Example usage:
-            self._hide_actor_from_cameras(self.nail_platform)
-        """
-        # Method 1: Hide all visual components
-        # This removes the actor from all camera rendering
-        actor.hide_visual()
-
-        # Method 2: For partial hiding or more control, you can iterate components:
-        # for comp in actor.components:
-        #     if isinstance(comp, sapien.render.RenderBodyComponent):
-        #         comp.set_visibility(0.0)  # Make invisible
-
-        # Note: The actor will still have collision and participate in physics,
-        # but won't appear in RGB, depth, or segmentation camera observations.
 
     def _load_scene(self, options: dict):
         self.table_scene = TableSceneBuilder(
@@ -650,10 +630,11 @@ class HammerNailEnv(BaseEnv):
             # Add randomization: ±0.03m in X, ±0.03m in Y
             hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
             hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
-            hammer_pose = Pose.create_from_pq(
-                p=hammer_pos,
-                q=self._hammer_orientation.to(self.device).unsqueeze(0).repeat(b, 1),
-            )
+            # Randomize hammer yaw (rotation around Z axis)
+            base_hammer_q = self._hammer_orientation.to(self.device).unsqueeze(0).repeat(b, 1)
+            random_yaw_q = random_quaternions(b, device=self.device, lock_x=True, lock_y=True)
+            hammer_q = quaternion_multiply(base_hammer_q, random_yaw_q)
+            hammer_pose = Pose.create_from_pq(p=hammer_pos, q=hammer_q)
             self.hammer.set_pose(hammer_pose)
             self.hammer.set_linear_velocity(torch.zeros((b, 3), device=self.device))
             self.hammer.set_angular_velocity(torch.zeros((b, 3), device=self.device))
