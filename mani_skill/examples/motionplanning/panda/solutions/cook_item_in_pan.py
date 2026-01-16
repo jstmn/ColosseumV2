@@ -226,5 +226,15 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     planner.open_gripper()
     move_arm_to_qpos(home_arm_qpos)
 
+    # Wait for objects to settle
+    for _ in range(120):
+        if env_sim.control_mode == "pd_joint_pos":
+            action = np.hstack([home_arm_qpos, planner.gripper_state])
+        else:
+            action = np.hstack([home_arm_qpos, home_arm_qvel, planner.gripper_state])
+        obs, reward, terminated, truncated, info = env.step(action)
+        if vis:
+            env_sim.render_human()
+
     planner.close()
-    return res
+    return obs, reward, terminated, truncated, info
