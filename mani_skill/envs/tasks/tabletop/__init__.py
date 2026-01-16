@@ -35,3 +35,4 @@ from .dual_panda_lift_tray import DualArmLiftTrayEnv
 from .dual_panda_threading import DualPandaThreadingEnv
 from .dual_panda_stack3cubes import TwoRobotStack3Cube
 from .dual_panda_pen_cap import DualArmPenCapEnv
+from .object_in_cabinet import ObjectInCabinetEnv
