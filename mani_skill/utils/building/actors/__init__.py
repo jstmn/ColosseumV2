@@ -8,4 +8,5 @@ from .common import (
     build_sphere,
     build_twocolor_peg,
     get_actor_builder,
+    build_box_target
 )
