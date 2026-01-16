@@ -29,4 +29,5 @@ from .place_dish_in_rack import solve as solvePlaceDishInRack
 from .pick_dish_from_rack import solve as solvePickDishFromRack
 from .pour_sphere import solve as solvePourSphere
 from .hammer_nail import solve as solveHammerNail
+from .open_cabinet import solve as solveOpenCabinet
 from .object_in_cabinet import solve as solveObjectInCabinet

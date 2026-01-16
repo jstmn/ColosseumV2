@@ -1,6 +1,7 @@
 import numpy as np
 import sapien
 
+from mani_skill.envs.tasks.tabletop.open_cabinet import OpenCabinetEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import (
     compute_grasp_info_by_obb,
@@ -138,7 +139,7 @@ def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> n
 
 
 def _open_cabinet_with_planner(
-    env, planner: PandaArmMotionPlanningSolver
+    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver
 ):
     """Execute motion plan to open the cabinet door in a smooth, single motion."""
     env_sim = env.unwrapped
@@ -310,7 +311,7 @@ def _open_cabinet_with_planner(
     return res
 
 
-def solve(env, seed=None, debug=False, vis=False):
+def solve(env: OpenCabinetEnv, seed=None, debug=False, vis=False):
     """Solve the OpenCabinet task using motion planning."""
     env.reset(seed=seed)
     assert env.unwrapped.control_mode in [
