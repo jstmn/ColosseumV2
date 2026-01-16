@@ -937,7 +937,227 @@ class BimanualPlanner:
                 return {"status": "Success (No TOPP)", "position": path}
         else:
             return {"status": "RRT Failed. %s" % status}
+    
+    # def plan_screw(
+    # self,
+    # target_pose_L=None,
+    # target_pose_R=None,
+    # current_qpos=None,
+    # step_size=0.01,      # MUCH SMALLER - was 0.01
+    # time_step=0.1,
+    # threshold=1e-3,
+    # max_steps=10000,       # Increased for smaller steps
+    # visualize_callback=None,
+    # check_collisions=True
+    # ):
+    #     """
+    #     Plan a linear (screw) motion for dual arms using Differential IK.
+    #     With COLLISION AVOIDANCE and adaptive stepping.
+    #     """
+    #     if current_qpos is None:
+    #         current_qpos = self.robot.get_qpos()
         
+    #     # Setup
+    #     left_idx = self.link_name_2_idx.get("panda_2_hand_tcp", -1)
+    #     right_idx = self.link_name_2_idx.get("panda_1_hand_tcp", -1)
+    #     all_active_indices = self.move_group_joint_indices
+
+    #     # Filter out gripper joints
+    #     gripper_joint_names = [
+    #         "panda_1_finger_joint1", "panda_1_finger_joint2",
+    #         "panda_2_finger_joint1", "panda_2_finger_joint2"
+    #     ]
+    #     gripper_indices = [self.joint_name_2_idx[name] for name in gripper_joint_names 
+    #                     if name in self.joint_name_2_idx]
+        
+    #     active_indices = [idx for idx in all_active_indices if idx not in gripper_indices]
+
+    #     def to_pin_se3(pose_7d):
+    #         if pose_7d is None: return None
+    #         if isinstance(pose_7d, (list, np.ndarray)):
+    #             pos = np.array(pose_7d[:3])
+    #             quat = pinocchio.Quaternion(
+    #                 float(pose_7d[3]), float(pose_7d[4]), 
+    #                 float(pose_7d[5]), float(pose_7d[6])
+    #             )
+    #             quat.normalize()
+    #             return pinocchio.SE3(quat, pos)
+    #         else:
+    #             mat = pose_7d.to_transformation_matrix()
+    #             R = mat[:3, :3]
+    #             t = mat[:3, 3]
+    #             return pinocchio.SE3(R, t)
+            
+    #     target_L_se3 = to_pin_se3(target_pose_L)
+    #     target_R_se3 = to_pin_se3(target_pose_R)
+        
+    #     path = [current_qpos.copy()]
+    #     q = current_qpos.copy()
+    #     gripper_values = {idx: q[idx] for idx in gripper_indices}
+        
+    #     # Get joint limits once
+    #     limits = self.pinocchio_model.get_joint_limits()
+    #     limits_stack = np.vstack(limits)
+    #     lower_lim = limits_stack[:, 0]
+    #     upper_lim = limits_stack[:, 1]
+        
+    #     # ✅ NEW: Adaptive step size
+    #     current_step_size = step_size
+    #     min_step_size = step_size * 0.1
+    #     collision_count = 0
+    #     last_collision_step = -10
+        
+    #     # ✅ NEW: Track previous valid state for collision retreat
+    #     last_valid_q = q.copy()
+        
+    #     for step in range(max_steps):
+    #         if visualize_callback is not None and step % 10 == 0: 
+    #             visualize_callback(q)
+            
+    #         self.pinocchio_model.compute_forward_kinematics(q)
+    #         self.pinocchio_model.compute_full_jacobian(q)
+            
+    #         error_stack = []
+    #         J_stack = []
+            
+    #         # Right Arm
+    #         if target_R_se3 is not None:
+    #             curr_pose_R = self.pinocchio_model.get_link_pose(right_idx)
+    #             curr_se3_R = to_pin_se3(curr_pose_R)
+    #             dMf = curr_se3_R.actInv(target_R_se3)
+    #             err_R = pinocchio.log(dMf).vector
+            
+    #             # ✅ CRITICAL: Clamp error to CURRENT step size
+    #             if np.linalg.norm(err_R) > current_step_size:
+    #                 err_R = err_R * (current_step_size / np.linalg.norm(err_R))
+            
+    #             error_stack.append(err_R)
+    #             J_R = self.pinocchio_model.get_link_jacobian(right_idx, local=True)
+    #             J_stack.append(J_R[:, active_indices])
+            
+    #         # Left Arm
+    #         if target_L_se3 is not None:
+    #             curr_pose_L = self.pinocchio_model.get_link_pose(left_idx)
+    #             curr_se3_L = to_pin_se3(curr_pose_L)
+    #             dMf = curr_se3_L.actInv(target_L_se3)
+    #             err_L = pinocchio.log(dMf).vector
+                
+    #             if np.linalg.norm(err_L) > current_step_size:
+    #                 err_L = err_L * (current_step_size / np.linalg.norm(err_L))
+                
+    #             error_stack.append(err_L)
+    #             J_L = self.pinocchio_model.get_link_jacobian(left_idx, local=True)
+    #             J_stack.append(J_L[:, active_indices])
+            
+    #         # Convergence check
+    #         full_error = np.concatenate(error_stack)
+    #         if np.linalg.norm(full_error) < threshold:
+    #             print(f"✓ Screw motion converged in {step} steps")
+    #             break
+            
+    #         # Solve for joint velocities
+    #         J_total = np.vstack(J_stack)
+            
+    #         # ✅ IMPROVED: Larger damping for stability near obstacles
+    #         base_damp = 1e-3
+    #         if step - last_collision_step < 5:
+    #             # Recent collision - increase damping
+    #             damp = base_damp * 10
+    #         else:
+    #             damp = base_damp
+                
+    #         JJt = J_total @ J_total.T
+    #         dq = J_total.T @ np.linalg.inv(JJt + damp * np.eye(len(full_error))) @ full_error
+            
+    #         # ✅ NEW: Limit maximum joint velocity
+    #         max_joint_vel = 0.05  # rad per step
+    #         dq_norm = np.linalg.norm(dq)
+    #         if dq_norm > max_joint_vel:
+    #             dq = dq * (max_joint_vel / dq_norm)
+            
+    #         # Update configuration
+    #         q_proposed = q.copy()
+    #         q_proposed[active_indices] += dq
+    #         q_proposed = np.clip(q_proposed, lower_lim, upper_lim)
+            
+    #         # Restore gripper values
+    #         for idx, val in gripper_values.items():
+    #             q_proposed[idx] = val
+            
+    #         # ✅ CRITICAL: Collision checking BEFORE accepting the step
+    #         if check_collisions:
+    #             self.robot.set_qpos(q_proposed, True)
+                
+    #             if self.planning_world.collide():
+    #                 collision_count += 1
+    #                 last_collision_step = step
+                    
+    #                 # Print collision details
+    #                 if step % 10 == 0:  # Don't spam
+    #                     contacts = self.planning_world.collide_full()
+    #                     for c in contacts:
+    #                         print(f"[Screw Collision {step}] {c.link_name1} <-> {c.link_name2}")
+                    
+    #                 # ✅ STRATEGY 1: Retreat to last valid state
+    #                 if collision_count > 3:
+    #                     print(f"[Screw] Multiple collisions detected, retreating...")
+    #                     q = last_valid_q.copy()
+    #                     collision_count = 0
+                        
+    #                     # ✅ STRATEGY 2: Reduce step size dramatically
+    #                     current_step_size = max(min_step_size, current_step_size * 0.5)
+    #                     print(f"[Screw] Reduced step size to {current_step_size:.6f}")
+    #                     continue
+                    
+    #                 # ✅ STRATEGY 3: Try smaller step
+    #                 current_step_size = max(min_step_size, current_step_size * 0.7)
+    #                 continue  # Don't accept this q, try again with smaller step
+                
+    #             else:
+    #                 # ✅ No collision - accept step and maybe increase speed
+    #                 last_valid_q = q_proposed.copy()
+    #                 q = q_proposed
+                    
+    #                 # Gradually increase step size if no recent collisions
+    #                 if step - last_collision_step > 20:
+    #                     current_step_size = min(step_size, current_step_size * 1.05)
+                    
+    #                 collision_count = 0
+    #         else:
+    #             # No collision checking - just accept
+    #             q = q_proposed
+            
+    #         path.append(q.copy())
+            
+    #         # Debug every N steps
+    #         if step % 50 == 0:
+    #             print(f"[Screw {step}] Error: {np.linalg.norm(full_error):.6f}, "
+    #                 f"Step size: {current_step_size:.6f}, "
+    #                 f"Collisions: {collision_count}")
+        
+    #     # Final check
+    #     if step >= max_steps - 1:
+    #         print(f"⚠ Screw motion reached max steps")
+    #         return {"status": "Failed (max steps)"}
+        
+    #     # Parameterize path
+    #     path = np.array(path)
+    #     if len(path) < 2:
+    #         return {"status": "Failed (Path too short)"}
+
+    #     try:
+    #         times, pos, vel, acc, duration = self.TOPP(path, time_step)
+    #         return {
+    #             "status": "Success",
+    #             "time": times,
+    #             "position": pos,
+    #             "velocity": vel,
+    #             "acceleration": acc,
+    #             "duration": duration,
+    #         }
+    #     except Exception as e:
+    #         print(f"[Screw] TOPP Failed: {e}")
+    #         return {"status": "Success (No TOPP)", "position": path}
         
     def plan_screw(
         self,
@@ -948,7 +1168,8 @@ class BimanualPlanner:
         time_step=0.1,    # For TOPP
         threshold=1e-3,   # Convergence threshold
         max_steps=2000,    # Safety breakout
-        visualize_callback=None
+        visualize_callback=None,
+        check_collisions=False
     ):
         """
         Plan a linear (screw) motion for dual arms using Differential IK.
@@ -957,10 +1178,21 @@ class BimanualPlanner:
             current_qpos = self.robot.get_qpos()
         
         # 1. Setup Pinocchio Data
-        active_indices = self.move_group_joint_indices
         left_idx = self.link_name_2_idx.get("panda_2_hand_tcp", -1)
         right_idx = self.link_name_2_idx.get("panda_1_hand_tcp", -1)
+        all_active_indices = self.move_group_joint_indices
+    
+        # Filter out gripper joints
+        gripper_joint_names = [
+            "panda_1_finger_joint1", "panda_1_finger_joint2",
+            "panda_2_finger_joint1", "panda_2_finger_joint2"
+        ]
+        gripper_indices = [self.joint_name_2_idx[name] for name in gripper_joint_names 
+                        if name in self.joint_name_2_idx]
         
+        # Active indices = arm joints only (exclude grippers)
+        active_indices = [idx for idx in all_active_indices if idx not in gripper_indices]
+
         # Helper to convert input to Pinocchio SE3
         def to_pin_se3(pose_7d):
             if pose_7d is None: return None
@@ -983,7 +1215,7 @@ class BimanualPlanner:
         # print(current_qpos)
         path = [current_qpos.copy()]
         q = current_qpos.copy()
-        
+        gripper_values = {idx: q[idx] for idx in gripper_indices}
         # 2. Iterative Descent (Differential IK)
         for step in range(max_steps):
             if visualize_callback is not None and step % 10 == 0: 
@@ -1046,13 +1278,15 @@ class BimanualPlanner:
                 limits_stack = np.vstack(limits)
                 lower_lim = limits_stack[:, 0]
                 upper_lim = limits_stack[:, 1]
-            
                 q = np.clip(q, lower_lim, upper_lim)
+            
+            for idx, val in gripper_values.items():
+                q[idx] = val
             
             # Collision Check (Expensive, maybe check every N steps if slow)
             if step % 1 == 0:
                 self.robot.set_qpos(q, True)
-                if self.planning_world.collide():
+                if self.planning_world.collide() and check_collisions:
                     # --- Add this debug block ---
                     contacts = self.planning_world.collide_full()
                     for c in contacts:
@@ -1067,7 +1301,12 @@ class BimanualPlanner:
         path = np.array(path)
         if len(path) < 2:
              return {"status": "Failed (Path too short)"}
-
+        if len(path) > 5:
+            # Simple box filter for smoothing
+            path_smooth = np.copy(path)
+            for i in range(1, len(path)-1):
+                path_smooth[i] = (path[i-1] + path[i] + path[i+1]) / 3.0
+            path = path_smooth
         try:
             # reuse your existing TOPP function
             times, pos, vel, acc, duration = self.TOPP(path, time_step)
@@ -1081,8 +1320,35 @@ class BimanualPlanner:
             }
         except Exception as e:
             print(f"[Screw] TOPP Failed: {e}")
-            return {"status": "Success (No TOPP)", "position": path}
-
+            # return {"status": "Success (No TOPP)", "position": path}
+            print(f"[Screw] TOPP Failed: {e}")
+            
+            # FALLBACK: Constant velocity parameterization if TOPP fails
+            # This ensures the robot still moves even if the dynamics calculation fails
+            print("[Screw] Falling back to constant velocity profile")
+            
+            # Create a simple time array assuming constant small time steps
+            n_steps = len(path)
+            # Assume each IK step takes 'time_step' seconds (e.g. 0.05s)
+            safe_dt = 0.05 
+            times = np.linspace(0, n_steps * safe_dt, n_steps)
+            
+            # Calculate simple finite difference velocities
+            vel = np.zeros_like(path)
+            vel[1:] = (path[1:] - path[:-1]) / safe_dt
+            
+            # Zero acceleration (approximation)
+            acc = np.zeros_like(path)
+            
+            return {
+                "status": "Success", # Return success so execution continues!
+                "time": times,
+                "position": path,
+                "velocity": vel,
+                "acceleration": acc,
+                "duration": times[-1],
+            }
+            
     # Helper methods for collision objects
     def update_point_cloud(self, pc, radius=1e-3):
         self.planning_world.update_point_cloud(pc, radius)

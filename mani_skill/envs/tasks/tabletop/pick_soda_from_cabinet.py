@@ -16,6 +16,8 @@ from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
+from mani_skill import PACKAGE_ASSET_DIR
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
@@ -122,7 +124,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
         )
         self.soda = self.load_glb_as_actor(self.scene, 
-                                             "/home/prajwal-vijay/Downloads/ManiSkill-main/mani_skill/assets/place_soda_in_cabinet/opened_soda_can.glb",
+                                             os.path.join(PACKAGE_ASSET_DIR,"place_soda_in_cabinet/opened_soda_can.glb"),
                                             sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
                                             name="soda_can",
                                             scale=[0.04,0.04,0.04],

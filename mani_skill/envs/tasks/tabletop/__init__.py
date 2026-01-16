@@ -10,7 +10,7 @@ from .push_cube import PushCubeEnv
 from .stack_cube import StackCubeEnv
 from .turn_faucet import TurnFaucetEnv
 from .two_robot_pick_cube import TwoRobotPickCube
-from .two_robot_stack_cube import TwoRobotStackCube
+from .dual_panda_stack_cube import TwoRobotStackCube
 from .poke_cube import PokeCubeEnv
 from .place_dish_in_rack import PlaceDishInRackEnv
 from .pick_dish_from_rack import PickDishFromRackEnv
@@ -21,8 +21,20 @@ from .pull_cube_tool import PullCubeToolEnv
 from .stack_pyramid import StackPyramidEnv
 from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 from .cook_item_in_pan import CookItemInPanEnv
-# 
+from .open_cabinet import OpenCabinetEnv
+#
 from .colosseum_v2_versions import *
 from .pour_sphere import PourSphereEnv
 from .dual_panda_test import DualArmEmptyEnv
 from .hammer_nail import HammerNailEnv
+from .dual_panda_pick_cube import DualArmPickCubeEnv
+from .dual_panda_drawer_place import DualArmDrawerPlaceEnv
+from .dual_panda_drawer_open import DualArmDrawerOpenEnv
+from .dual_panda_pick_bottle import DualArmPickBottleEnv
+from .dual_panda_pick_pour_pot import DualArmPourPotEnv
+from .dual_panda_lift_pot import DualArmLiftPotEnv
+from .dual_panda_lift_tray import DualArmLiftTrayEnv
+from .dual_panda_threading import DualPandaThreadingEnv
+from .dual_panda_stack3cubes import TwoRobotStack3Cube
+from .dual_panda_pen_cap import DualArmPenCapEnv
+from .object_in_cabinet import ObjectInCabinetEnv
