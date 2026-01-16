@@ -611,11 +611,12 @@ class HammerNailEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # Use a collision-free start pose for the robot
-            collision_free_qpos = np.array(
-                [0.0, 0.0, 0.0, -np.pi / 2, 0.0, np.pi / 2, np.pi / 4, 0.04, 0.04]
+            # Use a start pose with gripper closer to hammer position
+            # Arm extended toward hammer location for faster grasping
+            closer_to_hammer_qpos = np.array(
+                [0.0, -0.3, 0.0, -2.0, 0.0, 1.8, 0.78, 0.04, 0.04]
             )
-            self.table_scene.initialize(env_idx, qpos_0=collision_free_qpos)
+            self.table_scene.initialize(env_idx, qpos_0=closer_to_hammer_qpos)
 
             base_centers = self._nail_rest_centers.to(self.device)
             raise_ranges = self._nail_raise_ranges.to(self.device)
@@ -644,7 +645,11 @@ class HammerNailEnv(BaseEnv):
                 # [lock_x, lock_y, lock_z, lock_rot_x, lock_rot_y, lock_rot_z]
                 nail.set_locked_motion_axes(torch.tensor([[True, False, True, True, True, True]] * b, device=self.device))
 
+            # Randomize hammer position
             hammer_pos = self._hammer_rest_center.to(self.device).unsqueeze(0).repeat(b, 1)
+            # Add randomization: ±0.03m in X, ±0.03m in Y
+            hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
             hammer_pose = Pose.create_from_pq(
                 p=hammer_pos,
                 q=self._hammer_orientation.to(self.device).unsqueeze(0).repeat(b, 1),

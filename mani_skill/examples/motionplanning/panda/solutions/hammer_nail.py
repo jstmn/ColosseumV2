@@ -21,6 +21,13 @@ def solve(env: HammerNailEnv, seed=None, debug=False, vis=False):
 
     env_sim = env.unwrapped
     nail_center = env_sim.nails[0].pose.p[0].cpu().numpy()
+    hammer_pos = env_sim.hammer.pose.p[0].cpu().numpy()
+    block_pos = env_sim.block.pose.p[0].cpu().numpy()
+
+    # Always print starting positions
+    print(f"Starting hammer position: {hammer_pos}")
+    print(f"Starting nail position: {nail_center}")
+    print(f"Starting block position: {block_pos}")
 
     # Grasp hammer from above near the head using its world AABB.
     approaching = np.array([0.0, 0.0, -1.0])
