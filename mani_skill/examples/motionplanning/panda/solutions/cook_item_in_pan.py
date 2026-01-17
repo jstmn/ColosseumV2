@@ -38,8 +38,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
             env.step(action)
             if vis:
                 env_sim.render_human()
-    if vis:
-        input("Press Enter to start planning...")
 
     def move_to_pose(target_pose):
         res = planner.move_to_pose_with_RRTConnect(target_pose)
@@ -53,28 +51,27 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     print(f"Pan pos: {pan_pos}")
     print(f"Apple pos (initial): {apple_pos_initial}")
 
-    # Position above center of pan
-    above_pan = pan_pos.copy()
-    above_pan[0] -= 0.4  # centered along X
-    above_pan[1] -= 0.10  # centered along Y
-    above_pan[2] = 0.15  # 15cm above table
-
-    # Approach from above, close gripper along Y
+    # Top-down grasp on the rim - approach from above, close along Y
     approaching = np.array([0.0, 0.0, -1.0])
     closing = np.array([0.0, 1.0, 0.0])
 
-    target_pose = env_sim.agent.build_grasp_pose(approaching, closing, above_pan)
+    # The mesh is not centered - account for mesh offset after 90deg rotation
+    # After rotation: local X->world Y, local Y->world -X
+    # Mesh body center is at roughly [-0.10, 0.35] relative to spawn
+    # Target the near rim for easy grasp
+    rim_pos = np.array([-0.10, 0.17, 0.15])  # near rim, above
 
-    # Move above the handle
+    target_pose = env_sim.agent.build_grasp_pose(approaching, closing, rim_pos)
+
+    # Move above the rim
     res = move_to_pose(target_pose)
     if res == -1:
         planner.close()
         return res
 
-    # Move down to grasp
-    grasp_pos = above_pan.copy()
-    grasp_pos[1] += 0.01  # adjust for handle offset
-    grasp_pos[2] = 0.00  # lower to handle height
+    # Lower straight down to grasp the rim
+    grasp_pos = rim_pos.copy()
+    grasp_pos[2] = 0.01  # rim height
     grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, grasp_pos)
     res = move_to_pose(grasp_pose)
     if res == -1:
@@ -97,22 +94,23 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     is_grasping = env_sim.agent.is_grasping(env_sim.pan)
     print(f"Is grasping pan: {is_grasping}")
 
-    # Move forward to stove
+    # Move to above stove
     stove_pos = env_sim.stove.pose.p[0].cpu().numpy()
     print(f"Stove pos: {stove_pos}")
 
-    move_to_stove = lift_pos.copy()
-    move_to_stove[0] = stove_pos[0] - 0.10  # move to stove X
-    move_to_stove[1] = stove_pos[1] - 0.05  # move to stove Y
-    stove_pose = env_sim.agent.build_grasp_pose(approaching, closing, move_to_stove)
+    above_stove = lift_pos.copy()
+    above_stove[0] = stove_pos[0]  # center on stove X
+    above_stove[1] = stove_pos[1] - 0.2  # center on stove Y
+    above_stove[2] = 0.25  # keep high
+    stove_pose = env_sim.agent.build_grasp_pose(approaching, closing, above_stove)
     res = move_to_pose(stove_pose)
     if res == -1:
         planner.close()
         return res
 
     # Lower pan onto stove
-    lower_pos = move_to_stove.copy()
-    lower_pos[2] = stove_pos[2] + env_sim.stove_top_offset + 0.05  # just above stove top
+    lower_pos = above_stove.copy()
+    lower_pos[2] = stove_pos[2] + env_sim.stove_top_offset + 0.03
     lower_pose = env_sim.agent.build_grasp_pose(approaching, closing, lower_pos)
     res = move_to_pose(lower_pose)
     if res == -1:
@@ -121,30 +119,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Release pan
     planner.open_gripper()
-
-    # Wiggle side to side to release pan
-    wiggle_left = lower_pos.copy()
-    wiggle_left[1] -= 0.03
-    wiggle_left_pose = env_sim.agent.build_grasp_pose(approaching, closing, wiggle_left)
-    res = move_to_pose(wiggle_left_pose)
-    if res == -1:
-        planner.close()
-        return res
-
-    wiggle_right = lower_pos.copy()
-    wiggle_right[1] += 0.03
-    wiggle_right_pose = env_sim.agent.build_grasp_pose(approaching, closing, wiggle_right)
-    res = move_to_pose(wiggle_right_pose)
-    if res == -1:
-        planner.close()
-        return res
-
-    # Back to center
-    center_pose = env_sim.agent.build_grasp_pose(approaching, closing, lower_pos)
-    res = move_to_pose(center_pose)
-    if res == -1:
-        planner.close()
-        return res
 
     # Lift up after releasing pan
     retreat_pos = lower_pos.copy()
@@ -191,10 +165,9 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Move apple above pan (now on stove)
     pan_on_stove = env_sim.pan.pose.p[0].cpu().numpy()
-    above_pan_pos = pan_on_stove.copy()
-    above_pan_pos[0] -= 0.18  # centered along X
-    above_pan_pos[1] += 0.20  # centered along Y
-    above_pan_pos[2] = 0.25
+    above_pan_pos = lower_pos.copy()
+    above_pan_pos[1] = lower_pos[1] + 0.1
+    above_pan_pos[2] = lower_pos[2] + 0.15  # above pan
     above_pan_pose = env_sim.agent.build_grasp_pose(approaching, closing, above_pan_pos)
     res = move_to_pose(above_pan_pose)
     if res == -1:
@@ -203,7 +176,7 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Lower apple into pan
     place_apple_pos = above_pan_pos.copy()
-    place_apple_pos[2] = above_pan_pos[2] - 0.20  # lower into pan
+    place_apple_pos[2] = 0.08  # into pan
     place_apple_pose = env_sim.agent.build_grasp_pose(approaching, closing, place_apple_pos)
     res = move_to_pose(place_apple_pose)
     if res == -1:

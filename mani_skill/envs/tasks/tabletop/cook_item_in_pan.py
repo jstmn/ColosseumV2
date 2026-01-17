@@ -101,21 +101,20 @@ class CookItemInPanEnv(BaseEnv):
 
         self.stove_center_xy = np.array([0.15, 0.15], dtype=np.float32)  # back right of table
         self.table_surface_z = 0.0
-        # Very relaxed - pan can be anywhere near stove
-        self.stove_xy_radius = 0.5  # 50cm radius
-        self.stove_z_tolerance = 0.1  # 10cm z tolerance
+        # Pan must be centered on stove
+        self.stove_xy_radius = 0.08  # 8cm radius - pan must be on stove
+        self.stove_z_tolerance = 0.05  # 5cm z tolerance
 
-        # Pan flat on table, handle pointing toward robot (-X)
+        # Pan flat on table, handle pointing to the side (+Y) for easy rim access
         self.pan_spawn_x_rot = 0.0
-        self.pan_spawn_z_rot = np.pi  # 180 degree rotation
+        self.pan_spawn_z_rot = np.pi / 2  # 90 degree rotation - handle points +Y
         self.pan_spawn_z_offset = 0.0
-        # Offset spawn to center the mesh body
-        # Pan spawns at fixed position (no randomization for 100% reliability)
-        self.pan_spawn_center = np.array([0.20, 0.0], dtype=np.float32)
+        # Pan spawns in front of robot for easy reach
+        self.pan_spawn_center = np.array([0.0, 0.0], dtype=np.float32)
         self.pan_spawn_half_size = 0.0  # No randomization
-        # Food on table (front-right, away from stove)
-        self.food_spawn_center = np.array([-0.25, 0.20], dtype=np.float32)
-        self.food_spawn_half_size = 0.0  # No randomization
+        # Food on table with large randomization area (shifted right from robot's view)
+        self.food_spawn_center = np.array([-0.12, -0.20], dtype=np.float32)
+        self.food_spawn_half_size = 0.08  # Randomization within reachable area
 
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -340,17 +339,22 @@ class CookItemInPanEnv(BaseEnv):
         food_pos = food_pose.p
         stove_pos = self.stove.pose.p
 
-        pan_bottom_z = pan_pos[:, 2] - self.pan_bottom_offset
-        stove_top_z = stove_pos[:, 2] + self.stove_top_offset
-        pan_xy_dist = torch.linalg.norm(pan_pos[:, :2] - stove_pos[:, :2], dim=1)
-        is_pan_on_stove = torch.logical_and(
-            pan_xy_dist <= self.stove_xy_radius,
-            torch.abs(pan_bottom_z - stove_top_z) <= self.stove_z_tolerance,
+        # Pan mesh is offset from its pose origin, so when pan is visually on stove,
+        # pan_pos reports ~[0.22, -0.26]. Use a bounding box that matches this.
+        # Stove visual bounds roughly X:[0, 0.3], Y:[0, 0.3]
+        # Pan pose when on stove: X ~0.22, Y ~-0.26
+        is_pan_on_stove = (
+            (pan_pos[:, 0] >= 0.0) & (pan_pos[:, 0] <= 0.35) &
+            (pan_pos[:, 1] >= -0.35) & (pan_pos[:, 1] <= 0.0)
         )
 
-        # Check food is near pan (very relaxed - within 50cm of pan center)
-        food_to_pan_dist = torch.linalg.norm(food_pos[:, :2] - pan_pos[:, :2], dim=1)
-        is_food_in_pan = food_to_pan_dist <= 0.5
+        # Pan mesh is offset from pan_pos. When pan_pos=[0.22,-0.26], body is at [0.15,0.15]
+        # offset = pan_pos - body → [0.07, -0.41]
+        # body = pan_pos - offset
+        pan_body_offset = torch.tensor([0.07, -0.41], device=self.device)
+        pan_body_center = pan_pos[:, :2] - pan_body_offset
+        food_to_pan_body_dist = torch.linalg.norm(food_pos[:, :2] - pan_body_center, dim=1)
+        is_food_in_pan = food_to_pan_body_dist <= 0.15  # generous threshold
 
         is_pan_static = self.pan.is_static(lin_thresh=0.1, ang_thresh=1.0)
         is_food_static = self.food.is_static(lin_thresh=0.1, ang_thresh=1.0)
@@ -365,6 +369,19 @@ class CookItemInPanEnv(BaseEnv):
             & ~is_pan_grasped
             & ~is_food_grasped
         )
+
+        # Live status update (overwrite same line)
+        status = (
+            f"\r[Status] pan_on_stove:{is_pan_on_stove[0].item()} | "
+            f"food_in_pan:{is_food_in_pan[0].item()} | "
+            f"pan_static:{is_pan_static[0].item()} | "
+            f"food_static:{is_food_static[0].item()} | "
+            f"pan_grasped:{is_pan_grasped[0].item()} | "
+            f"food_grasped:{is_food_grasped[0].item()} | "
+            f"SUCCESS:{success[0].item()}    "
+        )
+        print(status, end="", flush=True)
+
         return {
             "success": success,
             "is_pan_on_stove": is_pan_on_stove,
