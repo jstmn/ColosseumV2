@@ -162,6 +162,10 @@ class PlaceBookEnv(BaseEnv):
             # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
             self.book_A.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
 
+            xyz[..., 0] = 0.293 + float(torch.rand(b)*0.05)
+            xyz[..., 1] = -0.1 + float(torch.rand(b)*0.1)
+            xyz[..., 2] = 0
+            self.shelf.set_pose(Pose.create_from_pq(p=xyz, q=[-0.5, -0.5, 0.5, 0.5]))
             # xyz[:, :2] = cubeB_xy
             # qs = randomization.random_quaternions(
             #     b,
@@ -170,11 +174,18 @@ class PlaceBookEnv(BaseEnv):
             #     lock_z=False,
             # )
             # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
-
+        self._initialize_agent()
+        
+    def _initialize_agent(self):
+        qpos = np.array([-0.816, 0.109, 0.437, -3.005, 2.678, 1.626, -2.312, 0.04, 0.04])
+        self.agent.reset(qpos)
+        
     def evaluate(self):
         pos_shelf = self.shelf.pose.p
         pos_book = self.book_A.pose.p
         offset = pos_book
+        offset[..., 0] = offset[..., 0] - pos_shelf[..., 0] + 0.293
+        offset[..., 1] = offset[..., 1] - pos_shelf[..., 1] - 0.1
         x_flag = torch.logical_and((offset[..., 0]) <= 0.36, (offset[..., 0] >= 0.21))
         y_flag = torch.logical_and(-0.08 >= (offset[..., 1]), (offset[..., 1]) >= -0.17)
         z_flag = torch.logical_and(offset[..., 2] <= 0.16 + 0.005, offset[..., 2] >= 0.14)

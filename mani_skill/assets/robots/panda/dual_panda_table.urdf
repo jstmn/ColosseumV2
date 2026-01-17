@@ -27,7 +27,7 @@
   </joint>
 
   <joint name="panda_1_base_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 -0.6 0.025"/> <parent link="table"/>
+    <origin rpy="0 0 0" xyz="-0.4 -0.6 0.025"/> <parent link="table"/>
     <child link="panda_1_link0"/>
   </joint>
   <link name="panda_1_link0">
@@ -320,7 +320,7 @@
   </joint>
 
   <joint name="panda_2_base_joint" type="fixed">
-    <origin rpy="0 0 3.14159" xyz="0 0.6 0.025"/> <parent link="table"/>
+    <origin rpy="0 0 3.14159" xyz="-0.4 0.6 0.025"/> <parent link="table"/>
     <child link="panda_2_link0"/>
   </joint>
   <link name="panda_2_link0">

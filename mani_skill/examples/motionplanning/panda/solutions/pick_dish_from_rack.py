@@ -90,7 +90,7 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 2: GRASP ===")
 
-    result = planner.move_to_pose_with_screw(grasp_pose)
+    result = planner.move_to_pose_with_RRTConnect(grasp_pose)
     if result == -1:
         if debug:
             print("❌ Failed to grasp position")
@@ -124,7 +124,7 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
 
     # Lift straight up out of the rack
     pullout_pose = grasp_pose * sapien.Pose([0, 0, -0.20])
-    res = planner.move_to_pose_with_screw(pullout_pose)
+    res = planner.move_to_pose_with_RRTConnect(pullout_pose)
 
     if debug:
         plate_after_pull = env_sim.plate.pose.p[0].cpu().numpy()
@@ -132,13 +132,42 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
 
 
     if debug:
-        print(f"\n=== STEP 4: MOVE TO CENTER ===")
+        print(f"\n=== STEP 4: MOVE AWAY FROM RACK ===")
 
-    move_pose = pullout_pose * sapien.Pose([0, -0.25, 0])
-    res = planner.move_to_pose_with_screw(move_pose)
+    # Get current plate position after pullout
+    current_plate_pos = env_sim.plate.pose.p[0].cpu().numpy()
+
+    # Move plate toward center (Y=0) and away from rack
+    # If plate is on left (Y>0), move right (negative Y direction)
+    # If plate is on right (Y<0), move left (positive Y direction)
+    target_y = 0.0  # Move toward center
+    y_offset = target_y - current_plate_pos[1]
+
+    # Build target pose in world coordinates
+    target_pos = current_plate_pos.copy()
+    target_pos[1] = target_y  # Move to center Y
+    target_pos[0] = -0.2  # Move forward (toward robot)
+
+    target_pose = env_sim.agent.build_grasp_pose(approaching, closing, target_pos)
+    res = planner.move_to_pose_with_RRTConnect(target_pose)
+
     if debug:
         plate_after_move = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Moved plate to: {plate_after_move}")
+
     # -------------------------------------------------------------------------- #
+    # Wait for physics to settle
+    # -------------------------------------------------------------------------- #
+    arm_dof = len(env_sim.agent.arm_joint_names)
+    home_qpos = env_sim.agent.robot.get_qpos()[0, :arm_dof].cpu().numpy()
+    for _ in range(60):
+        if env_sim.control_mode == "pd_joint_pos":
+            action = np.hstack([home_qpos, planner.gripper_state])
+        else:
+            action = np.hstack([home_qpos, np.zeros(arm_dof), planner.gripper_state])
+        obs, reward, terminated, truncated, info = env.step(action)
+        if vis:
+            env_sim.render_human()
+
     planner.close()
-    return res
+    return obs, reward, terminated, truncated, info

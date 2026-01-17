@@ -354,48 +354,48 @@ def test_sequential_tasks(env, seed=None, debug=False, vis=False):
         # 6. Open grippers
         print("\n6. Releasing...")
         planner.close_gripper(arm_index=2, t=10)
-        planner.close_gripper(arm_index=1, t=10)
+        # planner.close_gripper(arm_index=1, t=10)
         
-        current_pos = env.unwrapped.obj.pose
-        tcp_1_pose = env.unwrapped.agent.tcp_1_pose
-        tcp_2_pose = env.unwrapped.agent.tcp_2_pose
-        if hasattr(current_pos.q, 'cpu'):
-            q = current_pos.q.cpu().numpy().flatten()
-        else:
-            q = np.array(current_pos.q).flatten()
-        position = np.array([-0.333, 0.14, 1.5])
-        orientation = q  # assuming q is already a numpy array
-        goal_pos = sapien.Pose(p=position, q=orientation)
+        # current_pos = env.unwrapped.obj.pose
+        # tcp_1_pose = env.unwrapped.agent.tcp_1_pose
+        # tcp_2_pose = env.unwrapped.agent.tcp_2_pose
+        # if hasattr(current_pos.q, 'cpu'):
+        #     q = current_pos.q.cpu().numpy().flatten()
+        # else:
+        #     q = np.array(current_pos.q).flatten()
+        # position = np.array([-0.333, 0.14, 1.5])
+        # orientation = q  # assuming q is already a numpy array
+        # goal_pos = sapien.Pose(p=position, q=orientation)
         # goal_pos = np.concatenate([position, orientation])
         
         # Screw motion is not working so great, but this is what we have for now
-        result = planner.move_dual_arm_screw_constrained(
-            goal_pos,
-            current_pos,
-            tcp_1_pose,
-            tcp_2_pose,
-            # refine_steps=5
+        # result = planner.move_dual_arm_screw_constrained(
+        #     goal_pos,
+        #     current_pos,
+        #     tcp_1_pose,
+        #     tcp_2_pose,
+        #     # refine_steps=5
+        # )
+        
+        # print(f"FINAL LOCATION: {env.unwrapped.obj.pose.p}")
+        planner.open_gripper(arm_index=1, t=10)
+        print("\n✓ Sequential tasks test completed successfully")
+        
+        print("\n3. Moving to grasp positions...")
+        grasp_1 = sapien.Pose(
+            p=np.array([-0.2, -0.141, 0.83]),
+            q=q1
+        )
+        grasp_2 = sapien.Pose(
+            p=np.array([0.2, 0.141, 0.9]),
+            q=q2
         )
         
-        print(f"FINAL LOCATION: {env.unwrapped.obj.pose.p}")
-        # planner.open_gripper(arm_index=1, t=10)
-        # print("\n✓ Sequential tasks test completed successfully")
-        
-        # print("\n3. Moving to grasp positions...")
-        # grasp_1 = sapien.Pose(
-        #     p=np.array([-0.2, -0.141, 0.83]),
-        #     q=q1
-        # )
-        # grasp_2 = sapien.Pose(
-        #     p=np.array([0.2, 0.141, 0.9]),
-        #     q=q2
-        # )
-        
-        # result = planner.move_to_pose_pair_with_RRTConnect(
-        #     grasp_2,  # left
-        #     grasp_1,  # right
-        #     refine_steps=5
-        # )
+        result = planner.move_to_pose_pair_with_RRTConnect(
+            grasp_2,  # left
+            grasp_1,  # right
+            refine_steps=5
+        )
         
         return True
         
