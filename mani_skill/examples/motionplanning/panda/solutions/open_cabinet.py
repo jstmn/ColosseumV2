@@ -151,6 +151,11 @@ def _open_cabinet_with_planner(
     pivot = _get_joint_pivot(joint)
     robot_pos = env_sim.agent.robot.pose.p[0].cpu().numpy()
 
+    # Print initial EE-to-handle distance
+    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
+    ee_handle_dist = np.linalg.norm(ee_pos - handle_pos)
+    print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
+
     # Get handle oriented bounding box for precise grasp
     handle_obb = _get_handle_obb(env_sim.handle_link)
 
@@ -189,13 +194,17 @@ def _open_cabinet_with_planner(
     planner.open_gripper()
     reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
 
-    res = planner.move_to_pose_with_RRTConnect(reach_pose)
-    if res == -1:
-        res = planner.move_to_pose_with_screw(reach_pose)
-    if res == -1:
-        print("Failed to reach pre-grasp pose")
-        planner.close()
-        return -1
+    # Skip reach motion if already at pre-grasp pose (e.g., initialized there)
+    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
+    reach_pos = np.array(reach_pose.p)
+    if np.linalg.norm(ee_pos - reach_pos) > 0.02:  # only move if > 2cm away
+        res = planner.move_to_pose_with_RRTConnect(reach_pose)
+        if res == -1:
+            res = planner.move_to_pose_with_screw(reach_pose)
+        if res == -1:
+            print("Failed to reach pre-grasp pose")
+            planner.close()
+            return -1
 
     # Phase 2: Move to grasp position
     res = planner.move_to_pose_with_screw(grasp_pose)
