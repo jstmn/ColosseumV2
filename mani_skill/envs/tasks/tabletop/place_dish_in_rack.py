@@ -260,7 +260,36 @@ class PlaceDishInRackEnv(BaseEnv):
         device = self.device
         with torch.device(device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
+
+            # First compute plate position so we can position robot above it
+            # Randomize plate position within reachable zone - 20cm range (±0.1m)
+            plate_x = -0.45 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
+            plate_y = -0.25 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
+
+            # Use heuristic-based qpos with base rotation toward plate
+            plate_x_val = float(plate_x[0].cpu()) if b == 1 else -0.45
+            plate_y_val = float(plate_y[0].cpu()) if b == 1 else -0.25
+
+            # Compute angle from robot base to plate
+            # Robot base is at (-0.615, 0), plate is at (plate_x_val, plate_y_val)
+            angle_to_plate = np.arctan2(plate_y_val, plate_x_val + 0.615)
+
+            # Use the default working arm configuration from TableSceneBuilder
+            # but with joint 0 rotated to point toward the plate
+            # Default: [0.0, π/8, 0, -π*5/8, 0, π*3/4, π/4, 0.04, 0.04]
+            panda_qpos_above_plate = np.array([
+                angle_to_plate,        # j0: base rotation toward plate
+                np.pi / 8,             # j1: shoulder slightly forward
+                0,                     # j2: upper arm
+                -np.pi * 5 / 8,        # j3: elbow bent
+                0,                     # j4: forearm
+                np.pi * 3 / 4,         # j5: wrist 1
+                np.pi / 4,             # j6: wrist 2
+                0.04,                  # gripper left
+                0.04,                  # gripper right
+            ])
+
+            self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
 
             # Raise table to be reachable
             table_pose = self.table_scene.table.pose
@@ -276,33 +305,34 @@ class PlaceDishInRackEnv(BaseEnv):
             new_table_q = np.array(table_q, dtype=np.float32)
             self.table_scene.table.set_pose(sapien.Pose(p=new_table_p, q=new_table_q))
 
-            # Place plate above table and let it drop to settle properly
-            # Compute table top Z so we place objects reliably on the surface
-            # Robustly read the table top Z coordinate. table.pose.p may be a
-            # numpy array, a torch tensor, or a batched 1x3 tensor; convert to
-            # a flat numpy array and take the Z (last) component.
+            # Compute table top Z for placing objects
             table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
             table_z = float(table_p_arr[-1])
             table_top_z = table_z + float(self.table_scene.table_height)
 
-            # Place the plate flat on the table with randomized position
+            # Set plate position (using pre-computed random values)
             xyz = torch.zeros((b, 3), device=device)
-            # Randomize plate position within reachable zone
-            xyz[:, 0] = -0.45 + (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in X
-            xyz[:, 1] = -0.25 + (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in Y
+            xyz[:, 0] = plate_x
+            xyz[:, 1] = plate_y
             plate_half_height = self._plate_total_height / 2.0
             xyz[:, 2] = table_top_z
 
-            # Keep plate horizontal on the table with identity quaternion
-            # The circular face should be parallel to the table surface with normal pointing up
-            flat_quat = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(b, 1)
+            # Randomize plate yaw (rotation around Z axis)
+            plate_yaw = torch.rand(b, device=device) * 2 * np.pi  # Random yaw 0 to 2π
+            # Convert yaw to quaternion (rotation around Z): [cos(θ/2), 0, 0, sin(θ/2)]
+            flat_quat = torch.zeros((b, 4), device=device)
+            flat_quat[:, 0] = torch.cos(plate_yaw / 2)  # w
+            flat_quat[:, 3] = torch.sin(plate_yaw / 2)  # z
 
             plate_pose = Pose.create_from_pq(p=xyz, q=flat_quat)
             self.plate.set_pose(plate_pose)
 
-            # Keep rack position fixed for reliable placement
+            # Randomize rack position - 10cm range (±0.05m)
+            # Note: rack yaw is NOT randomized because motion planning uses fixed offsets
             rack_pos = torch.zeros((b, 3), device=device)
             rack_pos[:] = torch.tensor(self._rack_position, device=device)
+            rack_pos[:, 0] += (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in X
+            rack_pos[:, 1] += (torch.rand(b, device=device) - 0.5) * 0.1  # ±0.05m in Y
             rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
@@ -328,6 +358,9 @@ class PlaceDishInRackEnv(BaseEnv):
             self.plate.set_linear_velocity(zero_velocity)
             self.plate.set_angular_velocity(zero_velocity)
 
+            # Reset robot to target position after settling (controller may have drifted during steps)
+            self.agent.reset(panda_qpos_above_plate)
+
     def evaluate(self):
         plate_pos = self.plate.pose.p
         rack_pos = self.dish_rack.pose.p
@@ -349,7 +382,9 @@ class PlaceDishInRackEnv(BaseEnv):
         # Table surface is at z=0, plate bottom should be at least at z > -0.01
         above_table = plate_pos[:, 2] > -0.01
 
-        success = plate_within_rack
+        # Success requires: plate within rack bounds, vertical orientation, static, and released
+        # This prevents counting plates resting ON TOP of the rack as success
+        success = plate_within_rack & plate_vertical & is_static & ~is_grasped & above_table
 
         return {
             "success": success,
