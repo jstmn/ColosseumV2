@@ -42,16 +42,28 @@ class PourSphereEnv(BaseEnv):
     agent: Union[Panda, Fetch]
 
     # Cup parameters
-    _cup_height = 0.10
-    _cup_radius = 0.04
-    _cup_thickness = 0.003
+    _cup_height = 0.15
+    _cup_radius = 0.06
+    _cup_thickness = 0.004
 
     # Sphere parameters (disabled)
     _sphere_radius = 0.015
 
-    # Cup positions on table
-    _cup1_position = np.array([0.05, -0.15, 0.0])
-    _cup2_position = np.array([0.05, 0.15, 0.0])
+    # Cup positions - default (used if no randomization)
+    _cup1_position = np.array([0.0, -0.10, 0.0])
+    _cup2_position = np.array([0.0, 0.15, 0.0])
+
+    # Randomization bounding box for cups (relative to table center)
+    # Cup1 (source cup with sphere)
+    _cup1_x_range = (-0.10, 0.10)  # x range
+    _cup1_y_range = (-0.20, -0.05)  # y range (right side of robot)
+    # Cup2 (target cup)
+    _cup2_x_range = (-0.10, 0.10)  # x range
+    _cup2_y_range = (0.05, 0.25)  # y range (left side of robot)
+
+    # Robot positioning
+    _robot_angle = 0.0
+    _robot_base_pos = np.array([-0.615, 0.0, 0])
     _cup_mesh_path = PACKAGE_ASSET_DIR / "pour_sphere/hollow_cylinder_with_floor.stl"
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
@@ -77,7 +89,8 @@ class PourSphereEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.4, 0.0, 0.4], target=[0.0, 0.0, 0.1])
+        # Sensor camera with view of robot arm and cups (matching OpenCabinet setup)
+        pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
         return [
             CameraConfig(
                 "base_camera",
@@ -92,7 +105,8 @@ class PourSphereEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        pose = sapien_utils.look_at([0.6, 0.0, 0.5], [0.0, 0.0, 0.1])
+        # View from behind-left of robot (matching OpenCabinet setup)
+        pose = sapien_utils.look_at(eye=[-0.8, -0.6, 0.7], target=[0.1, 0.0, 0.35])
         return CameraConfig(
             "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
         )
@@ -142,21 +156,38 @@ class PourSphereEnv(BaseEnv):
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
+        from transforms3d.euler import euler2quat
+
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
 
-            # Position cup1 at source position
-            cup1_xyz = self._cup1_position.copy()
-            # cup1_xyz[2] = self._cup_height / 2
-            cup1_xyz[2] = 0.001
+            # Position robot (matching OpenCabinet setup)
+            robot_pose = sapien.Pose(
+                p=self._robot_base_pos,
+                q=euler2quat(0, 0, self._robot_angle)
+            )
+
+            # Default qpos as fallback
+            default_qpos = np.array([
+                -0.13595445, -1.2611351, 0.24094589, -2.9000182,
+                2.5728698, 3.0259767, 0.029944034, 0.04, 0.04
+            ])
+
+            # Initialize table scene with default qpos first
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=default_qpos)
+            self.agent.robot.set_pose(robot_pose)
+
+            # Randomize cup1 position within bounding box
+            cup1_x = np.random.uniform(self._cup1_x_range[0], self._cup1_x_range[1])
+            cup1_y = np.random.uniform(self._cup1_y_range[0], self._cup1_y_range[1])
+            cup1_xyz = np.array([cup1_x, cup1_y, 0.001])
             cup1_q = np.array([1, 0, 0, 0])
             self.cup1.set_pose(Pose.create_from_pq(p=cup1_xyz, q=cup1_q))
 
-            # Position cup2 at target position
-            cup2_xyz = self._cup2_position.copy()
-            cup2_xyz[2] = 0.001
-            # cup2_xyz[2] = self._cup_height / 2
+            # Randomize cup2 position within bounding box
+            cup2_x = np.random.uniform(self._cup2_x_range[0], self._cup2_x_range[1])
+            cup2_y = np.random.uniform(self._cup2_y_range[0], self._cup2_y_range[1])
+            cup2_xyz = np.array([cup2_x, cup2_y, 0.001])
             cup2_q = np.array([1, 0, 0, 0])
             self.cup2.set_pose(Pose.create_from_pq(p=cup2_xyz, q=cup2_q))
 
@@ -169,6 +200,76 @@ class PourSphereEnv(BaseEnv):
             zero_velocity = torch.zeros((b, 3), device=self.device)
             self.sphere.set_linear_velocity(zero_velocity)
             self.sphere.set_angular_velocity(zero_velocity)
+
+            # GPU sync before computing grasp pose (required for GPU simulation)
+            if self.gpu_sim_enabled:
+                self.scene._gpu_apply_all()
+                self.scene.px.gpu_update_articulation_kinematics()
+                self.scene.px.step()
+                self.scene._gpu_fetch_all()
+
+            # Compute grasp pose - approach from robot toward cup1 (same as motion planning)
+            robot_to_cup = cup1_xyz[:2] - self._robot_base_pos[:2]
+            robot_to_cup = robot_to_cup / (np.linalg.norm(robot_to_cup) + 1e-6)
+            approaching = np.array([robot_to_cup[0], robot_to_cup[1], 0], dtype=np.float32)
+            closing = np.array([-robot_to_cup[1], robot_to_cup[0], 0], dtype=np.float32)
+
+            grasp_center = cup1_xyz.copy()
+            grasp_center[2] += self._cup_height * 0.5
+            grasp_pose = self.agent.build_grasp_pose(approaching, closing, grasp_center)
+
+            # Build reach pose (5cm back from grasp) - close to grasp position
+            reach_pose = grasp_pose * sapien.Pose([0, 0, -0.05])
+            reach_pos = np.array(reach_pose.p)
+            reach_quat = np.array(reach_pose.q)
+            goal_pose = list(reach_pos) + list(reach_quat)
+
+            try:
+                import mplib
+                from transforms3d.euler import euler2quat as e2q
+                planner = mplib.Planner(
+                    urdf=self.agent.urdf_path,
+                    srdf=self.agent.urdf_path.replace(".urdf", ".srdf"),
+                    user_link_names=[link.get_name() for link in self.agent.robot.get_links()],
+                    user_joint_names=[j.get_name() for j in self.agent.robot.get_active_joints()],
+                    move_group="panda_hand_tcp",
+                )
+                base_pose_q = e2q(0, 0, self._robot_angle)
+                try:
+                    planner.set_base_pose(mplib.Pose(self._robot_base_pos, base_pose_q))
+                except (TypeError, AttributeError):
+                    base_pose_array = list(self._robot_base_pos) + list(base_pose_q)
+                    planner.set_base_pose(np.array(base_pose_array))
+
+                # Use plan_qpos_to_pose (more reliable than raw IK)
+                result = planner.plan_qpos_to_pose(
+                    goal_pose=np.array(goal_pose),
+                    current_qpos=default_qpos,
+                    time_step=1.0 / 20.0,  # control_timestep
+                    wrt_world=True,
+                )
+
+                if result["status"] == "Success":
+                    # Get final qpos from the planned trajectory (7 arm joints)
+                    arm_qpos = result["position"][-1]
+                    qpos_0 = np.concatenate([arm_qpos, [0.04, 0.04]])  # gripper open
+                else:
+                    qpos_0 = default_qpos
+            except Exception:
+                qpos_0 = default_qpos
+
+            # Set the robot qpos directly
+            qpos_tensor = torch.tensor(qpos_0, dtype=torch.float32, device=self.device).unsqueeze(0).expand(b, -1)
+            self.agent.robot.set_qpos(qpos_tensor)
+            self.agent.robot.set_qvel(qpos_tensor * 0)
+            self.agent.robot.set_pose(robot_pose)
+
+            # GPU sync after setting robot qpos
+            if self.gpu_sim_enabled:
+                self.scene._gpu_apply_all()
+                self.scene.px.gpu_update_articulation_kinematics()
+                self.scene.px.step()
+                self.scene._gpu_fetch_all()
 
     def _build_hollow_cup(self, name: str, body_type: str = "kinematic"):
         """Build a hollow cylindrical cup from STL file"""
