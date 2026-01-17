@@ -236,9 +236,9 @@ class DualPandaPushBoxEnv(BaseEnv):
         
         # Check if overlap exceeds 50% threshold and stop if needed
         if self.check_overlap_and_stop(box_rect, goal_rect, threshold=50.0):
-            print(True)
+            # print(True)
             return {"success": torch.tensor(True)}
-        print(False)
+        # print(False)
         return {"success": torch.tensor(False)}
         
     def _get_obs_extra(self, info: dict):

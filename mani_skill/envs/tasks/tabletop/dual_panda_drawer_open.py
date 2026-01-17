@@ -96,8 +96,8 @@ class DualArmDrawerOpenEnv(BaseEnv):
         pose_1 = self.open_cabinet.links_map['link_0'].pose.p
         pose_2 = self.open_cabinet.links_map['link_2'].pose.p
 
-        drawer_1_open = pose_1[..., 0] < -0.1
-        drawer_2_open = pose_2[..., 0] < -0.1
+        drawer_1_open = pose_1[..., 0] < -0.07
+        drawer_2_open = pose_2[..., 0] < -0.07
         
         success = drawer_1_open * drawer_2_open
         print(success)

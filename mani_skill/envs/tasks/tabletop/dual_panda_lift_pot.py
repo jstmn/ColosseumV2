@@ -128,7 +128,6 @@ class DualArmLiftPotEnv(BaseEnv):
         # print(is_pot_grasped_left, is_pot_grasped_right)
         offset_x = torch.abs(offset[..., 0])
         success = torch.logical_and(offset_x > 0.2, is_pot_grasped)
-        
         return {"left_grasped": is_pot_grasped_left, "right_grasped": is_pot_grasped_right, "grasped": is_pot_grasped, "success": success}
     
     def compute_dense_reward(self, obs, action, info):
