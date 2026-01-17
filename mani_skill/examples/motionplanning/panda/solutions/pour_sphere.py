@@ -10,7 +10,7 @@ from mani_skill.examples.motionplanning.panda.motionplanner import (
 
 
 def solve(env: PourSphereEnv, seed=None, debug=False, vis=False):
-    """Grasp cup and tilt it over target cup using joint 7 rotation."""
+    """Grasp cup1 from side, lift, position over cup2, rotate wrist to pour."""
     env.reset(seed=seed)
     assert env.unwrapped.control_mode in ["pd_joint_pos", "pd_joint_pos_vel"]
 
@@ -46,91 +46,62 @@ def solve(env: PourSphereEnv, seed=None, debug=False, vis=False):
             return False
         return True
 
-    def find_reachable_pose(pos, base_q, yaw_angles):
-        for angle in yaw_angles:
-            yaw_q = qmult(axangle2quat([0, 0, 1], angle), base_q)
-            if np.dot(yaw_q, base_q) < 0:
-                yaw_q = -yaw_q
-            candidate = sapien.Pose(p=pos, q=yaw_q)
-            if planner.move_to_pose_with_RRTConnect(candidate, dry_run=True) != -1:
-                return candidate
-        return None
-
     planner.gripper_state = planner.OPEN
+    robot_pos = robot_base_pose.p
 
-    # Step 1: Side approach to cup1 so the opening stays clear.
-    approaching = np.array([1, 0, 0], dtype=np.float32)
-    closing = np.array([0, -1, 0], dtype=np.float32)
+    # Compute approach direction - approach from robot toward cup1
+    robot_to_cup = cup1_pos[:2] - robot_pos[:2]
+    robot_to_cup = robot_to_cup / (np.linalg.norm(robot_to_cup) + 1e-6)
+    approaching = np.array([robot_to_cup[0], robot_to_cup[1], 0], dtype=np.float32)
+    # Closing perpendicular to approach
+    closing = np.array([-robot_to_cup[1], robot_to_cup[0], 0], dtype=np.float32)
+
+    # Step 1: Pregrasp
     grasp_center = cup1_pos.copy()
-    grasp_center[2] += env_sim._cup_height * 0.6
-    pregrasp_pos = grasp_center - approaching * 0.12
-    pregrasp_pose = env_sim.agent.build_grasp_pose(
-        approaching, closing, pregrasp_pos
-    )
-    if not move_or_abort(pregrasp_pose, "Step 1 (pregrasp)"):
+    grasp_center[2] += env_sim._cup_height * 0.5
+    pregrasp_pos = grasp_center - approaching * 0.08
+    pregrasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, pregrasp_pos)
+    if not move_or_abort(pregrasp_pose, "pregrasp"):
         return -1
 
-    # Step 2: Move to grasp pose
+    # Step 2: Grasp
     grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, grasp_center)
-    if not move_or_abort(grasp_pose, "Step 2 (grasp)"):
+    if not move_or_abort(grasp_pose, "grasp"):
         return -1
 
     # Step 3: Close gripper
-    planner.close_gripper(t=120)
-    for _ in range(30):
+    planner.close_gripper(t=100)
+    for _ in range(20):
         env_sim.scene.step()
 
-    # Step 4: Lift cup
-    current_tcp_pose = env_sim.agent.tcp.pose
-    current_tcp_p = current_tcp_pose.p[0].cpu().numpy()
-    current_tcp_q = current_tcp_pose.q[0].cpu().numpy()
-    lift_pose = sapien.Pose(p=current_tcp_p + np.array([0, 0, 0.22]), q=current_tcp_q)
-    if not move_or_abort(lift_pose, "Step 3 (lift)"):
-        return -1
-
-    print("cup lifted")
-
-    cup1_pos = env_sim.cup1.pose.p[0].cpu().numpy()
-    cup2_pos = env_sim.cup2.pose.p[0].cpu().numpy()
-    tcp_pose = env_sim.agent.tcp.pose
-
-    # Step 4 - move above cup2 while keeping orientation.
+    # Step 4: Move above cup2 - offset toward robot for better pour
     above_cup2_pos = cup2_pos.copy()
-    above_cup2_pos[1] += 0.08
-    above_cup2_pos[2] += env_sim._cup_height + 0.22
-    base_q = tcp_pose.q[0].cpu().numpy()
-    yaw_angles = [0.0, np.pi / 4, -np.pi / 4]
-    above_cup2_pose = find_reachable_pose(above_cup2_pos, base_q, yaw_angles)
-    if above_cup2_pose is None:
-        above_cup2_pos[2] += 0.10
-        above_cup2_pose = find_reachable_pose(above_cup2_pos, base_q, yaw_angles)
-    if above_cup2_pose is None:
-        print("⚠ Plan FAILED at Step 4 (above cup2): no reachable yaw found")
-        planner.close()
-        return -1
-    if planner.move_to_pose_with_RRTConnect(above_cup2_pose) == -1:
-        planner.close()
-        return -1
-
-    #Step 4.5 - lower into pouring position
-    lower_pose = sapien.Pose(p=above_cup2_pose.p - np.array([0, 0, 0.1]), q=above_cup2_pose.q)
-    if not move_or_abort(lower_pose, "Step 4.5 (lower)"):
+    above_cup2_pos[2] += env_sim._cup_height + 0.05
+    # Offset toward robot and in Y direction for better pour
+    offset_dir = robot_pos[:2] - cup2_pos[:2]
+    offset_dir = offset_dir / (np.linalg.norm(offset_dir) + 1e-6)
+    above_cup2_pos[0] += offset_dir[0] * 0.05
+    above_cup2_pos[1] += offset_dir[1] * 0.05
+    above_cup2_pos[1] -= 0.05  # extra Y offset toward cup1
+    above_cup2_pos[0] += 0.06  # 6cm forward (away from robot)
+    tcp_q = env_sim.agent.tcp.pose.q[0].cpu().numpy()
+    above_cup2_pose = sapien.Pose(p=above_cup2_pos, q=tcp_q)
+    if not move_or_abort(above_cup2_pose, "above cup2"):
         return -1
     print("positioned above cup2")
-    # Step 5 - tilt to pour.
+
+    # Step 6: Tilt forward 120 degrees to pour (rotate around X axis)
     tcp_pose = env_sim.agent.tcp.pose
     tcp_p = tcp_pose.p[0].cpu().numpy()
     tcp_q = tcp_pose.q[0].cpu().numpy()
-    tilt_quat = qmult(axangle2quat([1, 0, 0], -np.pi * 2 / 3), tcp_q)
+    tilt_angle = 120 * np.pi / 180
+    tilt_quat = qmult(axangle2quat([1, 0, 0], -tilt_angle), tcp_q)  # tilt forward around X
     tilt_pose = sapien.Pose(p=tcp_p, q=tilt_quat)
-    if not move_or_abort(tilt_pose, "Step 5 (tilt)"):
+    if not move_or_abort(tilt_pose, "tilt"):
         return -1
 
-    # Hold pose to let the sphere fall.
-    final_res = planner.close_gripper(t=60)
+    # Hold to let sphere fall
+    res = planner.close_gripper(t=60)
 
     planner.close()
-    return final_res
-
-
-    
+    return res
