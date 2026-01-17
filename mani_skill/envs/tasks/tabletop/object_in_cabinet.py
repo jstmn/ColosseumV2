@@ -6,12 +6,14 @@ import torch
 import trimesh
 from transforms3d.euler import euler2quat
 
-from mani_skill import PACKAGE_ASSET_DIR
+from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
+from mani_skill.utils.io_utils import load_json
+from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
@@ -140,11 +142,24 @@ class ObjectInCabinetEnv(BaseEnv):
         *args,
         robot_uids="panda",
         robot_init_qpos_noise=0.02,  # Small noise like OpenCabinet
+        apple_model_id="013_apple",
         **kwargs,
     ):
         kwargs.pop("distraction_set", None)
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 1027
+        self.apple_model_id = apple_model_id
+
+        # Load YCB apple info
+        ycb_info = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
+        apple_meta = ycb_info[self.apple_model_id]
+        self.apple_scale = float(apple_meta["scales"][0])
+        self.apple_bbox_min = np.array(apple_meta["bbox"]["min"], dtype=np.float32)
+        self.apple_bbox_max = np.array(apple_meta["bbox"]["max"], dtype=np.float32)
+        apple_extents = (self.apple_bbox_max - self.apple_bbox_min) * self.apple_scale
+        self.apple_half_size = apple_extents / 2
+        self.apple_radius = float(max(self.apple_half_size[0], self.apple_half_size[1]))
+        self.apple_bottom_offset = float(-self.apple_bbox_min[2] * self.apple_scale)
 
         super().__init__(
             *args,
@@ -270,14 +285,21 @@ class ObjectInCabinetEnv(BaseEnv):
             initial_pose=sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0]),
         )
 
+    def _build_ycb_actor(self, model_id: str, name: str) -> Actor:
+        actors_list = []
+        for i in range(self.num_envs):
+            builder = actors.get_actor_builder(self.scene, id=f"ycb:{model_id}")
+            builder.initial_pose = sapien.Pose()
+            builder.set_scene_idxs([i])
+            actor = builder.build(name=f"{name}_{i}")
+            self.remove_from_state_dict_registry(actor)
+            actors_list.append(actor)
+        merged = Actor.merge(actors_list, name=name)
+        self.add_to_state_dict_registry(merged)
+        return merged
+
     def _load_apple(self):
-        self.apple = actors.build_sphere(
-            self.scene,
-            radius=self.APPLE_RADIUS,
-            color=[1, 0, 0, 1],
-            name="apple",
-            initial_pose=sapien.Pose(p=[0, 0, self.APPLE_RADIUS]),
-        )
+        self.apple = self._build_ycb_actor(self.apple_model_id, "apple")
 
     def _after_reconfigure(self, options):
         self.cabinet_zs = []
@@ -431,7 +453,7 @@ class ObjectInCabinetEnv(BaseEnv):
             apple_xyz = torch.zeros((b, 3), device=self.device)
             apple_xyz[:, 0] = -0.30 + torch.rand(b) * 0.10  # X: -0.30 to -0.20
             apple_xyz[:, 1] = -0.15 - torch.rand(b) * 0.10  # Y: -0.15 to -0.25
-            apple_xyz[:, 2] = self.APPLE_RADIUS
+            apple_xyz[:, 2] = self.apple_bottom_offset
             self.apple.set_pose(Pose.create_from_pq(p=apple_xyz))
 
             if self.gpu_sim_enabled:
