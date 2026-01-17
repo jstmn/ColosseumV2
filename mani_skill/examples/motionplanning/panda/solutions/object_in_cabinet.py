@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import sapien
 
@@ -7,6 +6,7 @@ from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotio
 
 from mani_skill.examples.motionplanning.panda.solutions.open_cabinet import (
     _get_joint_limits,
+    _open_cabinet_with_planner,
 )
 
 
@@ -44,16 +44,18 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
     apple_pos = env_sim.apple.pose.p[0].cpu().numpy()
     print(f"Apple at: {apple_pos}")
 
-    # ===== Phase 1: Open the door using pre-recorded trajectory =====
-    # Use hardcoded trajectory since robot/cabinet positions are fixed
-    traj_path = os.path.join(os.path.dirname(__file__), "open_cabinet_trajectory.npy")
-    door_trajectory = np.load(traj_path)
+    # Print initial EE-to-handle distance
+    handle_pos = env_sim.handle_link_positions()[0].cpu().numpy()
+    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
+    ee_handle_dist = np.linalg.norm(ee_pos - handle_pos)
+    print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
 
-    for action in door_trajectory:
-        env.step(action)
-        planner.elapsed_steps += 1
-        if vis:
-            env_sim.render_human()
+    # ===== Phase 1: Open the door using live motion planning =====
+    res = _open_cabinet_with_planner(env, planner)
+    if res == -1:
+        print("Failed to open cabinet door")
+        planner.close()
+        return -1
 
     door_pct = check_door()
     print(f"Phase 1 complete: Door at {door_pct:.1f}%")
