@@ -16,10 +16,11 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
+from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 
-@register_env("TwoRobotPushBox-v1", max_episode_steps=100)
-class TwoRobotPushBoxEnv(BaseEnv):
+@register_env("DualPandaPushBox-v1", max_episode_steps=100)
+class DualPandaPushBoxEnv(BaseEnv):
     """
     **Task Description:**
     A collaborative task where two robot arms need to work together to stack two cubes. One robot must pick up the green cube and place it on the target region, while the other robot picks up the blue cube and stacks it on top of the green cube.
@@ -71,11 +72,6 @@ class TwoRobotPushBoxEnv(BaseEnv):
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4], target=[-0.1, 0, 0.1])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    # def _load_agent(self, options: dict):
-    #     super()._load_agent(
-    #         options, [sapien.Pose(p=[0, -1, 0]), sapien.Pose(p=[0, 1, 0])]
-    #     )
-
     def _load_scene(self, options: dict):
 
         self.cube_half_size = [0.06,0.04,0.02]
@@ -85,7 +81,7 @@ class TwoRobotPushBoxEnv(BaseEnv):
             half_sizes=self.cube_half_size,
             color=[0, 1, 0, 1],
             name="Box",
-            initial_pose=sapien.Pose(p=[1, 0, 0.02]),
+            initial_pose=sapien.Pose(p=[1, 0, 0.02], q=[1,0,0,0]),
         )
         
         self.goal_region = actors.build_box_target(
@@ -102,12 +98,12 @@ class TwoRobotPushBoxEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             box_xyz = torch.zeros((b, 3))
-            box_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
-            box_xyz[:, 1] = 0.15 + torch.rand((b,)) * 0.1 - 0.05
+            box_xyz[:, 0] = - torch.rand((b,)) * 0.1
+            box_xyz[:, 1] = torch.rand((b,)) * 0.8 - 0.4
             box_xyz[:, 2] = 0.02 + 0.83
             
             goal_xyz = torch.zeros((b, 3))
-            goal_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
+            goal_xyz[:, 0] = -0.4
             goal_xyz[:, 1] = 0
             goal_xyz[:, 2] = 1e-3 + 0.83
             
@@ -115,67 +111,143 @@ class TwoRobotPushBoxEnv(BaseEnv):
                 b,
                 lock_x=True,
                 lock_y=True,
-                lock_z=False,
+                lock_z=True,
             )
 
-            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=qs))
+            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=[1,0,0,0]))
 
             qs = random_quaternions(
                 b,
                 lock_x=True,
                 lock_y=True,
-                lock_z=False,
+                lock_z=True,
             )
 
-            self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=qs))
+            self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=[1,0,0,0]))
 
     def _initialize_agent(self):
-        # Reset the robot to a neutral position
-        # Dual Panda has 14+ gripper joints. 
-        # You can define a custom "qpos" (joint positions) here if you want.
-        # 0-6: Left Arm, 7-8: Left Gripper, 9-15: Right Arm, 16-17: Right Gripper
         qpos = np.zeros(self.agent.robot.dof)
-        # Example: Set arms to a ready position (optional)
-        # qpos[0] = 0.5  # Move left shoulder
-        # qpos[9] = -0.5 # Move right shoulder
-        
         self.agent.reset(qpos)
 
-    def evaluate(self):
-        pos_box = self.box.pose.p
-        pos_goal = self.goal_region.pose.p
-        offset = pos_goal - pos_box
-        xy_flag = (
-            torch.linalg.norm(offset[..., :2], axis=1)
-            # <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
-            <= 0.02+0.005
-        )
-        z_flag = torch.abs(offset[..., 2] - 0.02 * 2) <= 0.005
-        is_cubeB_on_cubeA = torch.logical_and(xy_flag, z_flag)
-        cubeB_to_goal_dist = torch.linalg.norm(
-            self.cubeB.pose.p[:, :2] - self.goal_region.pose.p[..., :2], axis=1
-        )
-        cubeB_placed = cubeB_to_goal_dist < self.goal_radius
-        # is_cubeA_grasped = self.left_agent.is_grasping(self.cubeA)
-        # is_cubeB_grasped = self.right_agent.is_grasping(self.cubeB)
-        success = (
-            is_cubeB_on_cubeA * cubeB_placed
-        )
-        return {
-            # "is_cubeA_grasped": is_cubeA_grasped,
-            # "is_cubeB_grasped": is_cubeB_grasped,
-            "is_cubeB_on_cubeA": is_cubeB_on_cubeA,
-            "cubeB_placed": cubeB_placed,
-            "success": success.bool(),
-        }
+    def calculate_rectangle_overlap_percentage(self, rect1, rect2):
+        """
+        Calculate the percentage of overlap between two rectangles.
+        
+        Based on: https://math.stackexchange.com/questions/2449221/
+        
+        Args:
+            rect1: dict with keys 'left', 'right', 'top', 'bottom' (or use tuple (l, r, t, b))
+            rect2: dict with keys 'left', 'right', 'top', 'bottom' (or use tuple (l, r, t, b))
+        
+        Returns:
+            float: Percentage of overlap relative to rect1's area (0-100). Returns 0 if no overlap.
+        """
+        # Handle both dict and tuple inputs
+        if isinstance(rect1, dict):
+            l0, r0, t0, b0 = rect1['left'], rect1['right'], rect1['top'], rect1['bottom']
+        else:
+            l0, r0, t0, b0 = rect1
+        
+        if isinstance(rect2, dict):
+            l1, r1, t1, b1 = rect2['left'], rect2['right'], rect2['top'], rect2['bottom']
+        else:
+            l1, r1, t1, b1 = rect2
+        
+        # Calculate overlap area using the formula from Math.SE
+        # A_overlap = (max(l0, l1) - min(r0, r1)) * (max(t0, t1) - min(b0, b1))
+        overlap_width = min(r0, r1) - max(l0, l1)
+        overlap_height = min(t0, t1) - max(b0, b1)
+        
+        # If either dimension is negative or zero, there's no overlap
+        if overlap_width <= 0 or overlap_height <= 0:
+            return 0.0
+        
+        overlap_area = overlap_width * overlap_height
+        
+        # Calculate area of rect1
+        rect1_area = (r0 - l0) * (t0 - b0)
+        
+        if rect1_area <= 0:
+            return 0.0
+        
+        # Return percentage relative to rect1
+        percentage = (overlap_area / rect1_area) * 100
+        return percentage
 
+    def check_overlap_and_stop(self, rect1, rect2, threshold=50.0):
+        """
+        Check if two rectangles overlap by more than a threshold percentage.
+        If overlap exceeds threshold, return True (indicating we should stop).
+        
+        Args:
+            rect1: First rectangle
+            rect2: Second rectangle
+            threshold: Overlap percentage threshold (default 50%)
+        
+        Returns:
+            bool: True if overlap > threshold (should stop), False otherwise
+        """
+        overlap_pct = self.calculate_rectangle_overlap_percentage(rect1, rect2)
+        
+        if overlap_pct > threshold:
+            print(f"⚠ Overlap detected: {overlap_pct:.2f}% > {threshold}% threshold - STOPPING")
+            return True
+        
+        return False
+
+    
+    def evaluate(self):
+        box_obb = get_actor_obb(self.box)
+        # Extract 2D rectangle bounds (x-y plane projection)
+        # OBB is a trimesh.primitives.Box object with primitive.extents and primitive.transform
+        box_transform = np.array(box_obb.primitive.transform)
+        box_extents = np.array(box_obb.primitive.extents)
+        box_center = box_transform[:3, 3]  # Get center from transformation matrix
+        # print(box_extents)
+        box_rect = (
+            box_center[0] - box_extents[2]/2,  # left
+            box_center[0] + box_extents[2]/2,  # right
+            box_center[1] + box_extents[1]/2,  # top
+            box_center[1] - box_extents[1]/2,  # bottom
+        )
+        
+        # For goal_region, use its pose and known half_sizes from the environment
+        # cube_half_size = [0.06, 0.04, 0.02], goal uses first two: [0.06, 0.04]
+        goal_pos = self.goal_region.pose.sp.p
+        if hasattr(goal_pos, 'cpu'):
+            goal_center = goal_pos.cpu().numpy()
+        else:
+            goal_center = np.array(goal_pos)
+        
+        goal_half_sizes = np.array([0.06, 0.04])  # half_sizes from cube_half_size[:2]
+        goal_rect = (
+            goal_center[0] - goal_half_sizes[0],  # left
+            goal_center[0] + goal_half_sizes[0],  # right
+            goal_center[1] + goal_half_sizes[1],  # top
+            goal_center[1] - goal_half_sizes[1],  # bottom
+        )
+        
+        # print(f"Box rectangle (left, right, top, bottom): {box_rect}")
+        # print(f"Goal rectangle (left, right, top, bottom): {goal_rect}")
+        
+        # Calculate and display overlap
+        box_goal_overlap = self.calculate_rectangle_overlap_percentage(box_rect, goal_rect)
+        print(f"Box-Goal overlap: {box_goal_overlap:.2f}%")
+        
+        # Check if overlap exceeds 50% threshold and stop if needed
+        if self.check_overlap_and_stop(box_rect, goal_rect, threshold=50.0):
+            # print(True)
+            return {"success": torch.tensor(True)}
+        # print(False)
+        return {"success": torch.tensor(False)}
+        
     def _get_obs_extra(self, info: dict):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
             # pose.p is [x,y,z], pose.q is [w,x,y,z]
             return np.hstack([pose.p, pose.q])
-        
+
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
         else:
@@ -183,9 +255,8 @@ class TwoRobotPushBoxEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["cubeA_pose"] = self.cubeA.pose.raw_pose
-        obs["cubeB_pose"] = self.cubeB.pose.raw_pose
-        obs["goal_region_pos"] = self.goal_region.pose.p
+        obs["box_pose"] = self.box.pose.raw_pose
+        obs["goal_region_pose"] = self.goal_region.pose.raw_pose
         return obs
 
     def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
@@ -199,7 +270,7 @@ class TwoRobotPushBoxEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "TwoRobotStackCube-v1", 
+        "DualPandaPushBox-v1",
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",
@@ -216,15 +287,4 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
-        env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
-    
+        env.render()  # <--- Updates the GUI    

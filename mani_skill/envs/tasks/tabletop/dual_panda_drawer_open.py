@@ -12,6 +12,7 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 import os
+from mani_skill.utils.structs import Pose
 
 # 1. Define the Empty Environment
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
@@ -61,30 +62,26 @@ class DualArmDrawerOpenEnv(BaseEnv):
             p=[0.25, 0, 0.456+0.8], 
             q=[0.7071, 0, 0, -0.7071]
         )
-        # self.obj = actors.build_cube(
-        #     self.scene,
-        #     half_size=self.cube_half_size,
-        #     color=np.array([12, 42, 160, 255]) / 255,
-        #     name="cube",
-        #     body_type="dynamic",
-        #     initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
-        # )
         self.open_cabinet = builder.build(name=f"drawer-{model_id}")
         
-        # Ensure the cabinet is static (fixed root)
-        # PartNet assets loaded via builder usually default to dynamic, 
-        # so we lock the root link to prevent it from falling if it's not on the ground.
-        # if self.open_cabinet.root.entity.find_component_by_type(sapien.physx.PhysxRigidDynamicComponent):
-        #      self.open_cabinet.root.entity.find_component_by_type(sapien.physx.PhysxRigidDynamicComponent).kinematic = True
-    
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # Reset cabinet pose
-            self.open_cabinet.set_pose(sapien.Pose(
-                p=[0.1, 0, 0.456+0.8], 
-                q=[1, 0, 0, 0]
-            ))
+            xyz = torch.zeros((b, 3))
+            xyz[..., :2] = -torch.rand((b, 2)) * 0.2 + 0.1
+            xyz[..., 0] += 0.2
+            xyz[..., 2] = 0.456+0.8
+            theta_by_2 = torch.rand(b)*np.pi/16 - np.pi/32
+            for i in range(b):
+                # Reset cabinet pose
+                init_pose = Pose.create_from_pq(
+                    p=xyz[i:i+1], 
+                    q=[np.cos(theta_by_2), 0, 0, np.sin(theta_by_2)])
+                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
+                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
+                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
+
+                self.open_cabinet.set_pose(init_pose_sapien)
             # self.obj.set_pose(sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]))
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
@@ -95,6 +92,17 @@ class DualArmDrawerOpenEnv(BaseEnv):
         qpos = np.zeros(self.agent.robot.dof)
         self.agent.reset(qpos)
 
+    def evaluate(self):
+        pose_1 = self.open_cabinet.links_map['link_0'].pose.p
+        pose_2 = self.open_cabinet.links_map['link_2'].pose.p
+
+        drawer_1_open = pose_1[..., 0] < -0.07
+        drawer_2_open = pose_2[..., 0] < -0.07
+        
+        success = drawer_1_open * drawer_2_open
+        print(success)
+        return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
+    
     def _get_obs_extra(self, info: dict):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
