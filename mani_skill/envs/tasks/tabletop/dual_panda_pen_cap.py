@@ -121,8 +121,76 @@ class DualArmPenCapEnv(BaseEnv):
     def compute_normalized_dense_reward(self, obs, action, info):
         # Return 0 to bypass the NotImplementedError
         return 0.0
+    
+    def _get_cap_opening_direction_torch(self, quat):
+        """Extract cap opening direction from quaternion tensor [w, x, y, z].
+        Returns the local -Z axis direction (pointing into the cap).
+        """
+        rotation_matrix = self._quat_to_rotation_matrix_torch(quat)
+        # Cap opening points in -Z direction (into the cap)
+        neg_z_direction = torch.tensor([0.0, 0.0, -1.0], dtype=torch.float32, device=self.device)
+        cap_direction = rotation_matrix @ neg_z_direction
+        return cap_direction
+    
+    def _quat_to_rotation_matrix_torch(self, quat):
+        """Convert quaternion tensor [w, x, y, z] to 3x3 rotation matrix tensor."""
+        w, x, y, z = quat[0], quat[1], quat[2], quat[3]
+        return torch.tensor([
+            [1 - 2*(y**2 + z**2), 2*(x*y - w*z), 2*(x*z + w*y)],
+            [2*(x*y + w*z), 1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
+            [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x**2 + y**2)]
+        ], dtype=torch.float32, device=self.device)
 
-
+    def evaluate(self):
+        """
+        Evaluate if the pen tip is successfully inserted into the cap.
+        """
+        pen_pose = self.pen.pose
+        cap_pose = self.cap.pose
+        
+        # Get pen tip position in world frame
+        pen_tip_pose = pen_pose * sapien.Pose(p=[0, 0, -0.16])
+        pen_tip_pos = torch.as_tensor(pen_tip_pose.p, dtype=torch.float32, device=self.device)
+        
+        # Get cap center (opening) in world frame
+        cap_opening_pose = cap_pose * sapien.Pose(p=[0.02, 0, 0.12])
+        cap_center = torch.as_tensor(cap_opening_pose.p, dtype=torch.float32, device=self.device)
+        
+        # Convert quaternions to tensors
+        cap_quat = torch.as_tensor(cap_pose.q, dtype=torch.float32, device=self.device)
+        
+        # Get cap opening direction (local -Z axis pointing into the cap)
+        cap_direction = self._get_cap_opening_direction_torch(cap_quat[0])
+        
+        # Check if pen tip is along the cap opening axis
+        vec_to_cap = pen_tip_pos - cap_center
+        distance_to_axis = torch.norm(vec_to_cap - (vec_to_cap @ cap_direction) * cap_direction)
+        
+        # Check depth (how far along the cap direction the pen tip is)
+        depth_into_cap = (vec_to_cap @ cap_direction).item()
+        
+        # Success criteria
+        axis_tolerance = 0.02  # 1cm tolerance from cap center axis
+        min_depth = 0.03  # Pen should be at least 5cm inside
+        
+        is_aligned = distance_to_axis < axis_tolerance
+        is_deep_enough = depth_into_cap > min_depth
+        success = is_aligned * is_deep_enough
+        
+        # print({
+        #     "distance_to_axis": distance_to_axis.item(), 
+        #     "depth_into_cap": depth_into_cap, 
+        #     "is_aligned": is_aligned.item(), 
+        #     "is_deep_enough": is_deep_enough,
+        #     "success": success
+        # })
+        
+        return {
+            "is_aligned": is_aligned,
+            "is_deep_enough": is_deep_enough,
+            "success": success
+        }
+        
 # 2. Main Execution Block
 if __name__ == "__main__":
     # Now you can load this safe environment
