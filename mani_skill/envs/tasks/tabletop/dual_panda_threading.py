@@ -87,6 +87,88 @@ class DualPandaThreadingEnv(BaseEnv):
             self.needle.set_pose(sapien.Pose(p=list(xyz[0])))
             # self.ring_tripod.set_pose(sapien.Pose(p=[0.3, 0.0, 0.9]))
     
+    def evaluate(self):
+        """
+        Evaluate if the needle is successfully threaded through the ring.
+        Returns a dictionary with individual checks and overall success status.
+        Similar to the dual_panda_drawer_place evaluate function.
+        """
+        # Get positions and orientations
+        needle_pose = self.needle.pose
+        ring_pose = self.ring_tripod.pose # (1.0626)
+        ring_pose = ring_pose * sapien.Pose(p=[0,0, 0.165])
+        # -0.191119, -0.314381, 0.850000
+        # Needle parameters (from build_needle call)
+        needle_length = 0.1
+        eye_distance_from_end = 0.02
+        eye_radius = 0.01
+        ring_radius = 0.03
+        
+        # Convert to torch tensors
+        needle_pos = torch.as_tensor(needle_pose.p, dtype=torch.float32, device=self.device)
+        ring_pos = torch.as_tensor(ring_pose.p, dtype=torch.float32, device=self.device)
+        needle_quat = torch.as_tensor(needle_pose.q, dtype=torch.float32, device=self.device)
+        ring_quat = torch.as_tensor(ring_pose.q, dtype=torch.float32, device=self.device)
+        
+        # Compute needle eye position in world frame
+        needle_direction = self._get_needle_direction_torch(needle_quat[0])
+        # needle_tip = needle_pos - needle_direction * needle_length
+        needle_tip = needle_pose * sapien.Pose(p=[needle_length,0,0])
+        needle_tip = needle_tip.p
+        needle_eye = needle_tip - needle_direction * eye_distance_from_end
+        
+        # Compute ring center and normal
+        ring_center = ring_pos
+        ring_normal = self._get_ring_normal_torch(ring_quat[0])
+        
+        # Check if needle eye is near the ring plane
+        vec_to_ring = needle_tip - ring_center
+        # Use element-wise multiplication and sum for robust dot product
+        distance_to_plane = torch.abs((vec_to_ring * ring_normal).sum())
+        
+        # Check if needle eye is within ring bounds
+        intersection_on_plane = needle_tip - distance_to_plane * ring_normal
+        # projection_on_plane = needle_eye + distance_to_plane * ring_normal
+        distance_to_ring_center = torch.norm(intersection_on_plane - ring_center)
+        
+        # Success criteria:
+        # 1. Needle eye is close to the ring plane (within tolerance)
+        # 2. Needle eye projection is within the ring radius (with some margin)
+        plane_tolerance = 0.05  # 5cm tolerance
+        ring_margin = 0.001  # 0.1cm margin inside the ring
+        
+        is_near_plane = distance_to_plane < plane_tolerance
+        is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
+        success = is_near_plane * is_within_ring
+        # print(distance_to_ring_center, needle_tip)
+        print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
+        return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
+    
+    def _get_needle_direction_torch(self, quat):
+        """Extract needle forward direction from quaternion tensor [w, x, y, z]."""
+        rotation_matrix = self._quat_to_rotation_matrix_torch(quat)
+        # Needle points in +Z direction (forward)
+        z_direction = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32, device=self.device)
+        needle_direction = rotation_matrix @ z_direction
+        return needle_direction
+    
+    def _get_ring_normal_torch(self, quat):
+        """Extract ring normal direction from quaternion tensor [w, x, y, z]."""
+        rotation_matrix = self._quat_to_rotation_matrix_torch(quat)
+        # Ring normal is along the local +X axis direction of the tripod
+        x_direction = torch.tensor([1.0, 0.0, 0.0], dtype=torch.float32, device=self.device)
+        ring_normal = rotation_matrix @ x_direction
+        return ring_normal
+    
+    def _quat_to_rotation_matrix_torch(self, quat):
+        """Convert quaternion tensor [w, x, y, z] to 3x3 rotation matrix tensor."""
+        w, x, y, z = quat[0], quat[1], quat[2], quat[3]
+        return torch.tensor([
+            [1 - 2*(y**2 + z**2), 2*(x*y - w*z), 2*(x*z + w*y)],
+            [2*(x*y + w*z), 1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
+            [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x**2 + y**2)]
+        ], dtype=torch.float32, device=self.device)
+
     def _initialize_agent(self):
         """Reset the dual panda arms to a neutral position."""
         qpos = np.zeros(self.agent.robot.dof)
