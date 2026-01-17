@@ -420,7 +420,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         
         if dry_run:
             return result
-        
+        # self.render_wait()
         return self.follow_path(result, refine_steps=refine_steps)
     
     def move_arm_to_pose_with_RRTConnect(
@@ -657,7 +657,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             self.render_wait()
             return -1
         
-        self.render_wait()
+        # self.render_wait()
         
         if dry_run:
             return result
@@ -974,7 +974,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
                 self.robot.set_qpos(q_sapien)
                 # Render the frame
                 self.base_env.render_human()
-                
+        
         # Call Planner
         result = self.planner.plan_screw(
             target_pose_L=left_target,
@@ -987,7 +987,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         if result["status"] != "Success":
             print(f"Screw planning failed: {result['status']}")
             return -1
-            
+        # self.render_wait()
         if dry_run: return result
         return self.follow_path(result, arm_index=arm_index)
     

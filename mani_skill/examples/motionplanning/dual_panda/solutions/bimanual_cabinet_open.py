@@ -3,6 +3,7 @@ import numpy as np
 import sapien
 import time
 from mani_skill.examples.motionplanning.dual_panda.motionplanner import DualPandaMotionPlanningSolver
+from mani_skill.envs.tasks import DualArmCabinetOpenEnv
 from scipy.spatial.transform import Rotation as R
 import sapien.core as sapien
 import sapien.physx as physx  # REQUIRED for SAPIEN 3 Physics classes
@@ -11,8 +12,8 @@ def main():
     """
     Test the dual panda motion planner with various scenarios.
     """
-    env = gym.make(
-        'DualArmDrawerOpen-v0',
+    env:DualArmCabinetOpenEnv = gym.make(
+        'DualArmCabinetOpen-v0',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
