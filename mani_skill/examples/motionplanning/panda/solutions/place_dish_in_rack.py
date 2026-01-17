@@ -7,8 +7,17 @@ from mani_skill.examples.motionplanning.panda.motionplanner import (
 )
 
 
-def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
-    """Grasp flat plate from the rim and lift it up."""
+def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=True):
+    """Grasp flat plate from the rim and lift it up.
+
+    Args:
+        env: The PlaceDishInRack environment
+        seed: Random seed for episode reset
+        debug: Enable debug printing
+        vis: Enable visualization
+        allow_rrt: If False, abort demonstration when RRT is needed for manipulation
+                   motions (large motions bad for IL). Default True allows RRT fallback.
+    """
     env.reset(seed=seed)
     assert env.unwrapped.control_mode in [
         "pd_joint_pos",
@@ -26,16 +35,35 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     env_sim = env.unwrapped
 
+    # Check initial EE-to-plate horizontal distance (X/Y only) - abort if > 40cm
+    # We only check horizontal distance since EE starts above the table
+    ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
+    plate_pos_init = env_sim.plate.pose.p[0].cpu().numpy()
+    initial_ee_plate_dist_xy = np.linalg.norm(ee_pos[:2] - plate_pos_init[:2])
+    # Always print distance for monitoring
+    print(f"Initial EE position: {ee_pos}, Plate position: {plate_pos_init}")
+    print(f"Initial EE-to-plate horizontal distance: {initial_ee_plate_dist_xy:.3f}m")
+    if initial_ee_plate_dist_xy > 0.4:  # 40cm max horizontal distance
+        print(f"❌ Initial EE-to-plate horizontal distance {initial_ee_plate_dist_xy:.3f}m > 0.4m - aborting")
+        planner.close()
+        return -1
+
+    # Track if RRT was used (for IL quality control)
+    used_rrt = False
+
     def move_or_abort(target_pose, use_rrt_first=False):
-        # Choose planner order based on context
-        if use_rrt_first:
+        nonlocal used_rrt
+        # Always try screw first (smoother motion), fall back to RRT if needed
+        res = planner.move_to_pose_with_screw(target_pose)
+        if res == -1:
             res = planner.move_to_pose_with_RRTConnect(target_pose)
-            if res == -1:
-                res = planner.move_to_pose_with_screw(target_pose)
-        else:
-            res = planner.move_to_pose_with_screw(target_pose)
-            if res == -1:
-                res = planner.move_to_pose_with_RRTConnect(target_pose)
+            if res != -1:
+                used_rrt = True
+                if not allow_rrt:
+                    if debug:
+                        print("❌ RRT was used for manipulation - aborting (large motions bad for IL)")
+                    planner.close()
+                    return -1
         if res == -1:
             planner.close()
         return res
@@ -99,7 +127,19 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     # Back away 6cm before approaching for better motion planning success
     reach_pose = grasp_pose * sapien.Pose([0, 0, -0.065])
-    result = move_or_abort(reach_pose, use_rrt_first=True)
+    # For initial reach, allow RRT since arm needs to move from rest to plate region
+    # This is acceptable - the key is avoiding RRT for manipulation motions
+    res = planner.move_to_pose_with_screw(reach_pose)
+    if res == -1:
+        res = planner.move_to_pose_with_RRTConnect(reach_pose)
+        if res == -1:
+            if debug:
+                print("❌ Failed to reach even with RRT")
+            planner.close()
+            return -1
+        if debug:
+            print("⚠️ Used RRT for initial reach (acceptable)")
+    result = res
     if result == -1:
         if debug:
             print("❌ Failed to reach")
@@ -114,7 +154,7 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 2: GRASP ===")
 
-    result = move_or_abort(grasp_pose, use_rrt_first=True)
+    result = move_or_abort(grasp_pose, use_rrt_first=False)
     if result == -1:
         if debug:
             print("❌ Failed to grasp position")
@@ -183,8 +223,8 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     # Keep horizontal orientation (same as lift pose)
     transport_pose = sapien.Pose(p=target_pos, q=lift_pose.q)
 
-    # Use RRT for transport as it handles large motions better
-    res = move_or_abort(transport_pose, use_rrt_first=True)
+    # Try screw motion first; if it fails and RRT is needed, abort (unless allow_rrt=True)
+    res = move_or_abort(transport_pose, use_rrt_first=False)
     if res == -1:
         if debug:
             print("❌ Failed to move to rack")
@@ -209,8 +249,8 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"\n=== STEP 5: ROTATE TO VERTICAL ABOVE RACK ===")
 
-    # Rotate 90 degrees to make plate vertical
-    rotation = sapien.Pose(q=[0.7071068, 0, 0.7071068, 0])  # 90 deg around Y
+    # Rotate 90 degrees to make plate vertical (around Y axis)
+    rotation = sapien.Pose(q=[0.7071, 0, 0.7071, 0])  # 90 deg around Y
     vertical_pose = transport_pose * rotation
 
     res = move_or_abort(vertical_pose)
@@ -231,8 +271,9 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     # Lower plate straight down into the slot (no horizontal motion)
     lower_pos = vertical_pose.p.copy()
+    lower_pos[0] += 0.04
     lower_pos[1] -= 0.02  # Adjust Y slightly to center in slot
-    lower_pos[2] -= 0.07  # Lower into slot
+    lower_pos[2] -= 0.08  # Lower into slot
     lower_pose = sapien.Pose(lower_pos, vertical_pose.q)
     res = move_or_abort(lower_pose)
 
@@ -277,8 +318,8 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False):
 
     # Raise end effector up after releasing the plate
     raise_pos = lower_pose.p.copy()
-    raise_pos[1] -= 0.1  # Back away slightly in Y
-    raise_pos[2] += 0.02  # Raise 2cm
+    raise_pos[1] -= 0.2  # Back away slightly in Y
+    raise_pos[2] += 0.00  # Raise 2cm
     raise_pose = sapien.Pose(raise_pos, lower_pose.q)
     res = move_or_abort(raise_pose)
 
