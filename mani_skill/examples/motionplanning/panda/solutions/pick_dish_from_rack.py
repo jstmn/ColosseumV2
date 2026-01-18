@@ -34,66 +34,76 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
         print(f"\n=== PLATE POSITION IN RACK ===")
         print(f"Plate position: {plate_pos}")
 
-    # Plate is vertical standing in the rack (rotated 90° around X)
-    # Circular face is perpendicular to Y direction
-    # Grasp from the TOP and lift straight up (simplest approach)
-
-    # Approach from above (down in -Z direction)
-    approaching = np.array([0, 0, -1])
-
-    # Closing direction front-back (Y direction) to pinch across the plate's diameter
-    # Since plate face is perpendicular to Y, we close in Y direction
-    closing = np.array([0, 1, 0])
-
-    # Position the grasp point at the TOP of the vertical plate
-    center = plate_pos.copy()
     # Plate geometry parameters
     plate_outer_radius = env_sim._plate_outer_radius
-    plate_inner_radius = env_sim._plate_inner_radius
-    plate_rim_height = env_sim._plate_rim_height
 
     # Grasp at the top of the vertical plate
-    center[1] = plate_pos[1] # Center Y
-    center[2] = plate_pos[2] + plate_outer_radius * 0.8  # Near the top rim
+    grasp_center = plate_pos.copy()
+    grasp_center[2] = plate_pos[2] + plate_outer_radius * 0.8  # Near the top rim
 
-    # Build grasp pose
-    grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, center)
+    # Get current EE pose and orientation
+    current_tcp = env_sim.agent.tcp_pose.sp
+    current_pos = np.array(current_tcp.p)
+    current_quat = np.array(current_tcp.q)
 
     if debug:
-        print(f"\n=== GRASP INFO ===")
-        print(f"Plate center: {plate_pos}")
-        print(f"Grasp center: {center}")
-        print(f"Approaching: {approaching}")
-        print(f"Closing: {closing}")
+        print(f"Current EE position: {current_pos}")
+        print(f"Grasp center: {grasp_center}")
 
     # -------------------------------------------------------------------------- #
-    # Reach
+    # Step 1: Move laterally to be above the plate (keep current orientation)
     # -------------------------------------------------------------------------- #
     if debug:
-        print(f"\n=== STEP 1: REACH ===")
+        print(f"\n=== STEP 1: MOVE LATERALLY ABOVE PLATE ===")
 
-    # Back away 10cm before approaching (move up in gripper's local Z frame)
-    reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
-    result = planner.move_to_pose_with_RRTConnect(reach_pose)
+    # Move to same X, Y as grasp center, keep current Z and orientation
+    lateral_pos = np.array([grasp_center[0], grasp_center[1], current_pos[2]+ 0.2])
+    lateral_pose = sapien.Pose(lateral_pos, current_quat)
+    result = planner.move_to_pose_with_screw(lateral_pose)
     if result == -1:
         if debug:
-            print("❌ Failed to reach")
+            print("Failed to move laterally")
         planner.close()
         return result
 
     if debug:
-        print("✓ Reached approach position")
+        print("Moved laterally above plate")
 
     # -------------------------------------------------------------------------- #
-    # Grasp
+    # Step 2: Descend to reach position (keep current orientation)
     # -------------------------------------------------------------------------- #
     if debug:
-        print(f"\n=== STEP 2: GRASP ===")
+        print(f"\n=== STEP 2: DESCEND TO REACH POSITION ===")
 
-    result = planner.move_to_pose_with_RRTConnect(grasp_pose)
+    # Get updated position after lateral move
+    current_tcp = env_sim.agent.tcp_pose.sp
+    current_pos = np.array(current_tcp.p)
+    current_quat = np.array(current_tcp.q)
+
+    # Descend to 15cm above grasp center
+    reach_pos = np.array([grasp_center[0], grasp_center[1], grasp_center[2] + 0.15])
+    reach_pose = sapien.Pose(reach_pos, current_quat)
+    result = planner.move_to_pose_with_screw(reach_pose)
     if result == -1:
         if debug:
-            print("❌ Failed to grasp position")
+            print("Failed to descend to reach position")
+        planner.close()
+        return result
+
+    if debug:
+        print("Descended to reach position")
+
+    # -------------------------------------------------------------------------- #
+    # Step 3: Descend to grasp position (keep current orientation)
+    # -------------------------------------------------------------------------- #
+    if debug:
+        print(f"\n=== STEP 3: DESCEND TO GRASP ===")
+
+    grasp_pose = sapien.Pose(grasp_center, current_quat)
+    result = planner.move_to_pose_with_screw(grasp_pose)
+    if result == -1:
+        if debug:
+            print("Failed to descend to grasp")
         planner.close()
         return result
 
@@ -117,43 +127,51 @@ def solve(env: PickDishFromRackEnv, seed=None, debug=False, vis=False):
         print(f"Is grasped: {is_grasped}")
 
     # -------------------------------------------------------------------------- #
-    # Pull out of rack
+    # Step 4: Pull out of rack (lift straight up, keep orientation)
     # -------------------------------------------------------------------------- #
     if debug:
-        print(f"\n=== STEP 3: PULL OUT ===")
+        print(f"\n=== STEP 4: PULL OUT ===")
 
-    # Lift straight up out of the rack
-    pullout_pose = grasp_pose * sapien.Pose([0, 0, -0.20])
-    res = planner.move_to_pose_with_RRTConnect(pullout_pose)
+    current_tcp = env_sim.agent.tcp_pose.sp
+    current_pos = np.array(current_tcp.p)
+    current_quat = np.array(current_tcp.q)
+
+    pullout_pos = np.array([current_pos[0], current_pos[1], current_pos[2] + 0.20])
+    pullout_pose = sapien.Pose(pullout_pos, current_quat)
+    res = planner.move_to_pose_with_screw(pullout_pose)
+    if res == -1:
+        if debug:
+            print("Failed to pull out")
+        planner.close()
+        return res
 
     if debug:
         plate_after_pull = env_sim.plate.pose.p[0].cpu().numpy()
-        print(f"✓ Pulled plate out to: {plate_after_pull}")
+        print(f"Pulled plate out to: {plate_after_pull}")
 
-
+    # -------------------------------------------------------------------------- #
+    # Step 5: Move away from rack (keep orientation)
+    # -------------------------------------------------------------------------- #
     if debug:
-        print(f"\n=== STEP 4: MOVE AWAY FROM RACK ===")
+        print(f"\n=== STEP 5: MOVE AWAY FROM RACK ===")
 
-    # Get current plate position after pullout
-    current_plate_pos = env_sim.plate.pose.p[0].cpu().numpy()
+    current_tcp = env_sim.agent.tcp_pose.sp
+    current_pos = np.array(current_tcp.p)
+    current_quat = np.array(current_tcp.q)
 
-    # Move plate toward center (Y=0) and away from rack
-    # If plate is on left (Y>0), move right (negative Y direction)
-    # If plate is on right (Y<0), move left (positive Y direction)
-    target_y = 0.0  # Move toward center
-    y_offset = target_y - current_plate_pos[1]
-
-    # Build target pose in world coordinates
-    target_pos = current_plate_pos.copy()
-    target_pos[1] = target_y  # Move to center Y
-    target_pos[0] = -0.2  # Move forward (toward robot)
-
-    target_pose = env_sim.agent.build_grasp_pose(approaching, closing, target_pos)
-    res = planner.move_to_pose_with_RRTConnect(target_pose)
+    # Move toward center Y and forward
+    target_pos = np.array([-0.2, 0.0, current_pos[2]])
+    target_pose = sapien.Pose(target_pos, current_quat)
+    res = planner.move_to_pose_with_screw(target_pose)
+    if res == -1:
+        if debug:
+            print("Failed to move away from rack")
+        planner.close()
+        return res
 
     if debug:
         plate_after_move = env_sim.plate.pose.p[0].cpu().numpy()
-        print(f"✓ Moved plate to: {plate_after_move}")
+        print(f"Moved plate to: {plate_after_move}")
 
     # -------------------------------------------------------------------------- #
     # Wait for physics to settle
