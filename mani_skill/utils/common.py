@@ -42,6 +42,8 @@ def _batch(array: Union[Array, Sequence]):
     if isinstance(array, str):
         return array
     if isinstance(array, torch.Tensor):
+        if array.dim() == 0:
+            return array.unsqueeze(0).unsqueeze(0)
         return array[None, :]
     if isinstance(array, np.ndarray):
         if array.shape == ():

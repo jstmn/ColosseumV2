@@ -22,10 +22,10 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        if success:
-            print(f"✓ Test passed (seed={seed})")
-        else:
-            print(f"✗ Test failed (seed={seed})")
+        # if success:
+        #     print(f"✓ Test passed (seed={seed})")
+        # else:
+        #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
     print("\n=== All tests completed ===")
@@ -114,7 +114,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
 
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         
         result = planner.move_to_pose_pair_with_screw(
             grasp_2_pose,
@@ -123,7 +123,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
 
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         
         planner.close_gripper(arm_index=1, t=10)
         planner.close_gripper(arm_index=2, t=10)
@@ -140,14 +140,14 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         
         if result == -1:
             print("Failed to lift")
-            return False
+            return result
         
         # 5. Lift up
         print("\n5. Lifting...")
         
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
+        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.05), 0, 0, np.sin(-np.pi/2.1)])
+        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.05), 0, 0, np.sin(np.pi/2.1)])
         
         result = planner.move_to_pose_pair_with_screw(
             lift_2,  # left
@@ -157,7 +157,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         
         if result == -1:
             print("Failed to lift")
-            return False
+            return result
         
         lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
         lift_2 = lift_2*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
@@ -175,7 +175,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
     
     except Exception as e:
         print("Exception during Motion Planning:", e)
-        return False    
+        return result    
 
 if __name__ == "__main__":
     main()

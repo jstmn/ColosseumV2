@@ -22,7 +22,7 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)            
-        print(f"Result: {'Success' if success else 'Failure'}")
+        # print(f"Result: {'Success' if success else 'Failure'}")
         env.reset(seed=seed, options={"reconfigure": True})
     env.close()
 
@@ -59,7 +59,7 @@ def solve(env, seed, debug=False, vis=False):
 
     if right_door_link is None:
         print("Error: Could not find right door link.")
-        return False
+        return res
 
     # Calculate Handle Position (Approximate from site or bounds)
     # Based on XML: Handle is roughly at +0.225 (x), -0.20 (y) in link frame
@@ -105,7 +105,7 @@ def solve(env, seed, debug=False, vis=False):
         
         if result == -1:
             print("Failed to lift")
-            return False
+            return res
         # move_2 = lift_2*sapien.Pose(p=[0,0,-0.4])
         # result = planner.move_arm_to_pose_with_RRTConnect(
         #     move_2,
@@ -114,7 +114,7 @@ def solve(env, seed, debug=False, vis=False):
         
         # if result == -1:
         #     print("Failed to lift")
-        #     return False
+        #     return res
         
         # result = planner.move_to_pose_with_screw(
         #     lift_2,
@@ -123,7 +123,7 @@ def solve(env, seed, debug=False, vis=False):
         
         # if result == -1:
         #     print("Failed to lift")
-        #     return False
+        #     return res
         
         planner.close_gripper(arm_index=1)
         # --------------------------------------------------------------------------
@@ -233,7 +233,7 @@ def solve(env, seed, debug=False, vis=False):
         
         if res == -1: 
             print("Failed to plan arc motion.")
-            return False
+            return res
         
         # CLEANUP: Remove the magic grasp
         if hasattr(env, "magic_drive") and env.magic_drive is not None:
@@ -249,13 +249,13 @@ def solve(env, seed, debug=False, vis=False):
                 
             env.magic_drive = None
         print("Success!")
-        return True
+        return res
         
     except Exception as e:
         print(f"✗ Error during synchronized motion test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return res
 
 if __name__ == "__main__":
     main()
@@ -304,7 +304,7 @@ if __name__ == "__main__":
         
 #         if len(joints) == 0:
 #             print("No movable joints found!")
-#             return False
+#             return res
         
 #         # Find the revolute joint (door hinge)
 #         revolute_joint = None
@@ -315,7 +315,7 @@ if __name__ == "__main__":
         
 #         if revolute_joint is None:
 #             print("No revolute joint found!")
-#             return False
+#             return res
         
 #         print(f"Found revolute joint: {revolute_joint.name}")
 #         print(f"Joint limits: {revolute_joint.get_limit()}")
@@ -378,7 +378,7 @@ if __name__ == "__main__":
         
 #         if result == -1:
 #             print("Failed to reach approach pose")
-#             return False
+#             return res
         
 #         time.sleep(0.5)
         
@@ -394,7 +394,7 @@ if __name__ == "__main__":
         
 #         if result == -1:
 #             print("Failed to reach grasp pose")
-#             return False
+#             return res
         
 #         time.sleep(0.5)
         
@@ -409,7 +409,7 @@ if __name__ == "__main__":
         
 #         if np.all(gripper_qpos < 0.01):  # Gripper fully closed = no grasp
 #             print("Failed to grasp handle (gripper fully closed)")
-#             return False
+#             return res
         
 #         print(" Grasp successful!")
         
@@ -489,7 +489,7 @@ if __name__ == "__main__":
 #         print(f"Error: {e}")
 #         import traceback
 #         traceback.print_exc()
-#         return False
+#         return res
 
 # def find_handle_on_door(door_link):
 #     """

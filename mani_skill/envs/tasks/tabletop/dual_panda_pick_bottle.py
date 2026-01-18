@@ -15,6 +15,8 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.building import articulations
 from mani_skill import PACKAGE_ASSET_DIR
+from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils import sapien_utils
 
 import torch
 
@@ -32,6 +34,13 @@ class DualArmPickBottleEnv(BaseEnv):
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         
+    @property
+    def _default_human_render_camera_configs(self):
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
+        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
+
+    
     def _load_scene(self, options: dict):
         self.obj = self.load_glb_as_actor(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
@@ -39,6 +48,8 @@ class DualArmPickBottleEnv(BaseEnv):
                                         name="bottle",
                                         scale=[0.06,0.06,0.08],
                                         type="dynamic")
+    
+    
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
@@ -109,9 +120,9 @@ class DualArmPickBottleEnv(BaseEnv):
         offset_2 = pos_2 - obj_pos
         dist_1 = torch.linalg.norm(offset_1, dim=-1)
         dist_2 = torch.linalg.norm(offset_2, dim=-1)
-        
-        success = dist_2 <= dist_1
-        return {"success": success}
+        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)        
+        success = torch.logical_and(dist_2 <= dist_1, grasped_2)
+        return {"grasping_bottle": grasped_2, "success": success}
     
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL

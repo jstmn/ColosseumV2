@@ -25,7 +25,7 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)            
-        print(f"Result: {'Success' if success else 'Failure'}")
+        # print(f"res: {'Success' if success else 'Failure'}")
         # env.reset()
     env.close()
 
@@ -113,23 +113,23 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     grasp_1_approach_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.3])
     grasp_2_approach_pose = grasp_2_pose*sapien.Pose(p=[0, 0, -0.3])
     
-    result = planner.move_to_pose_pair_with_RRTConnect(
+    res = planner.move_to_pose_pair_with_RRTConnect(
         grasp_2_approach_pose,
         grasp_1_approach_pose  # left
     )
 
-    if result==-1:
+    if res==-1:
         print("Failed grasp_approach")
-        return False
+        return res
     
-    result = planner.move_to_pose_pair_with_screw(
+    res = planner.move_to_pose_pair_with_screw(
         grasp_2_pose,
         grasp_1_pose
     )
     
-    if result == -1:
+    if res == -1:
         print("Failed grasp")
-        return False
+        return res
     
     planner.close_gripper(arm_index=1)
     planner.close_gripper(arm_index=2)
@@ -137,17 +137,17 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     pull_1 = grasp_1_pose * sapien.Pose(p=[0, 0, -0.3])
     pull_2 = grasp_2_pose * sapien.Pose(p=[0, 0, -0.3])
     
-    result = planner.move_to_pose_pair_with_screw(
+    res = planner.move_to_pose_pair_with_screw(
         pull_1,
         pull_2
     )
     
-    if result == -1:
+    if res == -1:
         print("Failed to Pull")
-        return False
+        return res
     
     
-    return True
+    return res
 
 if __name__ == "__main__":
     main()

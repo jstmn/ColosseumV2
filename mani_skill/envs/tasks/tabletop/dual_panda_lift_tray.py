@@ -8,6 +8,8 @@ from mani_skill.agents.robots.panda.dual_panda import DualPanda
 from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
+from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils import sapien_utils
 
 import torch
 import os
@@ -26,7 +28,14 @@ class DualArmLiftTrayEnv(BaseEnv):
     agent: DualPanda # Type hinting for IDE support
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
+    @property
+    def _default_human_render_camera_configs(self):
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
+        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
         
+
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
         # self.add_ground(altitude=0)

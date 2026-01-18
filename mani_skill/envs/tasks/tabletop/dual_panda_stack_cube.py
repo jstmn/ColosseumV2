@@ -67,8 +67,8 @@ class TwoRobotStackCube(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        # pose = sapien_utils.look_at([1.4, 0.8, 0.75], [0.0, 0.1, 0.1]) # this perspective is good for demos
-        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4], target=[-0.1, 0, 0.1])
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     # def _load_agent(self, options: dict):

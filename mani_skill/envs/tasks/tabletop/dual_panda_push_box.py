@@ -19,7 +19,7 @@ from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 
-@register_env("DualPandaPushBox-v1", max_episode_steps=100)
+@register_env("DualArmPushBox-v1", max_episode_steps=100)
 class DualPandaPushBoxEnv(BaseEnv):
     """
     **Task Description:**
@@ -68,8 +68,8 @@ class DualPandaPushBoxEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        # pose = sapien_utils.look_at([1.4, 0.8, 0.75], [0.0, 0.1, 0.1]) # this perspective is good for demos
-        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4], target=[-0.1, 0, 0.1])
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_scene(self, options: dict):
@@ -270,7 +270,7 @@ class DualPandaPushBoxEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualPandaPushBox-v1",
+        "DualArmPushBox-v1",
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",
