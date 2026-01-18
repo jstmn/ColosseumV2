@@ -93,14 +93,17 @@ class ScoopParticlesEnv(BaseEnv):
         )
         self.scene_builder.build()
 
-        self.ball = actors.build_sphere(
-            self.scene,
-            radius=ScoopParticlesEnv.ball_radius,
-            color=[0, 0.2, 0.8, 1],
-            name="ball",
-            initial_pose=sapien.Pose(p=[0, 0, 0.1]),
-        )
-
+        # self.ball = actors.build_sphere(
+        #     self.scene,
+        #     radius=ScoopParticlesEnv.ball_radius,
+        #     color=[0, 0.2, 0.8, 1],
+        #     name="ball",
+        #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
+        # )
+        builder = actors.get_actor_builder(self.scene, "ycb:011_banana")
+        builder.initial_pose = sapien.Pose(p=[0, 0, 0])
+        self.ball = builder.build_dynamic(name="ball")
+        
         self.dustpan = self.load_glb_as_actor(
             self.scene,
             glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),
@@ -160,7 +163,7 @@ class ScoopParticlesEnv(BaseEnv):
             ball_pose = Pose.create_from_pq(p=ball_xyz, q=torch.tensor([1, 0, 0, 0], dtype=torch.float32))
             self.ball.set_pose(ball_pose)
             wall_xyz = torch.zeros((b, 3), device=self.device)
-            wall_xyz[..., 0] = ball_xyz[..., 0] + 0.07
+            wall_xyz[..., 0] = ball_xyz[..., 0] + 0.1
             wall_xyz[..., 1] = ball_xyz[..., 1]
             wall_xyz[..., 2] = 0.1
             self.wall.set_pose(Pose.create_from_pq(p=wall_xyz, q=torch.tensor([0.7071, 0, 0, 0.7071], dtype=torch.float32)))

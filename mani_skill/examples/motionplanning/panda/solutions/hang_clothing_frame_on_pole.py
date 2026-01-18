@@ -85,7 +85,7 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     # Rotation about the z axis by 180 (world coordinates)
     # -------------------------------------------------------------------------- #
     # theta = np.pi/2
-    theta = np.pi
+    theta = np.pi/2
     R_world_z = np.array([
         [np.cos(theta), -np.sin(theta), 0],
         [np.sin(theta), np.cos(theta), 0],
@@ -96,9 +96,17 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     T_rotated[:3, :3] = R_world_z @ T_current[:3, :3]
     T_rotated[:3, 3] = T_current[:3, 3]
     final_pose = sapien.Pose(matrix=T_rotated)
-
-    res = planner.move_to_pose_with_RRTStar(final_pose)
+    # final_pose = sapien.Pose(p=np.array([-0.247, -0.268, 0.706]), q=np.array([-0.21, 0.651, -0.694, -0.277]))
+    
+    res = planner.move_to_pose_with_RRTConnect(final_pose)
     if res == -1: return res
+    
+    # viewer = planner.base_env.render_human()    
+    # while True:
+    #     if viewer.window.key_down("c"):
+    #         break
+    #     planner.base_env.render_human()
+
     # -------------------------------------------------------------------------- #
     # Rotation about the y axis
     # -------------------------------------------------------------------------- #
@@ -120,23 +128,35 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     #     q=rotation_quat
     # ) * sapien.Pose([0, 0, -0.10])
     final_pose = sapien.Pose([0.0, 0.1, -0.13])*final_pose
-    res = planner.move_to_pose_with_RRTStar(final_pose)
-    if res == -1: return res
+    res = planner.move_to_pose_with_screw(final_pose)
+    if res == -1: 
+        res = planner.move_to_pose_with_RRTStar(final_pose)
+        if res == -1: return res
+        return res
     # # -------------------------------------------------------------------------- #
     # # Lower
     # # -------------------------------------------------------------------------- #
     final_pose = sapien.Pose([0,0.35,0])*final_pose
-    res = planner.move_to_pose_with_RRTStar(final_pose)
-    if res == -1: return res
+    res = planner.move_to_pose_with_screw(final_pose)
+    if res == -1:
+        res = planner.move_to_pose_with_RRTStar(final_pose)
+        if res == -1: return res
+        return res
 
     planner.open_gripper()
     res = planner.move_to_pose_with_screw(final_pose)
-    if res == -1: return res
+    if res == -1:
+        res = planner.move_to_pose_with_RRTStar(final_pose)
+        if res == -1: return res
+        return res
 
     # Retreat
     retreat_pose = sapien.Pose([0, -0.4,0])*final_pose
-    res = planner.move_to_pose_with_RRTStar(retreat_pose)
-    if res == -1: return res
+    res = planner.move_to_pose_with_screw(retreat_pose)
+    if res == -1:
+        res = planner.move_to_pose_with_RRTStar(retreat_pose)
+        if res == -1: return res
+        return res
     planner.close()
     
     return res

@@ -60,8 +60,11 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     arrow_x_axis = arrow_transform[:3, 0]  # First column is X axis
     arrow_x_axis = arrow_x_axis / np.linalg.norm(arrow_x_axis)
     arrow_init_x_axis = deepcopy(arrow_x_axis)
-
+    count = 0
     while(np.dot(arrow_x_axis, arrow_init_x_axis) > -0.95): # while angle < 170 degrees
+        count += 1
+        if count > 300:
+            return -1
         # z_rot = env.quat_to_z_euler(env.arrow.pose.q)
         # reach_pose_1 = reach_pose_1 * sapien.Pose([0, 0.01, 0]) # 15 cm above grasp pose
         # reach_pose_1.set_q(euler2quat(np.pi,0,z_rot)) # set orientation to arrow orientation

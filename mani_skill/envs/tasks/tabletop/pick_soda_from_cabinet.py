@@ -17,7 +17,7 @@ from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill import PACKAGE_ASSET_DIR
-
+import gymnasium as gym
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
@@ -93,7 +93,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
         )
         # Build into the scene (for single env index, pass [0]; for batched envs use proper indices):
         open_cab.quat = sapien.Pose(q=[0.7071,0,0,-0.7071]).q  # default orientation
-        open_cab.pos = np.array([0.25, -0.12, 0.456])
+        open_cab.pos = np.array([0.3, -0.12, 0.456])
         # choose scene indices to build into; if you have a batch, build into all relevant indices
         built = open_cab.build(scene_idxs=[0])
         # If environment uses multiple envs, repeat build for each environment index you care about.
@@ -128,13 +128,14 @@ class PickSodaFromCabinetEnv(BaseEnv):
                                             sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
                                             name="soda_can",
                                             scale=[0.04,0.04,0.04],
+
                                             type="dynamic")
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
+        builder.add_visual_from_file(glb_file_path, scale=scale, material=sapien.render.RenderMaterial(base_color=[0, 79/255, 49/255, 1.0]))
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
@@ -147,6 +148,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
+            # qpos = np.array([0.654,-0.552,-0.679, 3.512, -3.071, 2.370, 0.399, 0.040, 0.04])
             self.table_scene.initialize(env_idx)
 
             xyz = torch.zeros((b, 3))
@@ -170,9 +172,9 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # [0.854,0.471,0.212,0.068] - q for sleeping book
             # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
             self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.0, 0, 0.7071, 0.7071]).repeat(b,1)))
-            self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.254005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
-            self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.254005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
-            self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.44, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
+            self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
             # xyz[:, :2] = cubeB_xy
             # qs = randomization.random_quaternions(
             #     b,
@@ -182,6 +184,13 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # )
             # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
             # return
+        # self._initialize_agent()
+            
+    def _initialize_agent(self):
+        # Reset the robot to a neutral position
+        qpos = np.array([0.654,-0.552,-0.679, 3.512, -3.071, 2.370, 0.399, 0.040, 0.04])
+        self.agent.reset(qpos)
+    
     def evaluate(self):
         # pos_shelf = self.shelf.pose.p
         # pos_book = self.book_A.pose.p
@@ -209,9 +218,9 @@ class PickSodaFromCabinetEnv(BaseEnv):
         obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         if "state" in self.obs_mode:
             obs.update(
-                cabinet_pose=self.open_cabinet.pose.raw_pose,
+                # cabinet_pose=self.open_cabinet.pos,
                 soda_pose=self.soda.pose.raw_pose,
-                tcp_to_cabinet_pos=self.open_cabinet.pose.p - self.agent.tcp.pose.p,
+                # tcp_to_cabinet_pos=self.open_cabinet.pose.p - self.agent.tcp.pose.p,
                 tcp_to_soda_pos=self.soda.pose.p - self.agent.tcp.pose.p,
                 # book_to_shelf_pos=self.shelf.pose.p - self.book_A.pose.p,
             )
@@ -292,3 +301,33 @@ For more information, see:
 ================================================================================
 """
             raise FileNotFoundError(error_msg)
+
+if __name__ == "__main__":
+    # Now you can load this safe environment
+    env = gym.make(
+        "PickSodaFromCabinet-v1", 
+        obs_mode="state_dict", 
+        control_mode="pd_joint_delta_pos",
+        render_mode="human"
+    )
+
+    print("Environment Created Successfully!")
+    obs, _ = env.reset()
+    
+    print(f"Observation Keys: {obs.keys()}")
+    if "agent" in obs:
+        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
+    
+    # NOW you can run your IK loop here
+    # 2. You MUST run a loop, or the window will close immediately
+    while True:
+        # Create a dummy action (stay still)
+        # action = np.zeros(env.action_space.shape)
+        
+        # # Step the environment
+        # obs, reward, terminated, truncated, info = env.step(action)
+        
+        # Render the frame
+        env.render()  # <--- Updates the GUI
+        
+    
