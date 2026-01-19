@@ -159,7 +159,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.405
             # xy = torch.rand((b, 2)) * 0.2 - 0.1
-            region = [[0.13, -0.26],[0.162, 0.12]]
+            region = [[0.13, -0.3],[0.162, -0.1]]
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )
