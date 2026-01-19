@@ -69,7 +69,7 @@ def solve(env: PickSodaFromCabinetEnv, seed=None, debug=False, vis=False):
     # -------------------------------------------------------------------------- #
     # Grasp
     # -------------------------------------------------------------------------- #
-    res = planner.move_to_pose_with_RRTConnect(grasp_pose)
+    res = planner.move_to_pose_with_RRTStar(grasp_pose)
     if res == -1: return res
     planner.close_gripper(gripper_state=-0.6)
 
@@ -125,7 +125,9 @@ def solve(env: PickSodaFromCabinetEnv, seed=None, debug=False, vis=False):
 
     planner.open_gripper()
     res = planner.move_to_pose_with_screw(final_pose)
-    if res == -1: return res
+    if res == -1: 
+        res = planner.move_to_pose_with_RRTStar(final_pose)
+        if res == -1: return res
 
     planner.close()
     

@@ -25,7 +25,7 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)            
-        print(f"Result: {'Success' if success else 'Failure'}")
+        # print(f"res: {'Success' if success else 'Failure'}")
         # env.reset()
     env.close()
 
@@ -114,23 +114,23 @@ def solve(env, seed, debug=False, vis=False):
         grasp_1_pose = grasp_1_pose * sapien.Pose(p=[0,0,-0.1])
         ready_lift_1 = grasp_1_pose * sapien.Pose(p=[0,0,-0.3])
         ready_lift_2 = lift_2 * sapien.Pose(p=[0,0,-0.1])
-        result = planner.move_to_pose_pair_with_screw(
+        res = planner.move_to_pose_pair_with_screw(
             ready_lift_1,  # Arm 2
             ready_lift_2
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to Ready lift")
-            return False
+            return res
         # planner.render_wait()
-        result = planner.move_to_pose_pair_with_screw(
+        res = planner.move_to_pose_pair_with_screw(
             grasp_1_pose,  # left
             lift_2
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to lift")
-            return False
+            return res
         # planner.render_wait()
         planner.close_gripper(arm_index=1)
         planner.close_gripper(arm_index=2)
@@ -139,52 +139,52 @@ def solve(env, seed, debug=False, vis=False):
         hold_2 = pull_1 * sapien.Pose(p=[-0.3, 0.1, 0.1])
         hold_2.set_q(lift_2.q)
         
-        result = planner.move_to_pose_with_screw(
+        res = planner.move_to_pose_with_screw(
             hold_2,
             arm_index=1
         )
         # planner.render_wait()
-        if result == -1:
+        if res == -1:
             print("Failed to Hold")
-            return False
+            return res
         
-        result = planner.move_to_pose_with_screw(
+        res = planner.move_to_pose_with_screw(
             pull_1,
             arm_index=2
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to pull")
-            return False
+            return res
         # planner.render_wait()
         release_2 = pull_1 * sapien.Pose(p=[-0.1, 0.15, 0.2])
         release_2.set_q(lift_2.q)
         release_2 = release_2 * sapien.Pose(q=[0.707, 0, 0, 0.707])
-        result = planner.move_to_pose_with_screw(
+        res = planner.move_to_pose_with_screw(
             release_2,
             arm_index=1
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to Release")
-            return False
+            return res
         
         planner.open_gripper(arm_index=1)
         
-        result = planner.move_to_pose_with_screw(
+        res = planner.move_to_pose_with_screw(
             grasp_1_pose,
             arm_index=2
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to Release")
-            return False
+            return res
         
         # planner.render_wait()
-        return True
+        return res
     except Exception as e:
         print(e)
-        return False
+        return res
 
 if __name__ == "__main__":
     main()

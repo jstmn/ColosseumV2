@@ -12,7 +12,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualPandaPushBoxEnv = gym.make(
-        'DualPandaPushBox-v1',
+        'DualArmPushBox-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -23,10 +23,10 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        if success:
-            print(f"✓ Test passed (seed={seed})")
-        else:
-            print(f"✗ Test failed (seed={seed})")
+        # if success:
+        #     print(f"✓ Test passed (seed={seed})")
+        # else:
+        #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
     print("\n=== All tests completed ===")
@@ -121,7 +121,7 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     
     if result == -1:
         print(f"Failed to move arm {closer_arm} to Step 1")
-        return False
+        return result
     
     move_front = goal_pos[..., 1] - box_pos[..., 1]
     print(f"✓ Arm {closer_arm} reached Step 1")
@@ -140,7 +140,7 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     
     if result == -1:
         print(f"Failed to move arm {closer_arm} to Step 2")
-        return False
+        return result
     
     print(f"✓ Arm {closer_arm} reached Step 2")
     
@@ -159,12 +159,12 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     
     if result == -1:
         print(f"Failed to lift arm {closer_arm}")
-        return False
+        return result
     
     print(f"✓ Arm {closer_arm} lifted successfully")
     # planner.render_wait()
     if env.evaluate()["success"] == torch.tensor(True):
-        return True
+        return result
     
     # Create a push pose at the goal location (same approaching direction)
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, env.box.pose.sp.p)
@@ -180,7 +180,7 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     
     if result == -1:
         print(f"Failed to lift arm {closer_arm}")
-        return False
+        return result
 
     # Move to grasp pose
     print(f"\n--- Moving arm {closer_arm} to Step 3 ---")
@@ -198,9 +198,9 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     
     if result == -1:
         print(f"Failed to move arm {closer_arm} to Step 3")
-        return False
+        return result
     
-    return True
+    return result
 
 if __name__ == "__main__":
     main()

@@ -9,6 +9,8 @@ import torch
 import sys
 from mani_skill.utils.building.actors.needle import build_needle
 from mani_skill.utils.building.actors.ring_tripod import build_ring_tripod
+from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils import common, sapien_utils
 
 # filepath: /home/prajwal-vijay/Documents/ManiSkill/mani_skill/envs/tasks/tabletop/dual_panda_threading.py
 import sapien.core as sapien
@@ -28,6 +30,13 @@ class DualPandaThreadingEnv(BaseEnv):
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+    
+    @property
+    def _default_human_render_camera_configs(self):
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
+        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
+
     
     def _load_scene(self, options: dict):
         """Load the needle and ring tripod actors into the scene."""

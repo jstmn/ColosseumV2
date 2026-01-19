@@ -22,10 +22,10 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        if success:
-            print(f"✓ Test passed (seed={seed})")
-        else:
-            print(f"✗ Test failed (seed={seed})")
+        # if success:
+        #     print(f"✓ Test passed (seed={seed})")
+        # else:
+        #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
     print("\n=== All tests completed ===")
@@ -104,7 +104,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
 
     if result == -1:
         print("Failed grasp_approach")
-        return False
+        return result
     
     result = planner.move_to_pose_pair_with_screw(
         grasp_pen_pose,  # left
@@ -113,7 +113,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
 
     if result==-1:
         print("Failed grasp")
-        return False
+        return result
     
     planner.close_gripper(arm_index=1, t=10)
     planner.close_gripper(arm_index=2, t=10)
@@ -130,7 +130,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     
     if result == -1:
         print("Failed to lift")
-        return False
+        return result
     
     # Put cap
     result = planner.move_to_pose_with_screw(
@@ -140,10 +140,10 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     
     if result == -1:
         print("Failed to lift")
-        return False
+        return result
     
     planner.render_wait()
-    return True
+    return result
 
 
 if __name__ == "__main__":

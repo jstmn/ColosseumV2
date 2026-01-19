@@ -35,11 +35,11 @@ class RotateArrowEnv(BaseEnv):
 
     """
     # 3D T center of mass spawnbox dimensions
-    arrow_spawnbox_xlength = 0.1
-    arrow_spawnbox_ylength = 0.15
+    arrow_spawnbox_xlength = 0.2
+    arrow_spawnbox_ylength = 0.2
 
     # translation of the spawnbox from goal tee as upper left of spawnbox
-    arrow_spawnbox_xoffset = -0.2
+    arrow_spawnbox_xoffset = -0.3
     arrow_spawnbox_yoffset = -0.05
     #  end randomizations - rotation around z is simply uniform
 
@@ -153,10 +153,10 @@ class RotateArrowEnv(BaseEnv):
 #             # rotation for pose is just random rotation around z axis
 #             # z axis rotation euler to quaternion = [cos(theta/2),0,0,sin(theta/2)]
 
-            q_euler_angle = torch.rand(b) * (2 * torch.pi)
+            q_euler_angle = torch.rand(b) * (torch.pi/6) - torch.pi/12
             q = torch.zeros((b, 4))
-            q = euler2quat(np.pi/2, 0, 0)
-            self.init_angle = 0
+            q = euler2quat(np.pi/2, 0, q_euler_angle)
+            self.init_angle = q_euler_angle
             obj_pose = Pose.create_from_pq(p=target_region_xyz, q=q)
             self.arrow.set_pose(obj_pose)
 

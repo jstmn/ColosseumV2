@@ -22,10 +22,10 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        if success:
-            print(f"✓ Test passed (seed={seed})")
-        else:
-            print(f"✗ Test failed (seed={seed})")
+        # if success:
+        #     print(f"✓ Test passed (seed={seed})")
+        # else:
+        #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
     print("\n=== All tests completed ===")
@@ -82,23 +82,23 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
 
     grasp_1_approach_pose = grasp_pose*sapien.Pose(p=[0,0,-0.1])
         
-    result = planner.move_to_pose_with_screw(
+    res = planner.move_to_pose_with_screw(
         grasp_1_approach_pose,  # left
         arm_index=1
     )
 
-    if result==-1:
+    if res==-1:
         print("Failed grasp_approach")
-        return False
+        return res
     
-    result = planner.move_to_pose_with_screw(
+    res = planner.move_to_pose_with_screw(
         grasp_pose,  # left
         arm_index=1
     )
 
-    if result==-1:
+    if res==-1:
         print("Failed grasp_approach")
-        return False
+        return res
     
     planner.close_gripper(arm_index=1, t=10)
     
@@ -113,15 +113,15 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
         q=np.array([-0.707, -0.707, 0, 0])
     )
     
-    result = planner.move_to_pose_pair_with_RRTConnect(
+    res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1
         # refine_steps=5
     )
     
-    if result == -1:
+    if res == -1:
         print("Failed to lift")
-        return False
+        return res
     
     # 5. Lift up
     print("\n5. Lifting...")
@@ -135,15 +135,15 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
         q=np.array([-0.707, -0.707, 0, 0])
     )
     
-    result = planner.move_to_pose_pair_with_screw(
+    res = planner.move_to_pose_pair_with_screw(
         lift_2,  # left
         lift_1,  # right
         # refine_steps=5
     )
     
-    if result == -1:
+    if res == -1:
         print("Failed to lift")
-        return False
+        return res
     
     # 6. Open grippers
     print("\n6. Releasing...")
@@ -153,13 +153,13 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
     lift_1 = lift_1*sapien.Pose(p=[0,0,-0.1])
     lift_2 = lift_2*sapien.Pose(p=[0,0,-0.1])
    
-    result = planner.move_to_pose_pair_with_RRTConnect(
+    res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1,  # right
         refine_steps=5
     )
     
-    return result
+    return res
 
 
 if __name__ == "__main__":

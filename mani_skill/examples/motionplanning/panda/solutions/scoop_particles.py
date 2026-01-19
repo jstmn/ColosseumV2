@@ -74,7 +74,7 @@ def solve(env: ScoopParticlesEnv, seed=None, debug=False, vis=False):
     # if res == -1: return res
 
     ball_pos = env.ball.pose.sp.p
-    approach_offset = sapien.Pose([-0.07, 0, 0.0])
+    approach_offset = sapien.Pose([-0.05, 0, 0.0])
     approach_pose = sapien.Pose(ball_pos)*approach_offset
     approach_pose.set_q(grasp_pose.q)
     res = planner.move_to_pose_with_screw(approach_pose)
@@ -87,7 +87,7 @@ def solve(env: ScoopParticlesEnv, seed=None, debug=False, vis=False):
     if res == -1: return res
 
 
-    lift_height = 0.36
+    lift_height = 0.18
     lift_pose = sapien.Pose(approach_pose.p + np.array([0, 0, lift_height]))
     lift_pose.set_q(lift_rot_pose.q)  # Maintain grasp orientation
     res = planner.move_to_pose_with_RRTStar(lift_pose)

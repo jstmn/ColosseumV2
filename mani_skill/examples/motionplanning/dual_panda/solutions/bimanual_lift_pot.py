@@ -22,10 +22,10 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        if success:
-            print(f"✓ Test passed (seed={seed})")
-        else:
-            print(f"✗ Test failed (seed={seed})")
+        # if success:
+        #     print(f"✓ Test passed (seed={seed})")
+        # else:
+        #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
     print("\n=== All tests completed ===")
@@ -105,25 +105,25 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         
         grasp_1_approach_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.1])
         grasp_2_approach_pose = grasp_2_pose*sapien.Pose(p=[0, 0, -0.1])
-        result = planner.move_to_pose_pair_with_RRTConnect(
+        res = planner.move_to_pose_pair_with_RRTConnect(
             grasp_2_approach_pose,
             grasp_1_approach_pose  # left
         )
 
-        if result==-1:
+        if res==-1:
             print("Failed grasp_approach")
-            return False
+            return res
         
         planner.render_wait()
         
-        result = planner.move_to_pose_pair_with_screw(
+        res = planner.move_to_pose_pair_with_screw(
             grasp_2_pose,
             grasp_1_pose  # left
         )
 
-        if result==-1:
+        if res==-1:
             print("Failed grasp_approach")
-            return False
+            return res
         
         planner.close_gripper(arm_index=1, t=10)
         planner.close_gripper(arm_index=2, t=10)
@@ -132,15 +132,15 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         lift_1 = grasp_1_pose*sapien.Pose(p=[0,-0.2,0])
         lift_2 = grasp_2_pose*sapien.Pose(p=[0,0.2,0])
         
-        result = planner.move_to_pose_pair_with_RRTConnect(
+        res = planner.move_to_pose_pair_with_RRTConnect(
             lift_2,  # left
             lift_1
             # refine_steps=5
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to lift")
-            return False
+            return res
         
         # 5. Move
         print("\n5. Move...")
@@ -149,36 +149,36 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         lift_1 = lift_1*sapien.Pose(p=[-0.3,0,0])
         lift_2 = lift_2*sapien.Pose(p=[-0.3,0,0])
         
-        result = planner.move_to_pose_pair_with_screw(
+        res = planner.move_to_pose_pair_with_screw(
             lift_2,  # left
             lift_1,  # right
             # refine_steps=5
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to lift")
-            return False
+            return res
         
         # Place down
         
         lift_1 = lift_1*sapien.Pose(p=[0,0.2,0])
         lift_2 = lift_2*sapien.Pose(p=[0,-0.2,0])
         
-        result = planner.move_to_pose_pair_with_screw(
+        res = planner.move_to_pose_pair_with_screw(
             lift_2,  # left
             lift_1,  # right
             # refine_steps=5
         )
         
-        if result == -1:
+        if res == -1:
             print("Failed to lift")
-            return False
+            return res
         
-        return True
+        return res
     
     except Exception as e:
         print("Exception during Motion Planning:", e)
-        return False    
+        return res    
 
 if __name__ == "__main__":
     main()

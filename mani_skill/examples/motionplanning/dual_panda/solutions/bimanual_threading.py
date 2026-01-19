@@ -91,7 +91,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         
         obb_tripod = get_actor_obb(env.ring_tripod)
         tripod_transform = env.ring_tripod.pose.sp.to_transformation_matrix()
@@ -121,7 +121,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,0,0.07])
         result = planner.move_to_pose_with_screw(
             grasp_2_pose,
@@ -129,7 +129,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         planner.close_gripper(arm_index=2, t=10)
         
         lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186],q=[0,0,0.707,-0.707])
@@ -143,7 +143,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         
         result = planner.move_to_pose_with_screw(
             lift_2_pose,
@@ -151,7 +151,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         
         result = planner.move_to_pose_with_screw(
             lift_1_pose,
@@ -159,13 +159,13 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         if result==-1:
             print("Failed grasp_approach")
-            return False
+            return result
         planner.render_wait()
         
-        return True
+        return result
     except Exception as e:
         print("Exception during Motion Planning:", e)
-        return False
+        return result
     
 if __name__ == "__main__":
     main()

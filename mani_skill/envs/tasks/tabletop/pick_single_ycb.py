@@ -136,6 +136,7 @@ class PickSingleYCBEnv(BaseEnv):
 
         self._objs: list[Actor] = []
         self.obj_heights = []
+        print(model_ids)
         for i, model_id in enumerate(model_ids):
             # TODO: before official release we will finalize a metadata dataclass that these build functions should return.
             builder = actors.get_actor_builder(

@@ -16,6 +16,8 @@ from mani_skill.utils.structs import Pose
 from mani_skill.utils.building import articulations
 from mani_skill import PACKAGE_ASSET_DIR
 import torch
+from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils import sapien_utils
 
 # 1. Define the Empty Environment
 @register_env("DualArmPenCap-v0", max_episode_steps=1000)
@@ -30,7 +32,13 @@ class DualArmPenCapEnv(BaseEnv):
     agent: DualPanda # Type hinting for IDE support
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        
+
+    @property
+    def _default_human_render_camera_configs(self):
+        """Configure camera for rendering videos and visualization"""
+        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
+        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
+
     def _load_scene(self, options: dict):
         self.cap = self.load_glb_as_actor(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pen_in_cap/cap.glb"),
