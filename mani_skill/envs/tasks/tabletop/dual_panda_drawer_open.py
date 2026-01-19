@@ -102,7 +102,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
         drawer_2_open = pose_2[..., 0] < -0.07
         
         success = drawer_1_open * drawer_2_open
-        print(success)
+        # print(success)
         return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
     
     def _get_obs_extra(self, info: dict):

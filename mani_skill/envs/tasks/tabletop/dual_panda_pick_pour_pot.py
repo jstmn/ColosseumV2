@@ -155,7 +155,7 @@ class DualArmPourPotEnv(BaseEnv):
         offset = tray_pos - ball_pos
         in_tray = (torch.abs(offset[..., 1]) < DualArmPourPotEnv.tray_half_width) * (torch.abs(offset[..., 0]) < DualArmPourPotEnv.tray_half_length)
         success = (ball_pos[..., 2] >= 0.83) * (ball_pos[..., 2] < 0.9) * in_tray
-        print(success)
+        # print(success)
         return {"inside_tray": in_tray,"success": success}
     
     def compute_dense_reward(self, obs, action, info):

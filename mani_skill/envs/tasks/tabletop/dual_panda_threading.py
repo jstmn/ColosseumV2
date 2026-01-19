@@ -150,7 +150,7 @@ class DualPandaThreadingEnv(BaseEnv):
         is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
         success = is_near_plane * is_within_ring
         # print(distance_to_ring_center, needle_tip)
-        print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
+        # print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
         return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
     
     def _get_needle_direction_torch(self, quat):

@@ -120,7 +120,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         above_ground = box_pos[..., 2] > 0.9
         inside = torch.norm(box_pos[..., :2] - drawer_pos[..., :2]) < 0.25
         success = above_ground * inside
-        print(success)
+        # print(success)
         return {"above_ground": above_ground, "inside": inside, "success": success}
         
     def _get_obs_extra(self, info: dict):

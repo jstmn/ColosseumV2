@@ -1328,27 +1328,27 @@ class BimanualPlanner:
             print("[Screw] Falling back to constant velocity profile")
             
             # Create a simple time array assuming constant small time steps
-            n_steps = len(path)
-            # Assume each IK step takes 'time_step' seconds (e.g. 0.05s)
-            safe_dt = 0.05 
-            times = np.linspace(0, n_steps * safe_dt, n_steps)
+            # n_steps = len(path)
+            # # Assume each IK step takes 'time_step' seconds (e.g. 0.05s)
+            # safe_dt = 0.1
+            # times = np.linspace(0, n_steps * safe_dt, n_steps)
             
-            # Calculate simple finite difference velocities
-            vel = np.zeros_like(path)
-            vel[1:] = (path[1:] - path[:-1]) / safe_dt
+            # # Calculate simple finite difference velocities
+            # vel = np.zeros_like(path)
+            # vel[1:] = (path[1:] - path[:-1]) / safe_dt
             
-            # Zero acceleration (approximation)
-            acc = np.zeros_like(path)
+            # # Zero acceleration (approximation)
+            # acc = np.zeros_like(path)
             
-            return {
-                "status": "Success", # Return success so execution continues!
-                "time": times,
-                "position": path,
-                "velocity": vel,
-                "acceleration": acc,
-                "duration": times[-1],
-            }
-            
+            # return {
+            #     "status": "Success", # Return success so execution continues!
+            #     "time": times,
+            #     "position": path,
+            #     "velocity": vel,
+            #     "acceleration": acc,
+            #     "duration": times[-1],
+            # }
+            return {"status": "Success (No TOPP)", "position": path}
     # Helper methods for collision objects
     def update_point_cloud(self, pc, radius=1e-3):
         self.planning_world.update_point_cloud(pc, radius)
