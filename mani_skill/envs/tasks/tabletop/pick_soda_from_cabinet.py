@@ -290,12 +290,8 @@ The PickSodaFromCabinet-v1 environment requires the RoboCasa dataset.
 Expected location: {robocasa_data_path}
 Missing file: {cabinet_fixture_path}
 
-To download the dataset, run the following commands:
-    i) Locate the utils directory under maniskill folder.
-    ii) Find the download_asset.py file
-    iii) Run it as python3 download_asset.py RoboCasa
-    This should start the download.
-    
+To download the dataset, run `python mani_skill/utils/download_asset.py RoboCasa`
+
 After downloading, verify the path exists:
     ls -la {cabinet_fixture_path}
 

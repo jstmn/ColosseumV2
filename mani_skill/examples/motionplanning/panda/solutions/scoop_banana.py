@@ -2,13 +2,13 @@ import numpy as np
 import sapien
 import gymnasium as gym
 import time
-from mani_skill.envs.tasks.tabletop.scoop_particles import ScoopParticlesEnv
+from mani_skill.envs.tasks.tabletop.scoop_particles import ScoopBananaEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
 def main():
-    env: ScoopParticlesEnv = gym.make(
-        "ScoopParticles-v1",
+    env: ScoopBananaEnv = gym.make(
+        "ScoopBanana-v1",
         obs_mode="none",
         control_mode="pd_joint_pos",
         render_mode="rgb_array",
@@ -19,7 +19,7 @@ def main():
         print(res)
     env.close()
 
-def solve(env: ScoopParticlesEnv, seed=None, debug=False, vis=False):
+def solve(env: ScoopBananaEnv, seed=None, debug=False, vis=False):
     env.reset(seed=seed)
     planner = PandaArmMotionPlanningSolver(
         env,

@@ -16,8 +16,8 @@ from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 
 
-@register_env("ScoopParticles-v1", max_episode_steps=100)
-class ScoopParticlesEnv(BaseEnv):
+@register_env("ScoopBanana-v1", max_episode_steps=100)
+class ScoopBananaEnv(BaseEnv):
     """
     **Task Description**
     Take a dustpan and scoop a ball onto it.
@@ -95,7 +95,7 @@ class ScoopParticlesEnv(BaseEnv):
 
         # self.ball = actors.build_sphere(
         #     self.scene,
-        #     radius=ScoopParticlesEnv.ball_radius,
+        #     radius=ScoopBananaEnv.ball_radius,
         #     color=[0, 0.2, 0.8, 1],
         #     name="ball",
         #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
@@ -189,8 +189,8 @@ class ScoopParticlesEnv(BaseEnv):
         z_dist = ball_pos[..., 2] - dustpan_pos[..., 2]
         xy_dist = torch.linalg.norm(ball_pos[..., :2] - dustpan_pos[..., :2], dim=1)
         # Success condition - cube is pulled close enough
-        ball_z_close_flag = torch.logical_and(z_dist < ScoopParticlesEnv.ball_radius + 0.02, z_dist > 0.0)
-        ball_xy_close_flag = xy_dist < ScoopParticlesEnv.width * 1.414 / 2
+        ball_z_close_flag = torch.logical_and(z_dist < ScoopBananaEnv.ball_radius + 0.02, z_dist > 0.0)
+        ball_xy_close_flag = xy_dist < ScoopBananaEnv.width * 1.414 / 2
         ball_pulled_close = torch.logical_and(ball_z_close_flag, ball_xy_close_flag)
         # is_ball_static = self.ball.is_static(lin_thresh=1e-1, ang_thresh=0.5)
         # print(is_ball_static)
