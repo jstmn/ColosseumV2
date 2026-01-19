@@ -235,7 +235,6 @@ class PickDishFromRackEnv(BaseEnv):
         device = self.device
         with torch.device(device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
 
             # Get table top Z coordinate
             table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
@@ -252,6 +251,52 @@ class PickDishFromRackEnv(BaseEnv):
                 y_min, y_max = self._rack_y_ranges[range_idx]
                 rack_pos[i, 1] = torch.rand(1, device=device).item() * (y_max - y_min) + y_min
             rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
+
+            # Compute EE target position above rack center (for grasp approach)
+            # EE should be above the plate which is at rack center, at the top of the vertical plate
+            ee_target_x = rack_pos[0, 0].item()
+            ee_target_y = rack_pos[0, 1].item()
+            ee_target_z = table_top_z + self._plate_outer_radius * 2 + 0.25  # Above plate top + higher clearance
+
+            # Use IK to find qpos that places EE at target position
+            # Grasp pose: approaching from above (-Z), closing in Y direction
+            from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
+            import sapien
+
+            # Initialize table scene first with default qpos
+            self.table_scene.initialize(env_idx)
+
+            # Create a temporary planner to compute IK
+            try:
+                planner = PandaArmMotionPlanningSolver(
+                    self,
+                    debug=False,
+                    vis=False,
+                    base_pose=self.agent.robot.pose,
+                    visualize_target_grasp_pose=False,
+                    print_env_info=False,
+                )
+
+                # Build target pose above rack
+                approaching = np.array([0, 0, -1])
+                closing = np.array([0, 1, 0])
+                target_pos = np.array([ee_target_x, ee_target_y, ee_target_z])
+                target_pose = self.agent.build_grasp_pose(approaching, closing, target_pos)
+
+                # Compute IK
+                result = planner.planner.IK(target_pose, self.agent.robot.get_qpos()[0, :7].cpu().numpy())
+                if result["status"] == "Success":
+                    pregrasp_qpos = np.array(result["position"])
+                    # Add gripper open position
+                    pregrasp_qpos = np.append(pregrasp_qpos, [0.04, 0.04])
+                    # Re-initialize with computed qpos
+                    self.table_scene.initialize(env_idx, qpos_0=pregrasp_qpos)
+
+                planner.close()
+            except Exception as e:
+                # If IK fails, just use default initialization
+                pass
+
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
 

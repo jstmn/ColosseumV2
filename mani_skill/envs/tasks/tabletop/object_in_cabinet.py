@@ -114,21 +114,20 @@ def _get_handle_obb(handle_link):
 class ObjectInCabinetEnv(BaseEnv):
     """
     **Task Description:**
-    Open a cabinet door and place an apple inside using the Panda robot.
+    Open a cabinet door and place a banana inside using the Panda robot.
 
     **Randomizations:**
-    - Apple position is randomized on the table in front of the robot.
+    - Banana position is randomized on the table in front of the robot.
 
     **Success Conditions:**
-    - The apple is inside the cabinet
-    - The apple is static
-    - The robot is not grasping the apple
+    - The banana is inside the cabinet
+    - The banana is static
+    - The robot is not grasping the banana
     """
 
     SUPPORTED_ROBOTS = ["panda"]
     agent: Union[Panda]
 
-    APPLE_RADIUS = 0.04
     handle_types = ["revolute", "revolute_unwrapped"]
 
     TRAIN_JSON = (
@@ -141,25 +140,24 @@ class ObjectInCabinetEnv(BaseEnv):
         self,
         *args,
         robot_uids="panda",
-        robot_init_qpos_noise=0.02,  # Small noise like OpenCabinet
-        apple_model_id="013_apple",
+        robot_init_qpos_noise=0.0,  # No noise - using fixed qpos
+        object_model_id="011_banana",
         **kwargs,
     ):
         kwargs.pop("distraction_set", None)
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 1027
-        self.apple_model_id = apple_model_id
+        self.object_model_id = object_model_id
 
-        # Load YCB apple info
+        # Load YCB object info
         ycb_info = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
-        apple_meta = ycb_info[self.apple_model_id]
-        self.apple_scale = float(apple_meta["scales"][0])
-        self.apple_bbox_min = np.array(apple_meta["bbox"]["min"], dtype=np.float32)
-        self.apple_bbox_max = np.array(apple_meta["bbox"]["max"], dtype=np.float32)
-        apple_extents = (self.apple_bbox_max - self.apple_bbox_min) * self.apple_scale
-        self.apple_half_size = apple_extents / 2
-        self.apple_radius = float(max(self.apple_half_size[0], self.apple_half_size[1]))
-        self.apple_bottom_offset = float(-self.apple_bbox_min[2] * self.apple_scale)
+        obj_meta = ycb_info[self.object_model_id]
+        self.obj_scale = float(obj_meta["scales"][0])
+        self.obj_bbox_min = np.array(obj_meta["bbox"]["min"], dtype=np.float32)
+        self.obj_bbox_max = np.array(obj_meta["bbox"]["max"], dtype=np.float32)
+        obj_extents = (self.obj_bbox_max - self.obj_bbox_min) * self.obj_scale
+        self.obj_half_size = obj_extents / 2
+        self.obj_bottom_offset = float(-self.obj_bbox_min[2] * self.obj_scale)
 
         super().__init__(
             *args,
@@ -179,7 +177,7 @@ class ObjectInCabinetEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        # Camera from front-left to see robot, cabinet door, and apple
+        # Camera from front-left to see robot, cabinet door, and object
         pose = sapien_utils.look_at(eye=[-0.6, -0.6, 0.8], target=[0.0, 0.0, 0.2])
         return CameraConfig(
             "render_camera", pose=pose, width=512, height=512, fov=1.2, near=0.01, far=100
@@ -214,7 +212,7 @@ class ObjectInCabinetEnv(BaseEnv):
         sapien.set_log_level("warn")
         self._hidden_objects.append(self.handle_link_goal)
 
-        self._load_apple()
+        self._load_object()
 
     def _load_cabinets(self, joint_types: List[str]):
         link_ids = [0]
@@ -298,8 +296,8 @@ class ObjectInCabinetEnv(BaseEnv):
         self.add_to_state_dict_registry(merged)
         return merged
 
-    def _load_apple(self):
-        self.apple = self._build_ycb_actor(self.apple_model_id, "apple")
+    def _load_object(self):
+        self.obj = self._build_ycb_actor(self.object_model_id, "object")
 
     def _after_reconfigure(self, options):
         self.cabinet_zs = []
@@ -393,68 +391,22 @@ class ObjectInCabinetEnv(BaseEnv):
                 closing = _normalize(np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32))
                 center = handle_pos + approaching * grasp_backoff
 
-            # Default qpos as fallback
-            default_qpos = np.array([
-                -0.13595445, -1.2611351, 0.24094589, -2.9000182,
-                2.5728698, 3.0259767, 0.029944034, 0.04, 0.04
+            # Fixed pre-grasp qpos (robot and cabinet positions are fixed, so this is deterministic)
+            pregrasp_qpos = np.array([
+                -2.5732915, -0.6889829, 1.9453487, -2.5163524,
+                -2.704773, 1.5929992, 1.5251541, 0.04, 0.04
             ])
 
-            # First set up robot to build grasp pose
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=default_qpos)
+            # Initialize robot with fixed configuration
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=pregrasp_qpos)
             self.agent.robot.set_pose(robot_pose)
 
-            # Build grasp pose and pre-grasp pose (10cm back)
-            grasp_pose = self.agent.build_grasp_pose(approaching, closing, center)
-            reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
-
-            # Use IK to find qpos for pre-grasp pose
-            reach_pos = np.array(reach_pose.p)
-            reach_quat = np.array(reach_pose.q)
-            goal_pose = list(reach_pos) + list(reach_quat)
-
-            try:
-                import mplib
-                planner = mplib.Planner(
-                    urdf=self.agent.urdf_path,
-                    srdf=self.agent.urdf_path.replace(".urdf", ".srdf"),
-                    user_link_names=[link.get_name() for link in self.agent.robot.get_links()],
-                    user_joint_names=[j.get_name() for j in self.agent.robot.get_active_joints()],
-                    move_group="panda_hand_tcp",
-                )
-                base_pose_q = euler2quat(0, 0, robot_angle)
-                try:
-                    planner.set_base_pose(mplib.Pose(robot_base_pos, base_pose_q))
-                except (TypeError, AttributeError):
-                    base_pose_array = list(robot_base_pos) + list(base_pose_q)
-                    planner.set_base_pose(np.array(base_pose_array))
-
-                result = planner.plan_qpos_to_pose(
-                    goal_pose=np.array(goal_pose),
-                    current_qpos=default_qpos,
-                    time_step=1.0 / 20.0,
-                    wrt_world=True,
-                )
-
-                if result["status"] == "Success":
-                    arm_qpos = result["position"][-1]
-                    qpos_0 = np.concatenate([arm_qpos, [0.04, 0.04]])
-                else:
-                    qpos_0 = default_qpos
-            except Exception:
-                qpos_0 = default_qpos
-
-            # Set the robot qpos directly
-            qpos_tensor = torch.tensor(qpos_0, dtype=torch.float32, device=self.device).unsqueeze(0)
-            self.agent.robot.set_qpos(qpos_tensor)
-            self.agent.robot.set_qvel(qpos_tensor * 0)
-            self.agent.robot.set_pose(robot_pose)
-
-            # Place apple on table in reachable position
-            apple_xyz = torch.zeros((b, 3), device=self.device)
-            apple_xyz[:, 0] = -0.30 + torch.rand(b) * 0.10  # X: -0.30 to -0.20
-            apple_xyz[:, 1] = -0.15 - torch.rand(b) * 0.10  # Y: -0.15 to -0.25
-            apple_xyz[:, 2] = self.apple_bottom_offset
-            self.apple.set_pose(Pose.create_from_pq(p=apple_xyz))
+            # Place object on table in reachable position
+            obj_xyz = torch.zeros((b, 3), device=self.device)
+            obj_xyz[:, 0] = -0.40 + torch.rand(b) * 0.10  # X: -0.40 to -0.30
+            obj_xyz[:, 1] = -0.15 - torch.rand(b) * 0.10  # Y: -0.15 to -0.25
+            obj_xyz[:, 2] = self.obj_bottom_offset
+            self.obj.set_pose(Pose.create_from_pq(p=obj_xyz))
 
             if self.gpu_sim_enabled:
                 self.scene._gpu_apply_all()
@@ -477,37 +429,37 @@ class ObjectInCabinetEnv(BaseEnv):
             self.scene._gpu_apply_all()
 
     def evaluate(self):
-        pos_apple = self.apple.pose.p
+        pos_obj = self.obj.pose.p
         cabinet_pos = self.cabinet.pose.p
 
-        # Apple is in cabinet zone if it's near the cabinet and above table
-        # Wider zone (0.30) to account for robot reach limitations and apple rolling
-        is_near_cabinet_x = torch.abs(pos_apple[..., 0] - cabinet_pos[..., 0]) < 0.30
-        is_near_cabinet_y = torch.abs(pos_apple[..., 1] - cabinet_pos[..., 1]) < 0.30
-        is_above_table = pos_apple[..., 2] > 0.03  # Allow table placement
+        # Object is in cabinet zone if it's near the cabinet and above table
+        # Wider zone (0.30) to account for robot reach limitations
+        is_near_cabinet_x = torch.abs(pos_obj[..., 0] - cabinet_pos[..., 0]) < 0.30
+        is_near_cabinet_y = torch.abs(pos_obj[..., 1] - cabinet_pos[..., 1]) < 0.30
+        is_above_table = pos_obj[..., 2] > 0.03  # Allow table placement
 
-        is_apple_in_cabinet = is_near_cabinet_x & is_near_cabinet_y & is_above_table
-        is_apple_static = self.apple.is_static(lin_thresh=1e-2, ang_thresh=0.5)
-        is_apple_grasped = self.agent.is_grasping(self.apple)
+        is_obj_in_cabinet = is_near_cabinet_x & is_near_cabinet_y & is_above_table
+        is_obj_static = self.obj.is_static(lin_thresh=1e-2, ang_thresh=0.5)
+        is_obj_grasped = self.agent.is_grasping(self.obj)
 
-        # Door must be at least 80% open (of target, which is 50% of full range)
-        # This means door must stay open once it passes 80% threshold
+        # Door must be at least 45% open (of target, which is 50% of full range)
+        # This means ~22.5% of full range
         door_qpos = self.handle_link.joint.qpos
         if door_qpos.ndim > 1:
             door_qpos = door_qpos.squeeze(-1)
-        door_open_enough = door_qpos >= self.target_qpos * 0.8  # 80% of target (which is 50% of full range = 40% of full)
+        door_open_enough = door_qpos >= self.target_qpos * 0.45  # 45% of target (which is 50% of full range = ~22.5% of full)
 
         # Success requires:
-        # 1. Apple placed in cabinet zone
-        # 2. Apple is static
-        # 3. Robot is not grasping apple
+        # 1. Object placed in cabinet zone
+        # 2. Object is static
+        # 3. Robot is not grasping object
         # 4. Door must remain open (>80% of target opening)
-        success = is_apple_in_cabinet & is_apple_static & (~is_apple_grasped) & door_open_enough
+        success = is_obj_in_cabinet & is_obj_static & (~is_obj_grasped) & door_open_enough
 
         return {
-            "is_apple_grasped": is_apple_grasped,
-            "is_apple_in_cabinet": is_apple_in_cabinet,
-            "is_apple_static": is_apple_static,
+            "is_obj_grasped": is_obj_grasped,
+            "is_obj_in_cabinet": is_obj_in_cabinet,
+            "is_obj_static": is_obj_static,
             "door_open_enough": door_open_enough,
             "door_qpos": door_qpos,
             "target_qpos": self.target_qpos,
@@ -519,8 +471,8 @@ class ObjectInCabinetEnv(BaseEnv):
         obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         if "state" in self.obs_mode:
             obs.update(
-                apple_pose=self.apple.pose.raw_pose,
-                tcp_to_apple_pos=self.apple.pose.p - self.agent.tcp.pose.p,
+                obj_pose=self.obj.pose.raw_pose,
+                tcp_to_obj_pos=self.obj.pose.p - self.agent.tcp.pose.p,
                 tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
                 target_link_qpos=self.handle_link.joint.qpos,
                 target_handle_pos=info["handle_link_pos"],
@@ -531,17 +483,17 @@ class ObjectInCabinetEnv(BaseEnv):
         reward = torch.zeros(self.num_envs, device=self.device)
 
         tcp_pos = self.agent.tcp.pose.p
-        apple_pos = self.apple.pose.p
+        obj_pos = self.obj.pose.p
 
         # Door opening reward
         door_progress = self.handle_link.joint.qpos / (self.target_qpos + 1e-6)
         door_reward = torch.clamp(door_progress.squeeze(-1), 0, 1)
         reward += door_reward
 
-        # Reaching reward for apple
-        tcp_to_apple_dist = torch.linalg.norm(tcp_pos - apple_pos, axis=1)
-        reaching_reward = 1 - torch.tanh(5 * tcp_to_apple_dist)
-        is_grasping = info["is_apple_grasped"]
+        # Reaching reward for object
+        tcp_to_obj_dist = torch.linalg.norm(tcp_pos - obj_pos, axis=1)
+        reaching_reward = 1 - torch.tanh(5 * tcp_to_obj_dist)
+        is_grasping = info["is_obj_grasped"]
         reaching_reward[is_grasping] = 1.0
         reward += reaching_reward
 

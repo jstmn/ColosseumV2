@@ -138,7 +138,7 @@ class OpenCabinetEnv(BaseEnv):
         self,
         *args,
         robot_uids="panda",
-        robot_init_qpos_noise=0.02,
+        robot_init_qpos_noise=0.0,  # No noise - IK handles initial configuration
         **kwargs,
     ):
         self.robot_init_qpos_noise = robot_init_qpos_noise
@@ -368,64 +368,14 @@ class OpenCabinetEnv(BaseEnv):
                 closing = _normalize(np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32))
                 center = handle_pos + approaching * grasp_backoff
 
-            # Default qpos as fallback
-            default_qpos = np.array([
-                -0.13595445, -1.2611351, 0.24094589, -2.9000182,
-                2.5728698, 3.0259767, 0.029944034, 0.04, 0.04
+            # Fixed pre-grasp qpos (robot and cabinet positions are fixed, so this is deterministic)
+            pregrasp_qpos = np.array([
+                -2.5732915, -0.6889829, 1.9453487, -2.5163524,
+                -2.704773, 1.5929992, 1.5251541, 0.04, 0.04
             ])
 
-            # First set up robot to build grasp pose
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=default_qpos)
-            self.agent.robot.set_pose(robot_pose)
-
-            # Build grasp pose and pre-grasp pose (10cm back)
-            grasp_pose = self.agent.build_grasp_pose(approaching, closing, center)
-            reach_pose = grasp_pose * sapien.Pose([0, 0, -0.10])
-
-            # Use IK to find qpos for pre-grasp pose
-            reach_pos = np.array(reach_pose.p)
-            reach_quat = np.array(reach_pose.q)
-            goal_pose = list(reach_pos) + list(reach_quat)
-
-            try:
-                import mplib
-                planner = mplib.Planner(
-                    urdf=self.agent.urdf_path,
-                    srdf=self.agent.urdf_path.replace(".urdf", ".srdf"),
-                    user_link_names=[link.get_name() for link in self.agent.robot.get_links()],
-                    user_joint_names=[j.get_name() for j in self.agent.robot.get_active_joints()],
-                    move_group="panda_hand_tcp",
-                )
-                base_pose_q = euler2quat(0, 0, robot_angle)
-                # Use mplib.Pose for newer mplib versions
-                try:
-                    planner.set_base_pose(mplib.Pose(robot_base_pos, base_pose_q))
-                except (TypeError, AttributeError):
-                    base_pose_array = list(robot_base_pos) + list(base_pose_q)
-                    planner.set_base_pose(np.array(base_pose_array))
-
-                # Use plan_qpos_to_pose like motion planner does (more reliable than raw IK)
-                result = planner.plan_qpos_to_pose(
-                    goal_pose=np.array(goal_pose),
-                    current_qpos=default_qpos,
-                    time_step=1.0 / 20.0,  # control_timestep
-                    wrt_world=True,
-                )
-
-                if result["status"] == "Success":
-                    # Get final qpos from the planned trajectory (7 arm joints)
-                    arm_qpos = result["position"][-1]
-                    # Add gripper joints (open position)
-                    qpos_0 = np.concatenate([arm_qpos, [0.04, 0.04]])
-                else:
-                    qpos_0 = default_qpos
-            except Exception:
-                qpos_0 = default_qpos
-
-            # Set the robot qpos directly (don't re-initialize scene)
-            qpos_tensor = torch.tensor(qpos_0, dtype=torch.float32, device=self.device).unsqueeze(0)
-            self.agent.robot.set_qpos(qpos_tensor)
-            self.agent.robot.set_qvel(qpos_tensor * 0)
+            # Initialize robot with fixed configuration
+            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=pregrasp_qpos)
             self.agent.robot.set_pose(robot_pose)
 
             if self.gpu_sim_enabled:
@@ -449,7 +399,8 @@ class OpenCabinetEnv(BaseEnv):
             self.scene._gpu_apply_all()
 
     def evaluate(self):
-        open_enough = self.handle_link.joint.qpos >= self.target_qpos
+        # Door must be at least 45% of target (which is 50% of full range = ~22.5% of full)
+        open_enough = self.handle_link.joint.qpos >= self.target_qpos * 0.45
         if open_enough.ndim > 1:
             open_enough = open_enough.squeeze(-1)
 

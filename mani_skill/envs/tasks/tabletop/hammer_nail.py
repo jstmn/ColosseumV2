@@ -630,9 +630,14 @@ class HammerNailEnv(BaseEnv):
             # Add randomization: ±0.03m in X, ±0.03m in Y
             hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
             hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
-            # Randomize hammer yaw (rotation around Z axis)
+            # Randomize hammer yaw (rotation around Z axis) between 0 and 90 degrees
             base_hammer_q = self._hammer_orientation.to(self.device).unsqueeze(0).repeat(b, 1)
-            random_yaw_q = random_quaternions(b, device=self.device, lock_x=True, lock_y=True)
+            # Random angle between 0 and 90 degrees (0 to pi/2 radians)
+            random_yaw_angle = torch.rand(b, device=self.device) * (torch.pi / 2)
+            # Quaternion for Z rotation: [cos(θ/2), 0, 0, sin(θ/2)] in wxyz format
+            random_yaw_q = torch.zeros((b, 4), device=self.device)
+            random_yaw_q[:, 0] = torch.cos(random_yaw_angle / 2)  # w
+            random_yaw_q[:, 3] = torch.sin(random_yaw_angle / 2)  # z
             hammer_q = quaternion_multiply(base_hammer_q, random_yaw_q)
             hammer_pose = Pose.create_from_pq(p=hammer_pos, q=hammer_q)
             self.hammer.set_pose(hammer_pose)

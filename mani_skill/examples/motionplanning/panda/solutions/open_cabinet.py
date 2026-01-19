@@ -139,9 +139,9 @@ def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> n
 
 
 def _open_cabinet_with_planner(
-    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver
+    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver, debug: bool = False
 ):
-    """Execute motion plan to open the cabinet door in a smooth, single motion."""
+    """Execute motion plan to open the cabinet door using screw motion only."""
     env_sim = env.unwrapped
 
     # Get handle and joint information
@@ -154,7 +154,8 @@ def _open_cabinet_with_planner(
     # Print initial EE-to-handle distance
     ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
     ee_handle_dist = np.linalg.norm(ee_pos - handle_pos)
-    print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
+    if debug:
+        print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
 
     # Get handle oriented bounding box for precise grasp
     handle_obb = _get_handle_obb(env_sim.handle_link)
@@ -198,22 +199,20 @@ def _open_cabinet_with_planner(
     ee_pos = env_sim.agent.tcp_pose.p[0].cpu().numpy()
     reach_pos = np.array(reach_pose.p)
     if np.linalg.norm(ee_pos - reach_pos) > 0.02:  # only move if > 2cm away
-        res = planner.move_to_pose_with_RRTConnect(reach_pose)
+        res = planner.move_to_pose_with_screw(reach_pose)
         if res == -1:
-            res = planner.move_to_pose_with_screw(reach_pose)
-        if res == -1:
-            print("Failed to reach pre-grasp pose")
+            if debug:
+                print("Failed to reach pre-grasp pose")
             planner.close()
             return -1
 
     # Phase 2: Move to grasp position
     res = planner.move_to_pose_with_screw(grasp_pose)
     if res == -1:
-        res = planner.move_to_pose_with_RRTConnect(grasp_pose)
-    if res == -1:
-        print("Failed to reach grasp pose")
+        if debug:
+            print("Failed to reach grasp pose")
         planner.close()
-        return res
+        return -1
 
     # Phase 3: Grasp the handle
     planner.close_gripper()
@@ -261,7 +260,7 @@ def _open_cabinet_with_planner(
             approach_rot, closing_rot, target_handle + approach_rot * grasp_backoff
         )
 
-        # Try different pull-back distances with screw motion (preferred for smooth arc)
+        # Try different pull-back distances with screw motion only
         res = -1
         for pull_back in pull_offsets:
             pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
@@ -271,21 +270,10 @@ def _open_cabinet_with_planner(
                 consecutive_failures = 0
                 break
 
-        # If screw fails, try RRT (less smooth but may find path)
-        if res == -1:
-            for pull_back in pull_offsets:
-                pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
-                res = planner.move_to_pose_with_RRTConnect(pull_pose)
-                if res != -1:
-                    current_angle = target_angle
-                    consecutive_failures = 0
-                    break
-
         if res == -1:
             consecutive_failures += 1
-            # Try smaller step if having trouble
+            # If too many failures, check if we've opened enough and stop
             if consecutive_failures >= max_failures:
-                # Try to continue from actual current position
                 handle_pos0 = env_sim.handle_link_positions()[0].cpu().numpy()
                 qpos = env_sim.handle_link.joint.qpos
                 qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
@@ -309,13 +297,19 @@ def _open_cabinet_with_planner(
     # Retreat from current position
     tcp_pose = env_sim.agent.tcp_pose.sp
     retreat_pose = tcp_pose * sapien.Pose([0, 0, -0.10])
-    res = planner.move_to_pose_with_RRTConnect(retreat_pose)
+    res = planner.move_to_pose_with_screw(retreat_pose)
+    if res == -1:
+        if debug:
+            print("Failed to retreat after opening door")
+        planner.close()
+        return -1
 
     # Final status
     qpos = env_sim.handle_link.joint.qpos
     final_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     open_frac = (final_qpos - qmin) / (qmax - qmin) if abs(qmax - qmin) > 1e-6 else 0.0
-    print(f"Cabinet opened to {open_frac*100:.1f}% (qpos={final_qpos:.3f}, target={target_qpos:.3f})")
+    if debug:
+        print(f"Cabinet opened to {open_frac*100:.1f}% (qpos={final_qpos:.3f}, target={target_qpos:.3f})")
 
     return res
 
@@ -336,6 +330,6 @@ def solve(env: OpenCabinetEnv, seed=None, debug=False, vis=False):
         visualize_target_grasp_pose=vis,
         print_env_info=False,
     )
-    res = _open_cabinet_with_planner(env, planner)
+    res = _open_cabinet_with_planner(env, planner, debug=debug)
     planner.close()
     return res
