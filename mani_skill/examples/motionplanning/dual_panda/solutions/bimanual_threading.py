@@ -84,7 +84,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         closing, center = grasp_info["closing"], grasp_info["center"]
         grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.needle.pose.sp.p)
-        grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0.02,0,0.04])
+        grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0.03,0,0.04])
         result = planner.move_to_pose_with_screw(
             grasp_1_pose,  # left
             arm_index=1
@@ -113,16 +113,25 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         lift_1_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.1])
         planner.close_gripper(arm_index=1, t=10)
         grasp_2_pose = env.agent.build_grasp_pose(approaching, closing, env.ring_tripod.pose.sp.p)
-        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,-0.05,-0.1])
+        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,-0.05,-0.15])
         grasp_2_pose.q = [0,0,0.707,-0.707]
-        result = planner.move_to_pose_pair_with_RRTConnect(
-            grasp_2_pose,
-            lift_1_pose
+        result = planner.move_to_pose_with_screw(
+            lift_1_pose,
+            arm_index=1
         )
         if result==-1:
             print("Failed grasp_approach")
             return result
-        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,0,0.07])
+                
+        # result = planner.move_arm_to_pose_with_RRTConnect(
+        #     grasp_2_pose,
+        #     arm_index=2
+        # )
+        # if result==-1:
+        #     print("Failed grasp_approach")
+        #     return result
+        
+        grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,0,0.12])
         result = planner.move_to_pose_with_screw(
             grasp_2_pose,
             arm_index=2
@@ -134,13 +143,14 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         
         lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186],q=[0,0,0.707,-0.707])
         lift_2_pose = lift_2_pose*sapien.Pose(p=[0,0.0,-0.03])
-        lift_1_pose = sapien.Pose(p=[-0.287, -0.011, 1.36], q=[0.707,-0.707,0,0])
+        lift_1_pose = sapien.Pose(p=[-0.24, -0.011, 1.36], q=[0.707,-0.707,0,0])
         lift_1_approach_pose = lift_1_pose*sapien.Pose(p=[-0.4,0,0])
         
         result = planner.move_to_pose_with_screw(
             lift_1_approach_pose,
             arm_index=1
         )
+        
         if result==-1:
             print("Failed grasp_approach")
             return result
@@ -152,7 +162,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         if result==-1:
             print("Failed grasp_approach")
             return result
-        
+
         result = planner.move_to_pose_with_screw(
             lift_1_pose,
             arm_index=1
@@ -160,7 +170,12 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         if result==-1:
             print("Failed grasp_approach")
             return result
-        planner.render_wait()
+        # planner.render_wait()
+        viewer = planner.base_env.render_human()
+        while True:
+            if viewer.window.key_down("c"):
+                break
+            planner.base_env.render_human()
         
         return result
     except Exception as e:
