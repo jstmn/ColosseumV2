@@ -117,6 +117,11 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         grasp_2_approach_pose,
         grasp_1_approach_pose  # left
     )
+    # viewer = planner.base_env.render_human()
+    # while True:
+    #     if viewer.window.key_down("c"):
+    #         break
+    #     planner.base_env.render_human()
 
     if res==-1:
         print("Failed grasp_approach")

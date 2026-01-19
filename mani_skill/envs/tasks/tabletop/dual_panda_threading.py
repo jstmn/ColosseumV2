@@ -75,8 +75,8 @@ class DualPandaThreadingEnv(BaseEnv):
             b = len(env_idx)
             xyz = torch.zeros((b, 3))
             xyz[..., :2] = torch.rand((b, 2)) * 0.2
-            xyz[..., 0] = xyz[..., 0] - 0.1
-            xyz[..., 1] = xyz[..., 1] + 0.1
+            xyz[..., 0] = xyz[..., 0]
+            xyz[..., 1] = xyz[..., 1] - 0.1
             xyz[..., 2] = 0.9
             theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
             for i in range(b):
@@ -90,12 +90,15 @@ class DualPandaThreadingEnv(BaseEnv):
                 self.ring_tripod.set_pose(init_pose_sapien)
                 
             xyz[..., :2] = torch.rand((b, 2)) * 0.3 - 0.4
+            xyz[..., 1] += 0.1
             xyz[..., 2]=0.85
+            
             # theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
             # self.needle.set_pose(sapien.Pose(p=list(xyz[0]), q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))]))
             self.needle.set_pose(sapien.Pose(p=list(xyz[0])))
             # self.ring_tripod.set_pose(sapien.Pose(p=[0.3, 0.0, 0.9]))
-    
+        self._initialize_agent()
+        
     def evaluate(self):
         """
         Evaluate if the needle is successfully threaded through the ring.
@@ -150,7 +153,7 @@ class DualPandaThreadingEnv(BaseEnv):
         is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
         success = is_near_plane * is_within_ring
         # print(distance_to_ring_center, needle_tip)
-        print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
+        # print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
         return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
     
     def _get_needle_direction_torch(self, quat):
@@ -180,7 +183,7 @@ class DualPandaThreadingEnv(BaseEnv):
 
     def _initialize_agent(self):
         """Reset the dual panda arms to a neutral position."""
-        qpos = np.zeros(self.agent.robot.dof)
+        qpos = np.array([1.873, -1.094, 0.142, -0.935, -0.409, -2.296, -2.725, -2.236, 0.202, -2.214, 2.852, 1.062, 2.057, -1.205, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
     
     def _get_obs_extra(self, info: dict):

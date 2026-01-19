@@ -88,10 +88,11 @@ class DualArmDrawerOpenEnv(BaseEnv):
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
             self.open_cabinet.set_qvel(np.zeros(self.open_cabinet.dof))
+        self._initialize_agent()
         
     def _initialize_agent(self):
         # Reset the robot to a neutral position
-        qpos = np.zeros(self.agent.robot.dof)
+        qpos = np.array([1.683, 1.357, 0.284, 0.393, -0.103, 0.249, -1.529, -2.074, -1.497, 1.647, 1.409, 1.758, -2.106, -0.114, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
 
     def evaluate(self):
@@ -102,7 +103,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
         drawer_2_open = pose_2[..., 0] < -0.07
         
         success = drawer_1_open * drawer_2_open
-        print(success)
+        # print(success)
         return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
     
     def _get_obs_extra(self, info: dict):

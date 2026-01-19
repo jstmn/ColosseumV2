@@ -163,7 +163,7 @@ class ScoopParticlesEnv(BaseEnv):
             ball_pose = Pose.create_from_pq(p=ball_xyz, q=torch.tensor([1, 0, 0, 0], dtype=torch.float32))
             self.ball.set_pose(ball_pose)
             wall_xyz = torch.zeros((b, 3), device=self.device)
-            wall_xyz[..., 0] = ball_xyz[..., 0] + 0.1
+            wall_xyz[..., 0] = ball_xyz[..., 0] + 0.15
             wall_xyz[..., 1] = ball_xyz[..., 1]
             wall_xyz[..., 2] = 0.1
             self.wall.set_pose(Pose.create_from_pq(p=wall_xyz, q=torch.tensor([0.7071, 0, 0, 0.7071], dtype=torch.float32)))

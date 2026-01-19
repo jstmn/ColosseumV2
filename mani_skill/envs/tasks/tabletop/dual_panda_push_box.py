@@ -190,7 +190,7 @@ class DualPandaPushBoxEnv(BaseEnv):
         overlap_pct = self.calculate_rectangle_overlap_percentage(rect1, rect2)
         
         if overlap_pct > threshold:
-            print(f"⚠ Overlap detected: {overlap_pct:.2f}% > {threshold}% threshold - STOPPING")
+            # print(f"⚠ Overlap detected: {overlap_pct:.2f}% > {threshold}% threshold - STOPPING")
             return True
         
         return False
@@ -232,7 +232,7 @@ class DualPandaPushBoxEnv(BaseEnv):
         
         # Calculate and display overlap
         box_goal_overlap = self.calculate_rectangle_overlap_percentage(box_rect, goal_rect)
-        print(f"Box-Goal overlap: {box_goal_overlap:.2f}%")
+        # print(f"Box-Goal overlap: {box_goal_overlap:.2f}%")
         
         # Check if overlap exceeds 50% threshold and stop if needed
         if self.check_overlap_and_stop(box_rect, goal_rect, threshold=50.0):

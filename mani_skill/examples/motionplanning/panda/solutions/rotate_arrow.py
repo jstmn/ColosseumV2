@@ -63,7 +63,7 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     count = 0
     while(np.dot(arrow_x_axis, arrow_init_x_axis) > -0.95): # while angle < 170 degrees
         count += 1
-        if count > 300:
+        if count > 20:
             return -1
         # z_rot = env.quat_to_z_euler(env.arrow.pose.q)
         # reach_pose_1 = reach_pose_1 * sapien.Pose([0, 0.01, 0]) # 15 cm above grasp pose
