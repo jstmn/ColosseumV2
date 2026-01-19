@@ -39,8 +39,8 @@ class RotateArrowEnv(BaseEnv):
     arrow_spawnbox_ylength = 0.2
 
     # translation of the spawnbox from goal tee as upper left of spawnbox
-    arrow_spawnbox_xoffset = -0.3
-    arrow_spawnbox_yoffset = -0.05
+    arrow_spawnbox_xoffset = -0.4
+    arrow_spawnbox_yoffset = -0.3
     #  end randomizations - rotation around z is simply uniform
 
     _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"

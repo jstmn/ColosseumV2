@@ -123,13 +123,18 @@ class PickSodaFromCabinetEnv(BaseEnv):
             body_type="static",
             initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
         )
-        self.soda = self.load_glb_as_actor(self.scene, 
-                                             os.path.join(PACKAGE_ASSET_DIR,"place_soda_in_cabinet/opened_soda_can.glb"),
-                                            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-                                            name="soda_can",
-                                            scale=[0.04,0.04,0.04],
+        # self.soda = self.load_glb_as_actor(self.scene, 
+        #                                      os.path.join(PACKAGE_ASSET_DIR,"place_soda_in_cabinet/opened_soda_can.glb"),
+        #                                     sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
+        #                                     name="soda_can",
+        #                                     scale=[0.04,0.04,0.04],
 
-                                            type="dynamic")
+        #                                     type="dynamic")
+        
+        builder = actors.get_actor_builder(self.scene, "ycb:002_master_chef_can")
+        builder.initial_pose = sapien.Pose(p=[0, 0, 0])
+        self.soda = builder.build_dynamic(name="ball")
+
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
@@ -154,7 +159,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.405
             # xy = torch.rand((b, 2)) * 0.2 - 0.1
-            region = [[0.08, -0.26],[0.162, 0.12]]
+            region = [[0.13, -0.26],[0.162, 0.12]]
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )
@@ -171,7 +176,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # )
             # [0.854,0.471,0.212,0.068] - q for sleeping book
             # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
-            self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.0, 0, 0.7071, 0.7071]).repeat(b,1)))
+            self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([1, 0, 0, 0]).repeat(b,1)))
             self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
@@ -204,7 +209,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
 
         # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
-        print(self.soda.pose.p)
+        # print(self.soda.pose.p)
         is_soda_on_table = self.soda.pose.p[0][2] < 0.1
         success = is_soda_static * (is_soda_on_table)
         return {

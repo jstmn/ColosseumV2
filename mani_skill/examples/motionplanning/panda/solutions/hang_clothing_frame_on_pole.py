@@ -85,7 +85,7 @@ def solve(env: HangClothingFrameOnPoleEnv, seed=None, debug=False, vis=False):
     # Rotation about the z axis by 180 (world coordinates)
     # -------------------------------------------------------------------------- #
     # theta = np.pi/2
-    theta = np.pi/2
+    theta = np.pi
     R_world_z = np.array([
         [np.cos(theta), -np.sin(theta), 0],
         [np.sin(theta), np.cos(theta), 0],
