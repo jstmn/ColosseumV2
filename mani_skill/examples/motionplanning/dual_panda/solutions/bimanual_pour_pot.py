@@ -146,8 +146,8 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         print("\n5. Lifting...")
         
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.05), 0, 0, np.sin(-np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.05), 0, 0, np.sin(np.pi/2.1)])
+        lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.05), 0, 0, np.sin(-np.pi/2.05)])
+        lift_2 = lift_2*sapien.Pose(q=[np.cos(np.pi/2.05), 0, 0, np.sin(np.pi/2.05)])
         
         result = planner.move_to_pose_pair_with_screw(
             lift_2,  # left
@@ -159,8 +159,8 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
             print("Failed to lift")
             return result
         
-        lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.1), 0, 0, np.sin(np.pi/2.1)])
-        lift_2 = lift_2*sapien.Pose(q=[np.cos(-np.pi/2.1), 0, 0, np.sin(-np.pi/2.1)])
+        lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.05), 0, 0, np.sin(np.pi/2.05)])
+        lift_2 = lift_2*sapien.Pose(q=[np.cos(-np.pi/2.05), 0, 0, np.sin(-np.pi/2.05)])
         
         result = planner.move_to_pose_pair_with_screw(
             lift_2,  # left

@@ -91,7 +91,14 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     if res==-1:
         print("Failed grasp_approach")
         return res
-    grasp_pose = grasp_pose*sapien.Pose(p=[0.14,0,0.00])
+    
+    # viewer = planner.base_env.render_human()
+    # while True:
+    #     if viewer.window.key_down("c"):
+    #         break
+    #     planner.base_env.render_human()
+        
+    grasp_pose = grasp_pose*sapien.Pose(p=[0.13,0,0.00])
     grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
     res = planner.move_to_pose_with_screw(
         grasp_pose,  # left

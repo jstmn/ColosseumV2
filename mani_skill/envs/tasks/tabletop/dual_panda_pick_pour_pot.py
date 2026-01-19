@@ -108,14 +108,15 @@ class DualArmPourPotEnv(BaseEnv):
             xyz[..., 0] = -0.2
             xyz[..., 2] = 0.83 + self.cube_half_size
             self.tray.set_pose(Pose.create_from_pq(p=xyz, q=[0.5, 0.5, 0.5, 0.5]))
-
+        self._initialize_agent()
+        
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
         # You can define a custom "qpos" (joint positions) here if you want.
         # 0-6: Left Arm, 7-8: Left Gripper, 9-15: Right Arm, 16-17: Right Gripper
-        qpos = np.zeros(self.agent.robot.dof)
-        
+        # qpos = np.zeros(self.agent.robot.dof)
+        qpos = np.array([0.599, 2.358, 0.4, 0.442, -0.561, 0.697, -2.511, -2.513, 1.695, -1.775, 1.395, 1.347, -0.479, 2.031, 0.04, 0.04, 0.04, 0.04])
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
         # qpos[9] = -0.5 # Move right shoulder
