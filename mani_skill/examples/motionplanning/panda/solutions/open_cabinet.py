@@ -222,8 +222,8 @@ def _open_cabinet_with_planner(
     current_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
 
-    # Target: use provided target_frac or default to 0.55
-    frac = target_frac if target_frac is not None else 0.55
+    # Target: use provided target_frac or default to 0.25
+    frac = target_frac if target_frac is not None else 0.25
     target_qpos = qmin + frac * abs(qmax - qmin)
 
     # Phase 4: Open the door by following an arc
@@ -280,8 +280,8 @@ def _open_cabinet_with_planner(
                 qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
                 current_angle = qpos_val - current_qpos
                 consecutive_failures = 0
-                # If we've opened past 85%, we can stop
-                if qpos_val >= qmin + 0.85 * abs(qmax - qmin):
+                # If we've opened past 65%, we can stop
+                if qpos_val >= qmin + 0.65 * abs(qmax - qmin):
                     break
 
         # Check current door opening
