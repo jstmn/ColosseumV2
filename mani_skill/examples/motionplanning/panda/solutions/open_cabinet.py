@@ -139,7 +139,7 @@ def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> n
 
 
 def _open_cabinet_with_planner(
-    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver, debug: bool = False
+    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver, debug: bool = False, target_frac: float = None
 ):
     """Execute motion plan to open the cabinet door using screw motion only."""
     env_sim = env.unwrapped
@@ -222,8 +222,9 @@ def _open_cabinet_with_planner(
     current_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
 
-    # Target: open to 90% of max range for >80% success criterion
-    target_qpos = qmin + 0.90 * abs(qmax - qmin)
+    # Target: use provided target_frac or default to 0.55
+    frac = target_frac if target_frac is not None else 0.55
+    target_qpos = qmin + frac * abs(qmax - qmin)
 
     # Phase 4: Open the door by following an arc
     # Record initial handle position for arc calculation

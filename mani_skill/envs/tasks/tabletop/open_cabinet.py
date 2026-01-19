@@ -132,7 +132,7 @@ class OpenCabinetEnv(BaseEnv):
     CABINET_X_LIMS = [0.15, 0.22]
     CABINET_Y_LIMS = [0.0, 0.08]  # Shifted positive to match angled robot
 
-    min_open_frac = 0.5
+    min_open_frac = 0.45
 
     def __init__(
         self,
