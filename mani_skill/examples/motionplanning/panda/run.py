@@ -12,7 +12,7 @@ import os.path as osp
 import mani_skill.envs
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveOpenCabinet, solveObjectInCabinet
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveOpenCabinet, solveObjectInCabinet, solvePickCubeFromDrawer
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
@@ -42,6 +42,7 @@ MP_SOLUTIONS = {
     "RotateArrow-v1": solveRotateArrow,
     "ScoopBanana-v1": solveScoopBanana,
     "PickBananaFromOpenDrawer-v1": solvePickBananaFromOpenDrawer,    # new
+    "PickCubeFromDrawer-v1": solvePickCubeFromDrawer,              # new
     "PickLightbulbPlaceSocket-v1": solvePickLightbulbPlaceSocket, #new
     "PlaceAppleOnPlate-v1": solvePlaceAppleOnPlate, # new
     "CookItemInPan-v1": solveCookItemInPan,
