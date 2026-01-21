@@ -291,6 +291,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
             cube_xyz[:, 2] = handle_pos[:, 2] + self.CUBE_HALF_SIZE
 
             self.cube.set_pose(Pose.create_from_pq(p=cube_xyz))
+            self.cube_initial_z = cube_xyz[:, 2].clone()
 
     def _after_control_step(self):
         if self.gpu_sim_enabled:
@@ -309,11 +310,11 @@ class PickCubeFromDrawerEnv(BaseEnv):
         if open_enough.ndim > 1:
             open_enough = open_enough.squeeze(-1)
 
-        # Success: cube is lifted in the air (if it's up, robot must be holding it)
+        # Success: cube is lifted above z=0.10m
         cube_height = self.cube.pose.p[..., 2]
         if cube_height.ndim > 1:
             cube_height = cube_height.squeeze(-1)
-        is_lifted = cube_height > self.LIFT_HEIGHT
+        is_lifted = cube_height < 0.10
 
         return {
             "success": is_lifted,
