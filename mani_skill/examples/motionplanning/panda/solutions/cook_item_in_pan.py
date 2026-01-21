@@ -39,11 +39,21 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
             if vis:
                 env_sim.render_human()
 
-    def move_to_pose(target_pose):
-        res = planner.move_to_pose_with_RRTConnect(target_pose)
-        if res == -1:
-            return -1
-        return res
+    def move_to_pose(target_pose, use_screw=False, max_retries=3):
+        for attempt in range(max_retries):
+            if use_screw:
+                res = planner.move_to_pose_with_screw(target_pose)
+            else:
+                res = planner.move_to_pose_with_RRTConnect(target_pose)
+            if res != -1:
+                return res
+            # Retry with screw as fallback on RRT failure
+            if not use_screw and attempt < max_retries - 1:
+                print(f"RRT failed, retrying with screw motion (attempt {attempt + 2})")
+                res = planner.move_to_pose_with_screw(target_pose)
+                if res != -1:
+                    return res
+        return -1
 
     # Get positions at start
     pan_pos = env_sim.pan.pose.p[0].cpu().numpy()
@@ -61,13 +71,7 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     # Target the near rim for easy grasp
     rim_pos = np.array([-0.10, 0.17, 0.15])  # near rim, above
 
-    target_pose = env_sim.agent.build_grasp_pose(approaching, closing, rim_pos)
-
-    # Move above the rim
-    res = move_to_pose(target_pose)
-    if res == -1:
-        planner.close()
-        return res
+    # Robot already starts at pregrasp pose (above rim), skip first motion
 
     # Lower straight down to grasp the rim
     grasp_pos = rim_pos.copy()
@@ -174,9 +178,9 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
         planner.close()
         return res
 
-    # Lower apple into pan
+    # Lower apple into pan - use higher z to avoid collision with pan rim
     place_apple_pos = above_pan_pos.copy()
-    place_apple_pos[2] = 0.08  # into pan
+    place_apple_pos[2] = 0.12  # higher to clear pan rim
     place_apple_pose = env_sim.agent.build_grasp_pose(approaching, closing, place_apple_pos)
     res = move_to_pose(place_apple_pose)
     if res == -1:
@@ -186,25 +190,27 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     # Release apple
     planner.open_gripper()
 
-    # Just rise straight up
+    # Rise straight up using screw motion (smoother than RRT)
     rise_up = place_apple_pos.copy()
     rise_up[2] += 0.15
     rise_pose = env_sim.agent.build_grasp_pose(approaching, closing, rise_up)
-    res = move_to_pose(rise_pose)
+    res = move_to_pose(rise_pose, use_screw=True)
     if res == -1:
         planner.close()
         return res
 
-    # Return to the initial arm pose to avoid drifting to the table edge.
+    # Stay at rise position - no return to home to avoid jerky motion
     planner.open_gripper()
-    move_arm_to_qpos(home_arm_qpos)
 
-    # Wait for objects to settle
+    # Get current qpos to hold position during settling
+    current_arm_qpos = env_sim.agent.robot.get_qpos()[0, :arm_dof].cpu().numpy()
+
+    # Wait for objects to settle (hold current position)
     for _ in range(120):
         if env_sim.control_mode == "pd_joint_pos":
-            action = np.hstack([home_arm_qpos, planner.gripper_state])
+            action = np.hstack([current_arm_qpos, planner.gripper_state])
         else:
-            action = np.hstack([home_arm_qpos, home_arm_qvel, planner.gripper_state])
+            action = np.hstack([current_arm_qpos, home_arm_qvel, planner.gripper_state])
         obs, reward, terminated, truncated, info = env.step(action)
         if vis:
             env_sim.render_human()

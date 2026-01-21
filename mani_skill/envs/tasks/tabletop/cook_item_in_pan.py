@@ -214,7 +214,7 @@ class CookItemInPanEnv(BaseEnv):
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
+        super()._load_agent(options, sapien.Pose(p=[-0.45, 0, 0]))
 
     def _build_ycb_actor(self, model_id: str, name: str) -> Actor:
         actors_list = []
@@ -306,6 +306,14 @@ class CookItemInPanEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             self.table_scene.initialize(env_idx)
+
+            # Initialize robot at pregrasp pose (above pan rim, ready to grasp)
+            pregrasp_qpos = np.array([
+                -0.321, 0.314, 0.635, -2.240, -0.300, 2.473, -1.820,
+                0.04, 0.04  # gripper open
+            ])
+            qpos = torch.tensor(pregrasp_qpos, device=self.device, dtype=torch.float32).unsqueeze(0).repeat(b, 1)
+            self.agent.reset(qpos)
 
             pan_xy = (
                 torch.rand((b, 2), device=self.device) * 2 - 1
