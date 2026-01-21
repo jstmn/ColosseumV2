@@ -310,17 +310,34 @@ class PickCubeFromDrawerEnv(BaseEnv):
         if open_enough.ndim > 1:
             open_enough = open_enough.squeeze(-1)
 
-        # Success: cube is lifted above z=0.10m
+        # Success: cube is lifted above initial z position AND drawer >20% open
         cube_height = self.cube.pose.p[..., 2]
         if cube_height.ndim > 1:
             cube_height = cube_height.squeeze(-1)
-        is_lifted = cube_height < 0.10
+        initial_z = self.cube_initial_z
+        if initial_z.ndim > 1:
+            initial_z = initial_z.squeeze(-1)
+        is_lifted = cube_height > initial_z
+
+        # Check drawer is more than 20% open
+        qlimits = self.handle_link.joint.limits
+        qmin, qmax = qlimits[..., 0], qlimits[..., 1]
+        qpos = self.handle_link.joint.qpos
+        if qpos.ndim > 1:
+            qpos = qpos.squeeze(-1)
+        if qmin.ndim > 1:
+            qmin = qmin.squeeze(-1)
+        if qmax.ndim > 1:
+            qmax = qmax.squeeze(-1)
+        drawer_open_pct = (qpos - qmin) / (qmax - qmin + 1e-6)
+        drawer_open_enough = drawer_open_pct > 0.20
 
         return {
-            "success": is_lifted,
+            "success": is_lifted & drawer_open_enough,
             "handle_link_pos": self.handle_link_positions(),
             "open_enough": open_enough,
             "is_lifted": is_lifted,
+            "drawer_open_enough": drawer_open_enough,
             "cube_height": cube_height,
         }
 

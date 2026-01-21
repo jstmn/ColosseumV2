@@ -24,6 +24,8 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
         base_pose=env.unwrapped.agent.robot.pose,
         visualize_target_grasp_pose=vis,
         print_env_info=False,
+        joint_vel_limits=1.5,
+        joint_acc_limits=1.5,
     )
 
     env_inner = env.unwrapped
@@ -76,8 +78,8 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
     # Pull drawer in +Y direction
     current_pos = grasp_pose.p.copy()
-    step_size = 0.1  # 2cm steps
-    max_steps = 5  # Up to 50cm total
+    step_size = 0.15  # 15cm steps
+    max_steps = 3  # Up to 45cm total
 
     for i in range(max_steps):
         current_pos[1] += step_size
@@ -85,12 +87,10 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
         res = planner.move_to_pose_with_screw(pull_pose)
         if res == -1:
-            res = planner.move_to_pose_with_RRTStar(pull_pose)
-
-        if res == -1:
             if debug:
                 print(f"Pull step {i+1} failed at Y={current_pos[1]:.3f}")
-            break
+            planner.close()
+            return -1
 
         # Check if drawer is fully open (90%+)
         qpos = env_inner.handle_link.joint.qpos[0].item()
@@ -116,7 +116,7 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
     # Lift to 20cm height
     lift_pos = retreat_pos.copy()
-    lift_pos[2] += 0.50  # 20cm height
+    lift_pos[2] = 0.70  # 20cm height
     lift_pose = env_inner.agent.build_grasp_pose(handle_approaching, handle_closing, lift_pos)
     res = planner.move_to_pose_with_screw(lift_pose)
     if res == -1:
@@ -154,11 +154,11 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
     # Lift straight up 15cm from current position
     tcp = env_inner.agent.tcp.pose
-    lift_pose = sapien.Pose([tcp.sp.p[0], tcp.sp.p[1], tcp.sp.p[2] + 0.15], tcp.sp.q)
+    lift_pose = sapien.Pose([tcp.sp.p[0], tcp.sp.p[1], tcp.sp.p[2] + 0.25], tcp.sp.q)
     planner.move_to_pose_with_screw(lift_pose)
 
     # Wait for settle
-    for _ in range(30):
+    for _ in range(2):
         obs, reward, terminated, truncated, info = env.step(np.zeros(env.action_space.shape))
 
     if debug:
