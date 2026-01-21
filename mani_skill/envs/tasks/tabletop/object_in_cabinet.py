@@ -134,7 +134,7 @@ class ObjectInCabinetEnv(BaseEnv):
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
     )
 
-    min_open_frac = 0.5
+    min_open_frac = 0.9
 
     def __init__(
         self,
@@ -308,7 +308,8 @@ class ObjectInCabinetEnv(BaseEnv):
 
         target_qlimits = self.handle_link.joint.limits
         qmin, qmax = target_qlimits[..., 0], target_qlimits[..., 1]
-        self.target_qpos = qmin + (qmax - qmin) * self.min_open_frac
+        # Target: 90 degrees in radians
+        self.target_qpos = torch.full_like(qmin, 90.0 * np.pi / 180.0)
 
     def handle_link_positions(self, env_idx: Optional[torch.Tensor] = None):
         if env_idx is None:
@@ -447,7 +448,7 @@ class ObjectInCabinetEnv(BaseEnv):
         door_qpos = self.handle_link.joint.qpos
         if door_qpos.ndim > 1:
             door_qpos = door_qpos.squeeze(-1)
-        door_open_enough = door_qpos >= self.target_qpos * 0.45  # 45% of target (which is 50% of full range = ~22.5% of full)
+        door_open_enough = door_qpos >= self.target_qpos * 0.45  # 45% of 90° target (~40 degrees)
 
         # Success requires:
         # 1. Object placed in cabinet zone

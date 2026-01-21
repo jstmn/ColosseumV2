@@ -29,9 +29,10 @@ def solve(env: HammerNailEnv, seed=None, debug=False, vis=False):
     hammer_pos = env_sim.hammer.pose.p[0].cpu().numpy()
     block_pos = env_sim.block.pose.p[0].cpu().numpy()
 
-    print(f"Starting hammer position: {hammer_pos}")
-    print(f"Starting nail position: {nail_center}")
-    print(f"Starting block position: {block_pos}")
+    if debug:
+        print(f"Starting hammer position: {hammer_pos}")
+        print(f"Starting nail position: {nail_center}")
+        print(f"Starting block position: {block_pos}")
 
     # Grasp hammer from above
     approaching = np.array([0.0, 0.0, -1.0])
@@ -98,7 +99,7 @@ def solve(env: HammerNailEnv, seed=None, debug=False, vis=False):
             planner.close()
             return -1
 
-    planner.close_gripper(t=100, gripper_state=-1.0)
+    planner.close_gripper()
 
     # Lift hammer to a safe height first
     lift_height = nail_center[2] + 0.10  # A bit above nail height
@@ -157,8 +158,6 @@ def solve(env: HammerNailEnv, seed=None, debug=False, vis=False):
     # Head offset in world frame
     # With gripper X pointing +Y, head_offset_local=[grasp_to_head, 0, 0] becomes [0, grasp_to_head, 0] in world
     head_offset_world = reoriented_rot.apply(np.array([grasp_to_head, 0.0, 0.0]))
-    print(f"Head offset world: {head_offset_world}")
-    print(f"Gripper X axis: {reoriented_rot.apply([1, 0, 0])}")
 
     # The hammer is held from above, so the hammer handle center is roughly at gripper height
     # For striking, we need hammer HEAD at nail X and Z, with Y offset
@@ -172,10 +171,6 @@ def solve(env: HammerNailEnv, seed=None, debug=False, vis=False):
     ])
     ready_gripper_pos = ready_head_pos - head_offset_world
     ready_pose = sapien.Pose(ready_gripper_pos, reoriented_q_wxyz)
-
-    print(f"Nail center: {nail_center}")
-    print(f"Ready head pos: {ready_head_pos}")
-    print(f"Ready gripper pos: {ready_gripper_pos}")
 
     result = planner.move_to_pose_with_RRTConnect(ready_pose)
     if result == -1:

@@ -272,17 +272,22 @@ class PickCubeFromDrawerEnv(BaseEnv):
             self._place_cube_in_drawer(env_idx)
 
     def _place_cube_in_drawer(self, env_idx: torch.Tensor):
-        """Place cube in the center of the bottom drawer."""
+        """Place cube in the drawer with random position offset."""
         with torch.device(self.device):
             b = len(env_idx)
 
             handle_pos = self.handle_link_positions(env_idx)
 
+            # Random offsets for cube position within drawer
+            # X offset: +/- 0.03m (side to side in drawer)
+            # Y offset: -0.08 to -0.16m (depth into drawer)
+            x_offset = (torch.rand(b) - 0.5) * 0.06  # [-0.03, 0.03]
+            y_offset = -0.08 - torch.rand(b) * 0.08  # [-0.08, -0.16]
+
             cube_xyz = torch.zeros((b, 3))
-            # Place cube in center of drawer (behind handle)
-            # Drawer faces -Y (pulls toward +Y), so -Y is into the drawer
-            cube_xyz[:, 0] = handle_pos[:, 0]
-            cube_xyz[:, 1] = handle_pos[:, 1] - 0.12  # Into drawer (-Y direction)
+            # Place cube in drawer with random offset
+            cube_xyz[:, 0] = handle_pos[:, 0] + x_offset
+            cube_xyz[:, 1] = handle_pos[:, 1] + y_offset
             cube_xyz[:, 2] = handle_pos[:, 2] + self.CUBE_HALF_SIZE
 
             self.cube.set_pose(Pose.create_from_pq(p=cube_xyz))
