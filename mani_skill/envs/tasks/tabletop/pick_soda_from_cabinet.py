@@ -123,24 +123,23 @@ class PickSodaFromCabinetEnv(BaseEnv):
             body_type="static",
             initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
         )
-        # self.soda = self.load_glb_as_actor(self.scene, 
-        #                                      os.path.join(PACKAGE_ASSET_DIR,"place_soda_in_cabinet/opened_soda_can.glb"),
-        #                                     sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-        #                                     name="soda_can",
-        #                                     scale=[0.04,0.04,0.04],
-
-        #                                     type="dynamic")
+        self.soda = self.load_glb_as_actor(self.scene, 
+                                             os.path.join(PACKAGE_ASSET_DIR,"place_soda_in_cabinet/diet_soda.glb"),
+                                            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
+                                            name="soda_can",
+                                            scale=[0.008,0.008,0.008],
+                                            type="dynamic")
         
-        builder = actors.get_actor_builder(self.scene, "ycb:002_master_chef_can")
-        builder.initial_pose = sapien.Pose(p=[0, 0, 0])
-        self.soda = builder.build_dynamic(name="ball")
+        # builder = actors.get_actor_builder(self.scene, "ycb:002_master_chef_can")
+        # builder.initial_pose = sapien.Pose(p=[0, 0, 0])
+        # self.soda = builder.build_dynamic(name="ball")
 
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale, material=sapien.render.RenderMaterial(base_color=[0, 79/255, 49/255, 1.0]))
+        builder.add_visual_from_file(glb_file_path, scale=scale)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
@@ -176,7 +175,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # )
             # [0.854,0.471,0.212,0.068] - q for sleeping book
             # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
-            self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([1, 0, 0, 0]).repeat(b,1)))
+            self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.707, 0.707, 0, 0]).repeat(b,1)))
             self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
@@ -189,11 +188,11 @@ class PickSodaFromCabinetEnv(BaseEnv):
             # )
             # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
             # return
-        # self._initialize_agent()
+        self._initialize_agent()
             
     def _initialize_agent(self):
         # Reset the robot to a neutral position
-        qpos = np.array([0.654,-0.552,-0.679, 3.512, -3.071, 2.370, 0.399, 0.040, 0.04])
+        qpos = np.array([-0.387, -0.770, 0.395, -3.009, 2.978, 2.396, -1.963, 0.040, 0.04])
         self.agent.reset(qpos)
     
     def evaluate(self):
@@ -211,7 +210,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
         # print(self.soda.pose.p)
         is_soda_on_table = self.soda.pose.p[0][2] < 0.1
-        success = is_soda_static * (is_soda_on_table)
+        success = (is_soda_on_table)
         return {
             # "is_book_grasped": is_book_grasped,
             "is_soda_on_table": is_soda_on_table,

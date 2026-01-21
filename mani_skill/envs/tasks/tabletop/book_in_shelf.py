@@ -16,6 +16,7 @@ from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 import os
+import gymnasium as gym
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
@@ -67,12 +68,6 @@ class PlaceBookEnv(BaseEnv):
             env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
         self.table_scene.build()
-        # All values obtained carefully from blender
-        # collision_boxes_shelf = [([0.43/2, 0.36/2, 0.05/2], sapien.Pose(p=[0,0.04, 0.015], q=[0.707, -0.707, 0, 0])),
-        #                    ([0.025/2,0.25/2,0.235/2],sapien.Pose(p=[0.144,0.1729,0.023], q=[1,0,0,0])),
-        #                    ([0.025/2, 0.25/2, 0.235/2], sapien.Pose(p=[-0.136, 0.1729, 0.023], q=[1,0,0,0])),
-        #                    ([0.30/2,0.02/2,0.25/2],sapien.Pose(p=[0.0,0.161,-0.1],q=[0.707,0.707,0,0])),
-        #                    ([0.312/2,0.27/2,0.0302/2],sapien.Pose(p=[0.0,0.286,0.018],q=[0.707,-0.707,0,0]))]
         self.shelf = self.load_glb_as_actor(self.scene, 
             os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'), 
             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
@@ -83,51 +78,24 @@ class PlaceBookEnv(BaseEnv):
             sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             name="book_A",
             type="dynamic")
-        # self.book_B = self.load_glb_as_actor(self.scene, 
-        #                                      "mani_skill/assets/book_in_shelf/simple_book_2.glb",
-        #                                     [([0.04,0.015,0.1], sapien.Pose(p=[0,0,0], q=[1,0,0,0]))],
-        #                                     sapien.Pose(p=[0.0, -0.158, 0.1], q=[0.707,0,-0.707,0]),
-        #                                     name="book_B")
-        # self.cubeA = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[1, 0, 0, 1],
-        #     name="cubeA",
-        #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
-        # )
-        # self.cubeB = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[0, 1, 0, 1],
-        #     name="cubeB",
-        #     initial_pose=sapien.Pose(p=[1, 0, 0.1]),
-        # )
+        
 
 
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):
+    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static", color=None):
+        
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path)
+        if color is not None:
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color = color  # Green [R, G, B, A]
+            custom_material.roughness = 0.8
+            custom_material.metallic = 0.0
+            builder.add_visual_from_file(glb_file_path, material=custom_material)
+        else:
+            builder.add_visual_from_file(glb_file_path)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
         
-        # for half_size, box_pose in collision_boxes:
-        #     builder.add_box_collision(half_size=half_size, pose=box_pose)
-        # try:
-        #     # Some kind of error with shape over here.
-        #     mesh_scene = trimesh.load(glb_file_path, force='scene')
-        #     for geom_name, geometry in mesh_scene.geometry.items():
-        #         print(geom_name)
-        #         if geom_name.startswith("collision_"):
-        #             # For each collision mesh, get its vertices and add a convex collision shape
-        #             # The vertices are transformed to be relative to the object's origin
-        #             vertices = geometry.vertices @ mesh_scene.graph.get(geom_name)[0].T
-        #             builder.add_convex_collision_from_points(points=vertices)
-        # except Exception as e:
-        #     print(f"Warning: Failed to load collision mesh from {glb_file_path} with trimesh. Error: {e}")
-        #     # Fallback to a single convex collision if trimesh fails or finds nothing
-        #     builder.add_convex_collision_from_file(glb_file_path)
-        # builder.add_nonconvex_collision_from_file(glb_file_path)
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)
@@ -143,7 +111,7 @@ class PlaceBookEnv(BaseEnv):
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.089
             # xy = torch.rand((b, 2)) * 0.2 - 0.1
-            region = [[0.0, 0.0],[0.09, -0.25]] 
+            region = [[0.03, -0.25],[0.09, 0]] 
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )
@@ -250,3 +218,37 @@ class PlaceBookEnv(BaseEnv):
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
         return self.compute_dense_reward(obs=obs, action=action, info=info) / 8
+    
+
+if __name__ == "__main__":
+    # Now you can load this safe environment
+    env = gym.make(
+        "PlaceBookInShelf-v1", 
+        # robot_uids="dual_panda", # Force the dual panda
+        obs_mode="state_dict", 
+        control_mode="pd_joint_delta_pos",
+        render_mode="human"
+    )
+
+    print("Environment Created Successfully!")
+    obs, _ = env.reset()
+    
+    print(f"Observation Keys: {obs.keys()}")
+    if "agent" in obs:
+        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
+    
+    # NOW you can run your IK loop here
+    # 2. You MUST run a loop, or the window will close immediately
+    while True:
+        # Create a dummy action (stay still)
+        # action = np.zeros(env.action_space.shape)
+        
+        # # Step the environment
+        # obs, reward, terminated, truncated, info = env.step(action)
+        
+        # Render the frame
+        env.render()  # <--- Updates the GUI
+        
+        # if terminated or truncated:
+        #     obs, _ = env.reset()
+    
