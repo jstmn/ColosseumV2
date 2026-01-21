@@ -20,12 +20,18 @@ def _load_partnet_mobility_dataset():
         )
 
     def find_urdf_path(model_id):
-        model_dir = ASSET_DIR / "partnet_mobility/dataset" / str(model_id)
-        urdf_names = ["mobility_cvx.urdf", "mobility_fixed.urdf"]
-        for urdf_name in urdf_names:
-            urdf_path = model_dir / urdf_name
-            if urdf_path.exists():
-                return urdf_path
+        # Check both external asset dir and package assets dir
+        search_dirs = [
+            ASSET_DIR / "partnet_mobility/dataset" / str(model_id),
+            PACKAGE_ASSET_DIR / "partnet_mobility/dataset" / str(model_id),
+        ]
+        urdf_names = ["mobility_cvx.urdf", "mobility_fixed.urdf", "mobility.urdf"]
+        for model_dir in search_dirs:
+            for urdf_name in urdf_names:
+                urdf_path = model_dir / urdf_name
+                if urdf_path.exists():
+                    return urdf_path
+        return None
 
     PARTNET_MOBILITY["model_urdf_paths"] = {}
     for k in PARTNET_MOBILITY["model_data"].keys():

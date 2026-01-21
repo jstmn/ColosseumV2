@@ -139,7 +139,7 @@ def _rotate_vec_about_axis(vec: np.ndarray, axis: np.ndarray, angle: float) -> n
 
 
 def _open_cabinet_with_planner(
-    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver, debug: bool = False
+    env: OpenCabinetEnv, planner: PandaArmMotionPlanningSolver, debug: bool = False, target_frac: float = None
 ):
     """Execute motion plan to open the cabinet door using screw motion only."""
     env_sim = env.unwrapped
@@ -222,8 +222,9 @@ def _open_cabinet_with_planner(
     current_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
 
-    # Target: open to 90% of max range for >80% success criterion
-    target_qpos = qmin + 0.90 * abs(qmax - qmin)
+    # Target: use provided target_frac or default to 0.25
+    frac = target_frac if target_frac is not None else 0.55
+    target_qpos = qmin + frac * abs(qmax - qmin)
 
     # Phase 4: Open the door by following an arc
     # Record initial handle position for arc calculation
@@ -235,8 +236,8 @@ def _open_cabinet_with_planner(
 
     # Use smooth arc motion with small angle steps for reliable planning
     # Smaller steps = more reliable screw motion planning
-    angle_step = 0.02  # ~1.15 degrees per step
-    num_steps = max(40, int(abs(delta) / angle_step))
+    angle_step = 0.05  # ~1.15 degrees per step
+    num_steps = 15
     step_angle = delta / num_steps
     current_angle = 0.0
 
@@ -261,7 +262,7 @@ def _open_cabinet_with_planner(
         )
 
         # Try different pull-back distances with screw motion only
-        res = -1
+        res = -1 
         for pull_back in pull_offsets:
             pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
             res = planner.move_to_pose_with_screw(pull_pose)
@@ -279,8 +280,8 @@ def _open_cabinet_with_planner(
                 qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
                 current_angle = qpos_val - current_qpos
                 consecutive_failures = 0
-                # If we've opened past 85%, we can stop
-                if qpos_val >= qmin + 0.85 * abs(qmax - qmin):
+                # If we've opened past 65%, we can stop
+                if qpos_val >= qmin + 0.65 * abs(qmax - qmin):
                     break
 
         # Check current door opening
@@ -296,7 +297,7 @@ def _open_cabinet_with_planner(
 
     # Retreat from current position
     tcp_pose = env_sim.agent.tcp_pose.sp
-    retreat_pose = tcp_pose * sapien.Pose([0, 0, -0.10])
+    retreat_pose = tcp_pose * sapien.Pose([0, 0, -0.05])
     res = planner.move_to_pose_with_screw(retreat_pose)
     if res == -1:
         if debug:

@@ -32,6 +32,8 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
         base_pose=env_sim.agent.robot.pose,
         visualize_target_grasp_pose=vis,
         print_env_info=False,
+        joint_vel_limits=1.5,
+        joint_acc_limits=1.5,
     )
 
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
@@ -54,7 +56,7 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
         print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
 
     # ===== Phase 1: Open the door using live motion planning =====
-    res = _open_cabinet_with_planner(env, planner, debug=debug)
+    res = _open_cabinet_with_planner(env, planner, debug=debug, target_frac=0.95)
     if res == -1:
         if debug:
             print("Failed to open cabinet door")
@@ -89,7 +91,7 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
 
     # Step 1: Pull back from handle (relative to TCP)
     tcp_pose = env_sim.agent.tcp_pose.sp
-    retreat1 = tcp_pose * sapien.Pose([0, 0, -0.10])
+    retreat1 = tcp_pose * sapien.Pose([0, 0, -0.01])
     res = planner.move_to_pose_with_screw(retreat1)
     if res == -1:
         if debug:
@@ -138,21 +140,16 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
     # ===== Phase 3: Grasp object at an angle (45 degrees from horizontal) =====
     planner.open_gripper()
 
-    # Refresh obj position right before grasping
-    obj_pos_now = env_sim.obj.pose.p[0].cpu().numpy()
-    if debug:
-        print(f"Object position now: {obj_pos_now}")
-
     # Angled grasp: approach at 45 degrees from above
     approaching = np.array([0.0, 0.7071, -0.7071])  # 45 degree angle
     closing = np.array([1.0, 0.0, 0.0])  # Fingers close along X
 
     # Grasp height - banana is low, use 0.04 to clear table
-    grasp_height = 0.04
+    grasp_height = 0.01
 
     # Step 5: Position behind and above object
     offset_y = -0.12  # Behind obj (negative Y)
-    pre_grasp_pos = np.array([obj_pos_now[0], obj_pos_now[1] + offset_y, grasp_height + 0.08])
+    pre_grasp_pos = np.array([obj_pos[0], obj_pos[1] + offset_y, grasp_height + 0.08])
     pre_grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, pre_grasp_pos)
     res = planner.move_to_pose_with_screw(pre_grasp_pose)
     if res == -1:
@@ -164,11 +161,8 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"Step 5 - angled approach: Door at {check_door():.1f}%, TCP at {tcp_actual}")
 
-    # Refresh position again (object might have moved)
-    obj_pos_now = env_sim.obj.pose.p[0].cpu().numpy()
-
     # Step 6: Move in at angle to grasp object
-    grasp_pos = np.array([obj_pos_now[0], obj_pos_now[1], grasp_height])
+    grasp_pos = np.array([obj_pos[0], obj_pos[1], grasp_height])
     grasp_pose = env_sim.agent.build_grasp_pose(approaching, closing, grasp_pos)
     res = planner.move_to_pose_with_screw(grasp_pose)
     if res == -1:
@@ -252,23 +246,8 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
     if debug:
         print(f"Step 9 - transport height (z={transport_z}): Door at {check_door():.1f}%, TCP at {tcp_actual}, grasped={is_grasped}")
 
-    # Step 9b: Move towards cabinet with intermediate waypoints (smoother for banana)
-    place_x = 0.25
-    # Add intermediate waypoint to avoid jerky motion that drops the banana
-    tcp_pos = env_sim.agent.tcp_pose.sp.p
-    mid_x = (tcp_pos[0] + place_x) / 2
-    mid_y = tcp_pos[1] / 2  # Halfway to Y=0
-    intermediate = np.array([mid_x, mid_y, transport_z])
-    res = planner.move_to_pose_with_screw(sapien.Pose(intermediate, transport_quat))
-    if res == -1:
-        if debug:
-            print("Failed at Step 9b - intermediate")
-        planner.close()
-        return -1
-    is_grasped = env_sim.agent.is_grasping(env_sim.obj)
-    if debug:
-        print(f"Step 9b - intermediate: grasped={is_grasped}")
-
+    # Step 9b: Move towards cabinet
+    place_x = 0.20
     towards_cabinet = np.array([place_x, 0.0, transport_z])
     res = planner.move_to_pose_with_screw(sapien.Pose(towards_cabinet, transport_quat))
     if res == -1:
@@ -297,39 +276,18 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
 
     # Step 11: Release obj inside cabinet
     planner.open_gripper()
-    obj_actual = env_sim.obj.pose.p[0].cpu().numpy()
     if debug:
+        obj_actual = env_sim.obj.pose.p[0].cpu().numpy()
         print(f"Step 11 - released obj: Door at {check_door():.1f}%, obj at {obj_actual}")
 
-    # Step 12: Back away from shelf (stay at same height to avoid hitting obj)
-    retreat1_pos = np.array([place_x - 0.10, 0.0, shelf_z])
-    res = planner.move_to_pose_with_screw(sapien.Pose(retreat1_pos, transport_quat))
-    if res == -1:
-        if debug:
-            print("Failed at Step 12 - back away")
-        planner.close()
-        return -1
-    if debug:
-        print(f"Step 12 - backed away: Door at {check_door():.1f}%")
-
-    # Step 13: Move away from cabinet area
-    retreat2_pos = np.array([-0.20, -0.20, 0.50])
-    res = planner.move_to_pose_with_screw(sapien.Pose(retreat2_pos, transport_quat))
-    if res == -1:
-        if debug:
-            print("Failed at Step 13 - retreat")
-        planner.close()
-        return -1
-    if debug:
-        print(f"Step 13 - retreated: Door at {check_door():.1f}%")
+    # Step 12: Retreat 10cm
+    tcp_pose = env_sim.agent.tcp_pose.sp
+    retreat_pose = tcp_pose * sapien.Pose([-0.10, 0, 0])
+    planner.move_to_pose_with_screw(retreat_pose)
 
     # Wait for obj to settle
-    for _ in range(100):
+    for _ in range(30):
         obs, reward, terminated, truncated, info = env.step(np.zeros(env.action_space.shape))
-
-    if debug:
-        print(f"Final door: {check_door():.1f}%")
-        print(f"Object final pos: {env_sim.obj.pose.p[0].cpu().numpy()}")
 
     planner.close()
     return obs, reward, terminated, truncated, info

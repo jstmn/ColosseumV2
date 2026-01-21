@@ -123,5 +123,10 @@
         "num_target_links": 3,
         "partnet_mobility_id": 1082,
         "scale": 0.4942616225620546
+    },
+    "45427": {
+        "num_target_links": 3,
+        "partnet_mobility_id": 45427,
+        "scale": 0.5
     }
 }
