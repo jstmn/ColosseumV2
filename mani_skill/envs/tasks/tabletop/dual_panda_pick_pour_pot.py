@@ -80,7 +80,6 @@ class DualArmPourPotEnv(BaseEnv):
             actor = builder.build_dynamic(name)
         else:
             actor = builder.build_static(name)
-        print(f"{name} imported successfully")
         return actor
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

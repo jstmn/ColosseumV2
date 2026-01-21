@@ -379,16 +379,16 @@ class CookItemInPanEnv(BaseEnv):
         )
 
         # Live status update (overwrite same line)
-        status = (
-            f"\r[Status] pan_on_stove:{is_pan_on_stove[0].item()} | "
-            f"food_in_pan:{is_food_in_pan[0].item()} | "
-            f"pan_static:{is_pan_static[0].item()} | "
-            f"food_static:{is_food_static[0].item()} | "
-            f"pan_grasped:{is_pan_grasped[0].item()} | "
-            f"food_grasped:{is_food_grasped[0].item()} | "
-            f"SUCCESS:{success[0].item()}    "
-        )
-        print(status, end="", flush=True)
+        # status = (
+        #     f"\r[Status] pan_on_stove:{is_pan_on_stove[0].item()} | "
+        #     f"food_in_pan:{is_food_in_pan[0].item()} | "
+        #     f"pan_static:{is_pan_static[0].item()} | "
+        #     f"food_static:{is_food_static[0].item()} | "
+        #     f"pan_grasped:{is_pan_grasped[0].item()} | "
+        #     f"food_grasped:{is_food_grasped[0].item()} | "
+        #     f"SUCCESS:{success[0].item()}    "
+        # )
+        # print(status, end="", flush=True)
 
         return {
             "success": success,
