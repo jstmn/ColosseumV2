@@ -6,6 +6,7 @@ from transforms3d.euler import euler2quat
 from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.place_lightbulb_socket import PickLightbulbPlaceSocketEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
+import torch
 
 
 def solve(env, debug=False,seed=None,  vis=False):
@@ -35,20 +36,20 @@ def solve(env, debug=False,seed=None,  vis=False):
     if res == -1:
         res = planner.move_to_pose_with_RRTConnect(reach_pose)
         if res == -1:
-            return False
+            return res
 
     planner.open_gripper()
     
     res = planner.move_to_pose_with_screw(grasp_pose)
     if res == -1:
-        return False
+        return res
 
     planner.close_gripper()
 
     lift_pose = grasp_pose * sapien.Pose(p=[0, 0, -0.15])
     res = planner.move_to_pose_with_screw(lift_pose)
     if res == -1:
-        return False
+        return res
 
     socket_pos = env.socket_pos
     above_socket_pos = np.array([socket_pos[0], socket_pos[1], socket_pos[2] + 0.12])
@@ -60,7 +61,7 @@ def solve(env, debug=False,seed=None,  vis=False):
     if res == -1:
         res = planner.move_to_pose_with_screw(above_socket_pose)
         if res == -1:
-            return False
+            return res
 
     insert_pos = np.array([socket_pos[0], socket_pos[1], socket_pos[2] + 0.02])
     insert_pose = sapien.Pose(
@@ -69,17 +70,17 @@ def solve(env, debug=False,seed=None,  vis=False):
     )
     res = planner.move_to_pose_with_screw(insert_pose)
     if res == -1:
-        return False
+        return res
 
     planner.open_gripper()
 
     retract_pose = insert_pose * sapien.Pose(p=[0, 0, -0.10])
     res = planner.move_to_pose_with_screw(retract_pose)
     if res == -1:
-        return False
+        return res
 
     planner.close()
-    return True
+    return torch.tensor(True, dtype=torch.bool)
 
 
 def main():

@@ -49,6 +49,7 @@ MP_SOLUTIONS = {
     "PlaceDishInRack-v1": solvePlaceDishInRack, # new
     "PickDishFromRack-v1": solvePickDishFromRack, # new
     "PourSphere-v1": solvePourSphere, # new
+    "PegInsertionSide-v2": solvePegInsertionSide, # new
     "HammerNail-v1": solveHammerNail,
     "OpenCabinet-v1": solveOpenCabinet,
     "ObjectInCabinet-v1": solveObjectInCabinet,
@@ -70,7 +71,7 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=CookItemInPan-v1
+ENV_ID=OpenDrawer-v1
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 

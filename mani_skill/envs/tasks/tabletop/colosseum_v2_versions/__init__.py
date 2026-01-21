@@ -6,3 +6,4 @@ from .pick_banana_from_open_drawer import PickBananaFromOpenDrawerEnv
 from .place_apple_on_plate import PlaceAppleOnPlateEnv
 from .place_lightbulb_socket import PickLightbulbPlaceSocketEnv
 from .pick_cube_from_drawer import PickCubeFromDrawerEnv
+from .peg_insertion_side_v2 import PegInsertionSideV2Env

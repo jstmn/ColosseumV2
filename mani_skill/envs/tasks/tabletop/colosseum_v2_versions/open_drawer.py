@@ -14,6 +14,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.geometry.geometry import transform_points
+from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
@@ -63,6 +64,8 @@ class OpenDrawerEnv(BaseEnv):
     CABINET_X_LIMS = [0.15, 0.25]
     # ^ Starts getting planning failures above 0.25
     CABINET_Y_LIMS = [-0.05, 0.05]
+    CABINET_YAW_LIMS = [0, np.pi/8]
+
 
     min_open_frac = 0.5
 
@@ -267,8 +270,18 @@ class OpenDrawerEnv(BaseEnv):
             xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
             xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
 
+            # Quaternion for Z rotation: [cos(θ/2), 0, 0, sin(θ/2)] in wxyz format
+            random_yaw_angle = torch.rand(b, device=self.device) * (self.CABINET_YAW_LIMS[1] - self.CABINET_YAW_LIMS[0]) + self.CABINET_YAW_LIMS[0]
+            random_yaw_q = torch.zeros((b, 4), device=self.device)
+            random_yaw_q[:, 0] = torch.cos(random_yaw_angle / 2)  # w
+            random_yaw_q[:, 3] = torch.sin(random_yaw_angle / 2)  # z
+            default_q = torch.tensor(
+                [1.0, 0.0, 0.0, 0.0], dtype=torch.float32
+            )
+            drawer_q = quaternion_multiply(default_q, random_yaw_q)
+        
             xy[:, 2] = self.cabinet_zs[env_idx]
-            self.cabinet.set_pose(Pose.create_from_pq(p=xy))
+            self.cabinet.set_pose(Pose.create_from_pq(p=xy, q = drawer_q))
 
 
             # initialize robot
