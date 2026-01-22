@@ -41,8 +41,6 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
     plate_pos_init = env_sim.plate.pose.p[0].cpu().numpy()
     initial_ee_plate_dist_xy = np.linalg.norm(ee_pos[:2] - plate_pos_init[:2])
     # Always print distance for monitoring
-    print(f"Initial EE position: {ee_pos}, Plate position: {plate_pos_init}")
-    print(f"Initial EE-to-plate horizontal distance: {initial_ee_plate_dist_xy:.3f}m")
     if initial_ee_plate_dist_xy > 0.4:  # 40cm max horizontal distance
         print(f"❌ Initial EE-to-plate horizontal distance {initial_ee_plate_dist_xy:.3f}m > 0.4m - aborting")
         planner.close()
@@ -74,9 +72,6 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
     rack_pos_initial = env_sim.dish_rack.pose.p[0].cpu().numpy()
 
     # Always print starting positions
-    print(f"Starting plate position: {plate_pos}")
-    print(f"Starting rack position: {rack_pos_initial}")
-
     if debug:
         print(f"\n=== PLATE POSITION ===")
         print(f"Plate position: {plate_pos}")
@@ -199,6 +194,15 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
     if debug:
         plate_after_lift = env_sim.plate.pose.p[0].cpu().numpy()
         print(f"✓ Lifted plate to: {plate_after_lift}")
+
+
+    # Lift up by 20cm in Z
+    lift_pose = sapien.Pose([0, 0, 0.2]) * grasp_pose
+    res = move_or_abort(lift_pose)
+    if res == -1:
+        if debug:
+            print("❌ Failed to lift")
+        return res
 
     # -------------------------------------------------------------------------- #
     # Move to rack FIRST (keep plate horizontal for stability during transport)
@@ -323,9 +327,9 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
     raise_pose = sapien.Pose(raise_pos, lower_pose.q)
     res = move_or_abort(raise_pose)
 
-    raise_pos[2] += 0.12  # Raise 12cm to clear the rack
-    raise_pose = sapien.Pose(raise_pos, lower_pose.q)
-    res = move_or_abort(raise_pose)
+    # raise_pos[2] += 0.12  # Raise 12cm to clear the rack
+    # raise_pose = sapien.Pose(raise_pos, lower_pose.q)
+    # res = move_or_abort(raise_pose)
 
     if debug:
         print(f"✓ Raised EE to: {raise_pos}")

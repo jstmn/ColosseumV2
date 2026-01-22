@@ -71,15 +71,18 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=OpenDrawer-v1
+ENV_ID=RaiseCube-v1
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
+
+ENV_ID="CookItemInPan-v1"
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 100 \
     --distraction-set ${DISTRACTION_SET} \
     --num-procs 1 \
+    --obs-mode "rgb" \
     --reward-mode "sparse" \
     --random-seed \
     --only-count-success \
@@ -114,6 +117,7 @@ def parse_args(args=None):
     parser.add_argument("--record-dir", type=str, default="demos", help="where to save the recorded trajectories")
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
+    parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:

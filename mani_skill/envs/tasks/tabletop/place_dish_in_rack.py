@@ -80,6 +80,7 @@ class PlaceDishInRackEnv(BaseEnv):
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         # Use the default robot joint configuration with light noise.
+        assert _HAS_COACD
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -95,7 +96,7 @@ class PlaceDishInRackEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, -0.25, 0.35], target=[0.0, 0.0, 0.05])
+        pose = sapien_utils.look_at(eye=[0.2, -0.2, 0.4], target=[-0.3, 0.0, 0.0])
         return [
             CameraConfig(
                 "base_camera",
@@ -158,29 +159,14 @@ class PlaceDishInRackEnv(BaseEnv):
             self._plate_outer_radius / self._plate_mesh_source_radius
         )
         mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
-
-        if _HAS_COACD:
-            builder.add_multiple_convex_collisions_from_file(
-                filename=str(self._plate_visual_mesh_path),
-                scale=[collision_scale, collision_scale, collision_scale],
-                pose=mesh_pose,
-                material=physical_material,
-                density=self._plate_density,
-                decomposition="coacd",
-            )
-        else:
-            logger.warning(
-                "coacd not installed; falling back to nonconvex collision for plate. "
-                "Run `pip install coacd` for better plate contacts."
-            )
-            builder.add_nonconvex_collision_from_file(
-                filename=str(self._plate_visual_mesh_path),
-                scale=[collision_scale, collision_scale, collision_scale],
-                pose=mesh_pose,
-                material=physical_material,
-                density=self._plate_density,
-            )
-
+        builder.add_multiple_convex_collisions_from_file(
+            filename=str(self._plate_visual_mesh_path),
+            scale=[collision_scale, collision_scale, collision_scale],
+            pose=mesh_pose,
+            material=physical_material,
+            density=self._plate_density,
+            decomposition="coacd",
+        )
         plate_visual_material = sapien.render.RenderMaterial(
             base_color=[1.0, 1.0, 1.0, 1.0],
             specular=0.4,
@@ -263,31 +249,35 @@ class PlaceDishInRackEnv(BaseEnv):
 
             # First compute plate position so we can position robot above it
             # Randomize plate position within reachable zone - 20cm range (±0.1m)
-            plate_x = -0.45 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
-            plate_y = -0.25 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
+            plate_x = -0.3 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
+            plate_y = -0.2 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
 
             # Use heuristic-based qpos with base rotation toward plate
-            plate_x_val = float(plate_x[0].cpu()) if b == 1 else -0.45
-            plate_y_val = float(plate_y[0].cpu()) if b == 1 else -0.25
+            # plate_x_val = float(plate_x[0].cpu()) if b == 1 else -0.45
+            # plate_y_val = float(plate_y[0].cpu()) if b == 1 else -0.25
 
             # Compute angle from robot base to plate
             # Robot base is at (-0.615, 0), plate is at (plate_x_val, plate_y_val)
-            angle_to_plate = np.arctan2(plate_y_val, plate_x_val + 0.615)
+            # angle_to_plate = np.arctan2(plate_y_val, plate_x_val + 0.615)
 
             # Use the default working arm configuration from TableSceneBuilder
             # but with joint 0 rotated to point toward the plate
             # Default: [0.0, π/8, 0, -π*5/8, 0, π*3/4, π/4, 0.04, 0.04]
-            panda_qpos_above_plate = np.array([
-                angle_to_plate,        # j0: base rotation toward plate
-                np.pi / 8,             # j1: shoulder slightly forward
-                0,                     # j2: upper arm
-                -np.pi * 5 / 8,        # j3: elbow bent
-                0,                     # j4: forearm
-                np.pi * 3 / 4,         # j5: wrist 1
-                np.pi / 4,             # j6: wrist 2
-                0.04,                  # gripper left
-                0.04,                  # gripper right
-            ])
+            # panda_qpos_above_plate = np.array([
+            #     angle_to_plate,        # j0: base rotation toward plate
+            #     np.pi / 8,             # j1: shoulder slightly forward
+            #     0,                     # j2: upper arm
+            #     -np.pi * 5 / 8,        # j3: elbow bent
+            #     0,                     # j4: forearm
+            #     np.pi * 3 / 4,         # j5: wrist 1
+            #     np.pi / 4,             # j6: wrist 2
+            #     0.04,                  # gripper left
+            #     0.04,                  # gripper right
+            # ])
+            panda_qpos_above_plate = np.array(
+                [-1.08, 0, 0.68, -2.64, 0.07, 2.6, -1.25, 0.04, 0.04]
+            )
+
 
             self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
 

@@ -205,7 +205,7 @@ class CookItemInPanEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, -0.25, 0.35], target=[0.0, 0.0, 0.05])
+        pose = sapien_utils.look_at(eye=[0.35, -0.3, 0.4], target=[0.0, 0.0, 0.0])
         return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
 
     @property

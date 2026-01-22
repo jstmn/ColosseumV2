@@ -59,7 +59,7 @@ class RotateArrowEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[-0.1, 0, -0.1])
+        pose = sapien_utils.look_at(eye=[0.3, 0, 0.4], target=[-0.1, -0.1, 0])
         return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
 
     @property
@@ -92,7 +92,11 @@ class RotateArrowEnv(BaseEnv):
     def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path)
+        # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])
+        custom_material = sapien.render.RenderMaterial()
+        custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
+            #     builder.add_visual_from_file(glb_file_path)
+        builder.add_visual_from_file(glb_file_path, material=custom_material)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
         
         # for half_size, box_pose in collision_boxes:
@@ -131,9 +135,15 @@ class RotateArrowEnv(BaseEnv):
         return z_euler
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+
+        qpos0 = np.array(
+            [0.0, 0, -0.04, -2.21, 0.0, 2.28, 0.66, 0.04, 0.04]
+        )
+        # qpos0 = np.zeros_like(qpos0)
+
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
+            self.table_scene.initialize(env_idx, qpos_0=qpos0)
             # setting the goal tee position, which is fixed, offset from center, and slightly rotated
             target_region_xyz = torch.zeros((b, 3))
 

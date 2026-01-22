@@ -185,7 +185,8 @@ class ObjectInCabinetEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.3])
+        # Sensor camera with view of robot arm and cabinet handle
+        pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.1])
         return [
             CameraConfig(
                 "base_camera",

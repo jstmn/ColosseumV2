@@ -161,7 +161,7 @@ class HammerNailEnv(BaseEnv):
     def _default_sensor_configs(self):
         # View from front-right to see sideways hammering action
         pose = sapien_utils.look_at(
-            eye=[0.3, 0.5, 0.3], target=[0.05, 0.10, 0.06 + self._hole_center_z]
+            eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0]
         )
         return [
             CameraConfig(
@@ -594,7 +594,7 @@ class HammerNailEnv(BaseEnv):
             # Use a start pose with gripper closer to hammer position
             # Arm extended toward hammer location for faster grasping
             closer_to_hammer_qpos = np.array(
-                [0.0, -0.3, 0.0, -2.0, 0.0, 1.8, 0.78, 0.04, 0.04]
+                [0.2, -0.3, 0.0, -2.0, 0.0, 1.8, 0.78, 0.04, 0.04]
             )
             self.table_scene.initialize(env_idx, qpos_0=closer_to_hammer_qpos)
 

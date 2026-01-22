@@ -114,9 +114,12 @@ class TableSceneBuilder(SceneBuilder):
             self.env.agent.robot.set_pose(sapien.Pose([-0.615, 0, 0]))
         elif self.env.robot_uids == "panda_wristcam":
             # fmt: off
-            qpos = np.array(
-                [0.0, np.pi / 8, 0, -np.pi * 5 / 8, 0, np.pi * 3 / 4, -np.pi / 4, 0.04, 0.04]
-            )
+            if qpos_0 is None:
+                qpos = np.array(
+                    [0.0, np.pi / 8, 0, -np.pi * 5 / 8, 0, np.pi * 3 / 4, -np.pi / 4, 0.04, 0.04]
+                )
+            else:
+                qpos = qpos_0
             # fmt: on
             if self.env._enhanced_determinism:
                 qpos = (

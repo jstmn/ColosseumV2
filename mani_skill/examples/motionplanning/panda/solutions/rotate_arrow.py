@@ -8,6 +8,8 @@ from mani_skill.envs.tasks.tabletop.rotate_arrow import RotateArrowEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 from copy import deepcopy
+from time import sleep
+
 def main():
     env: RotateArrowEnv = gym.make(
         "RotateArrow-v1",
@@ -49,13 +51,31 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     )
     closing, center = grasp_info["closing"], grasp_info["center"]
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, env.arrow.pose.sp.p)
+    grasp_pose_init = deepcopy(grasp_pose)
     offset = sapien.Pose([0, 0.05, 0])
     grasp_pose = grasp_pose * (offset)
     reach_pose_1 = grasp_pose
+
     # -------------------------------------------------------------------------- #
     # Reach
     # -------------------------------------------------------------------------- #
     res = None
+    approach_pose = sapien.Pose(p=grasp_pose_init.p + np.array([-0.025, 0.0, 0.0]), q=grasp_pose_init.q)
+    res = planner.move_to_pose_with_screw(approach_pose)
+    print(f"reached approach pose: {approach_pose}")
+    if res == -1:
+        return res
+
+    # print("sleeping for 10 seconds")
+    # sleep(10)
+
+    # # Then, approach down to the grasp pose.
+    # hover_pose
+    # res = planner.move_to_pose_with_screw(reach_pose_1)
+    # if res == -1:
+    #     return res
+    # print(f"Reach pose: {reach_pose_1}")
+
     arrow_transform = env.arrow.pose.to_transformation_matrix()[0]
     arrow_x_axis = arrow_transform[:3, 0]  # First column is X axis
     arrow_x_axis = arrow_x_axis / np.linalg.norm(arrow_x_axis)

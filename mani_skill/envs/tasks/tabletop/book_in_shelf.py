@@ -3,7 +3,7 @@ import numpy as np
 import sapien
 import torch
 import trimesh
-from mani_skill import PACKAGE_ASSET_DIR
+from mani_skill import PACKAGE_ASSET_DIR, PACKAGE_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
@@ -68,22 +68,24 @@ class PlaceBookEnv(BaseEnv):
             env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
         self.table_scene.build()
-        self.shelf = self.load_glb_as_actor(self.scene, 
-            os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'), 
+        self.shelf = self.load_glb_as_actor(
+            self.scene, 
+            os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
             name="custom_glb_shelf",
-            type="static")
+            type="static",
+            is_shelf=True
+        )
+
         self.book_A = self.load_glb_as_actor(self.scene, 
             os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
             sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             name="book_A",
             type="dynamic")
-        
 
 
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static", color=None):
-        
+    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static", color=None, is_shelf=False):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         if color is not None:
@@ -93,9 +95,18 @@ class PlaceBookEnv(BaseEnv):
             custom_material.metallic = 0.0
             builder.add_visual_from_file(glb_file_path, material=custom_material)
         else:
+            # The existing books in the shelf are part of the shelf, so you can't just change the material of the shelf.
+            # If so, we'd change the shelf to a good wood texture.
+            # if is_shelf:
+            #     custom_material = sapien.render.RenderMaterial()
+            #     custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "partnet_mobility/dataset/45427/images/texture_0.jpg"))
+            #     builder.add_visual_from_file(glb_file_path, material=custom_material)
+            # else:
+            #     builder.add_visual_from_file(glb_file_path)
             builder.add_visual_from_file(glb_file_path)
+
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
-        
+
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)

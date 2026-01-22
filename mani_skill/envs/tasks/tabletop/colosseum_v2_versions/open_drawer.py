@@ -99,43 +99,61 @@ class OpenDrawerEnv(BaseEnv):
     def _default_human_render_camera_configs(self):
         return get_human_render_camera_config(eye=(-0.2, 0.5, 1.1), target=(-0.1, 0, 0.5), shader=self._human_render_shader)
 
+    # @property
+    # def _default_sensor_configs(self):
+    #     target = (-0.2, 0, 0.5)
+    #     pose_center = sapien_utils.look_at(eye=(-0.5, 0.0, 1.25), target=target)
+    #     pose_left = sapien_utils.look_at(eye=(-0.2, 0.5, 1.1), target=target)
+    #     pose_right = sapien_utils.look_at(eye=(-0.2, -0.5, 1.1), target=target)
+    #     cfgs = [
+    #         CameraConfig(
+    #             uid="camera_center",
+    #             pose=pose_center,
+    #             width=DEFAULT_CAMERA_WIDTH,
+    #             height=DEFAULT_CAMERA_HEIGHT,
+    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
+    #             near=0.01,
+    #             far=100,
+    #             shader_pack=SHADER,
+    #         ),
+    #         CameraConfig(
+    #             uid="camera_left",
+    #             pose=pose_left,
+    #             width=DEFAULT_CAMERA_WIDTH,
+    #             height=DEFAULT_CAMERA_HEIGHT,
+    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
+    #             near=0.01,
+    #             far=100,
+    #             shader_pack=SHADER,
+    #         ),
+    #         CameraConfig(
+    #             uid="camera_right",
+    #             pose=pose_right,
+    #             width=DEFAULT_CAMERA_WIDTH,
+    #             height=DEFAULT_CAMERA_HEIGHT,
+    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
+    #             near=0.01,
+    #             far=100,
+    #             shader_pack=SHADER,
+    #         )]
+        # return self._distraction_set.update_camera_configs(cfgs)
+
+
     @property
     def _default_sensor_configs(self):
         target = (-0.2, 0, 0.5)
-        pose_center = sapien_utils.look_at(eye=(-0.5, 0.0, 1.25), target=target)
-        pose_left = sapien_utils.look_at(eye=(-0.2, 0.5, 1.1), target=target)
-        pose_right = sapien_utils.look_at(eye=(-0.2, -0.5, 1.1), target=target)
+        pose = sapien_utils.look_at(eye=(-0.4, 0.0, 1.1), target=target)
         cfgs = [
             CameraConfig(
-                uid="camera_center",
-                pose=pose_center,
-                width=DEFAULT_CAMERA_WIDTH,
-                height=DEFAULT_CAMERA_HEIGHT,
-                fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
+                "base_camera",
+                pose=pose,
+                width=128,
+                height=128,
+                fov=np.pi / 2,
                 near=0.01,
                 far=100,
-                shader_pack=SHADER,
-            ),
-            CameraConfig(
-                uid="camera_left",
-                pose=pose_left,
-                width=DEFAULT_CAMERA_WIDTH,
-                height=DEFAULT_CAMERA_HEIGHT,
-                fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-                near=0.01,
-                far=100,
-                shader_pack=SHADER,
-            ),
-            CameraConfig(
-                uid="camera_right",
-                pose=pose_right,
-                width=DEFAULT_CAMERA_WIDTH,
-                height=DEFAULT_CAMERA_HEIGHT,
-                fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-                near=0.01,
-                far=100,
-                shader_pack=SHADER,
-            )]
+            )
+        ]
         return self._distraction_set.update_camera_configs(cfgs)
 
     def _load_agent(self, options: dict):

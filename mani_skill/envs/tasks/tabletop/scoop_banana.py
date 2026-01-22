@@ -59,7 +59,7 @@ class ScoopBananaEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0, 0.5], target=[-0.1, 0, 0.1])
+        pose = sapien_utils.look_at(eye=[-0.25, 0.25, 0.5], target=[0.0, 0.0, 0.1])
         return [
             CameraConfig(
                 "base_camera",
