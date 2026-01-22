@@ -11,7 +11,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:TwoRobotStack3Cube = gym.make(
-        'TwoRobotStack3Cube-v1',
+        'DualArmStack3Cube-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -107,10 +107,10 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     place_A_pose = place_A_pose * sapien.Pose(p=[0,0,-0.05])
     
     place_B_pose = sapien.Pose(p=np.array(env.goal_region.pose.p[0]), q=grasp_B_pose.get_q())
-    place_B_pose = place_B_pose * sapien.Pose(p=[0,0,-0.1])
+    place_B_pose = place_B_pose * sapien.Pose(p=[0,0,-0.05])
 
     place_C_pose = sapien.Pose(p=np.array(env.goal_region.pose.p[0]), q=grasp_C_pose.get_q())
-    place_C_pose = place_C_pose * sapien.Pose(p=[0,0,-0.15])
+    place_C_pose = place_C_pose * sapien.Pose(p=[0,0,-0.06])
 
     grasp_A_approach_pose = grasp_A_pose*sapien.Pose(p=[0,0,-0.1])
     grasp_B_approach_pose = grasp_B_pose*sapien.Pose(p=[0,0,-0.1])
@@ -216,7 +216,7 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
         print("Failed to place C")
         return result
     
-    planner.open_gripper(arm_index=1, t=10)
+    result = planner.open_gripper(arm_index=1, t=10)
     
     return result
 

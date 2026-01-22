@@ -17,7 +17,7 @@ from mani_skill.utils.structs import Pose
 # 1. Define the Empty Environment
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 
-@register_env("DualArmDrawerOpen-v0", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
+@register_env("DualArmDrawerOpen-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
 class DualArmDrawerOpenEnv(BaseEnv):
     """
     Two hold the handles of drawer and open the doors.
@@ -41,7 +41,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
-        pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
+        pose = sapien_utils.look_at(eye=[-0.6, -0.2, 0.4+0.83], target=[0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
         
 
@@ -133,7 +133,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmDrawerOpen-v0", 
+        "DualArmDrawerOpen-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

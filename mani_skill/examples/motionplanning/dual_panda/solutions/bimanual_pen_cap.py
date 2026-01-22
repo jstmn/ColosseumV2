@@ -11,7 +11,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualArmPenCapEnv = gym.make(
-        'DualArmPenCap-v0',
+        'DualArmPenCap-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -106,6 +106,12 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
         print("Failed grasp_approach")
         return result
     
+    # viewer = planner.base_env.render_human()
+    # while True:
+    #     if viewer.window.key_down("c"):
+    #         break
+    #     planner.base_env.render_human()
+    
     result = planner.move_to_pose_pair_with_screw(
         grasp_pen_pose,  # left
         grasp_cap_pose
@@ -114,6 +120,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     if result==-1:
         print("Failed grasp")
         return result
+    
     
     planner.close_gripper(arm_index=1, t=10)
     planner.close_gripper(arm_index=2, t=10)

@@ -21,7 +21,7 @@ from mani_skill.utils import sapien_utils
 import torch
 
 # 1. Define the Empty Environment
-@register_env("DualArmPickBottle-v0", max_episode_steps=1000)
+@register_env("DualArmPickBottle-v1", max_episode_steps=1000)
 class DualArmPickBottleEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
@@ -72,7 +72,7 @@ class DualArmPickBottleEnv(BaseEnv):
             xyz[..., 2] = self.cube_half_size+0.83
             q = [0.707, 0.707, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
-        # self._initialize_agent()
+        self._initialize_agent()
         
     def _initialize_agent(self):
         # Reset the robot to a neutral position
@@ -83,7 +83,7 @@ class DualArmPickBottleEnv(BaseEnv):
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
         # qpos[9] = -0.5 # Move right shoulder
-        
+        qpos = np.array([0.066, 1.571, 0.573, 0, 0.158, 0, -2.084, -2.749, 1.701, 0, 1.763, 2.356, -1.882, 0.785, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
 
     def _get_obs_extra(self, info: dict):
@@ -138,7 +138,7 @@ class DualArmPickBottleEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmPickBottle-v0", 
+        "DualArmPickBottle-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

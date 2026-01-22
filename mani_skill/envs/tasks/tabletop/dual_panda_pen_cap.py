@@ -20,7 +20,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 
 # 1. Define the Empty Environment
-@register_env("DualArmPenCap-v0", max_episode_steps=1000)
+@register_env("DualArmPenCap-v1", max_episode_steps=1000)
 class DualArmPenCapEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
@@ -80,13 +80,14 @@ class DualArmPenCapEnv(BaseEnv):
             xyz[..., 2] = 0.84
             q = [0, 0, 0.707, 0.707]
             self.pen.set_pose(Pose.create_from_pq(p=xyz, q=q))
-            
+        # self._initialize_agent()
+        
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
         # You can define a custom "qpos" (joint positions) here if you want.
         # 0-6: Left Arm, 7-8: Left Gripper, 9-15: Right Arm, 16-17: Right Gripper
-        qpos = np.zeros(self.agent.robot.dof)
+        qpos = np.array([1.433, 1.45, -0.389, 0.263, -0.399, 0.79, -2.917, -2.34, -0.263, -0.315, 2.539, 2.502, -2.626, -1.437, 0.04, 0.04, 0.04, 0.04])
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
         # qpos[9] = -0.5 # Move right shoulder
@@ -202,7 +203,7 @@ class DualArmPenCapEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmPenCap-v0", 
+        "DualArmPenCap-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

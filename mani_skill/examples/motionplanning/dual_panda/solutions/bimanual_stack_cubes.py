@@ -11,7 +11,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:TwoRobotStackCube = gym.make(
-        'TwoRobotStackCube-v1',
+        'DualArmStackCube-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -132,15 +132,15 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
         print("Failed to lift")
         return result
     
-    # Place A
-    result = planner.move_to_pose_with_screw(
-        place_A_pose,
-        arm_index=1
-    )
+    # # Place A
+    # result = planner.move_to_pose_with_screw(
+    #     place_A_pose,
+    #     arm_index=1
+    # )
     
-    if result == -1:
-        print("Failed to lift")
-        return result
+    # if result == -1:
+    #     print("Failed to lift")
+    #     return result
     
     planner.open_gripper(arm_index=1, t=10)
 
@@ -156,7 +156,7 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
         return result
     
     # Place B
-    place_B_pose = place_B_pose*sapien.Pose(p=[0,0,-0.1])
+    place_B_pose = place_B_pose*sapien.Pose(p=[0,0,-0.05])
     result = planner.move_to_pose_with_screw(
         place_B_pose,
         arm_index=2
@@ -166,7 +166,7 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
         print("Failed to lift")
         return result
     
-    planner.open_gripper(arm_index=2, t=10)
+    result = planner.open_gripper(arm_index=2, t=10)
     
     return result
 

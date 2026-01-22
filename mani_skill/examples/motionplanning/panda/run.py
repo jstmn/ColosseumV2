@@ -56,18 +56,18 @@ MP_SOLUTIONS = {
 
 
     # Bimanual
-    "DualArmPickCube-v0": solveBimanualPassCube,
-    "DualArmLiftPot-v0": solveBimanualLiftPot,
-    "DualArmLiftTray-v0": solveBimanualLiftTray,
-    "DualArmPickBottle-v0": solveBimanualPassBottle,
-    "DualArmPourPot-v0": solveBimanualPourPot,
-    "DualArmDrawerPlace-v0": solveBimanualDrawerPlace,
-    "DualArmDrawerOpen-v0": solveBimanualDrawerOpen,
-    "DualArmPenCap-v0": solveBimanualPenCap,
+    "DualArmPickCube-v1": solveBimanualPassCube,
+    "DualArmLiftPot-v1": solveBimanualLiftPot,
+    "DualArmLiftTray-v1": solveBimanualLiftTray,
+    "DualArmPickBottle-v1": solveBimanualPassBottle,
+    "DualArmPourPot-v1": solveBimanualPourPot,
+    "DualArmDrawerPlace-v1": solveBimanualDrawerPlace,
+    "DualArmDrawerOpen-v1": solveBimanualDrawerOpen,
+    "DualArmPenCap-v1": solveBimanualPenCap,
     "DualArmPushBox-v1": solveBimanualPushBox,
-    "TwoRobotStack3Cube-v1": solveBimanualStack3Cubes,
-    "TwoRobotStackCube-v1": solveBimanualStackCubes,
-    "DualPandaThreading-v0": solveBimanualThreading
+    "DualArmStack3Cube-v1": solveBimanualStack3Cubes,
+    "DualArmStackCube-v1": solveBimanualStackCubes,
+    "DualArmThreading-v1": solveBimanualThreading
 }
 
 """

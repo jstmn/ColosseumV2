@@ -15,7 +15,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualArmDrawerOpenEnv = gym.make(
-        'DualArmDrawerOpen-v0',
+        'DualArmDrawerOpen-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -96,7 +96,7 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     )
     closing, center = grasp_info["closing"], grasp_info["center"]
     grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.open_cabinet.pose.sp.p)
-    grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0,-0.15,-0.1])
+    grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0,-0.15,-0.15])
     
     target_closing = env.agent.tcp_2.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
     grasp_info = compute_grasp_info_by_obb(
@@ -108,7 +108,7 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     closing, center = grasp_info["closing"], grasp_info["center"]
     target_closing = env.agent.tcp_2.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
     grasp_2_pose = env.agent.build_grasp_pose(approaching, closing, env.open_cabinet.pose.sp.p)     
-    grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0, 0.15, -0.1])
+    grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0, 0.15, -0.15])
     
     grasp_1_approach_pose = grasp_1_pose*sapien.Pose(p=[0,0,-0.3])
     grasp_2_approach_pose = grasp_2_pose*sapien.Pose(p=[0, 0, -0.3])

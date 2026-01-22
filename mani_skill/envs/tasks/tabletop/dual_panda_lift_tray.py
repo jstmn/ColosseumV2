@@ -16,7 +16,7 @@ import os
 from mani_skill import PACKAGE_ASSET_DIR
 
 # 1. Define the Empty Environment
-@register_env("DualArmLiftTray-v0", max_episode_steps=1000)
+@register_env("DualArmLiftTray-v1", max_episode_steps=1000)
 class DualArmLiftTrayEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
@@ -46,13 +46,22 @@ class DualArmLiftTrayEnv(BaseEnv):
                                            sapien.Pose(),
                                            name="tray",
                                            scale=[0.4,0.4,0.4],
-                                           type="dynamic")
+                                           type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
+    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static", color=None):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
+        if color is not None:
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color = color  # Green [R, G, B, A]
+            custom_material.roughness = 0.0
+            custom_material.metallic = 0.8
+            builder.add_visual_from_file(glb_file_path, scale=scale, material=custom_material)
+        else:
+            builder.add_visual_from_file(glb_file_path, scale=scale)
+
+        # builder.add_visual_from_file(glb_file_path, scale=scale)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
@@ -67,7 +76,7 @@ class DualArmLiftTrayEnv(BaseEnv):
             xyz = torch.zeros((b, 3))
             xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
             xyz[..., 2] = self.cube_half_size+0.83
-            theta_by_2 = 0  # -pi/2 to pi/2
+            theta_by_2 = torch.rand(b)*np.pi/8 - np.pi/16  # -pi/2 to pi/2
             
             # Set poses for each environment in the batch
             for i in range(b):
@@ -76,8 +85,8 @@ class DualArmLiftTrayEnv(BaseEnv):
                 p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
                 q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
                 init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
-                # rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
-                # init_pose_sapien = rotation_pose * init_pose_sapien
+                rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
+                init_pose_sapien = rotation_pose * init_pose_sapien
                 self.tray.set_pose(init_pose_sapien)
                 self.init_pose = init_pose_sapien
             # xyz[..., 2] = 0.9
@@ -131,8 +140,8 @@ class DualArmLiftTrayEnv(BaseEnv):
         is_tray_grasped_right = self.agent.is_grasping(self.tray, arm_index=2)
         is_tray_grasped = torch.logical_or(is_tray_grasped_left, is_tray_grasped_right)
         # print(is_ball_grasped_left, is_ball_grasped_right)
-        offset_x = torch.abs(offset[..., 0])
-        success = torch.logical_and(offset_x > 0.2, is_tray_grasped)
+        offset_x = torch.abs(offset[..., 2])
+        success = torch.logical_and(offset_x > 0.15, is_tray_grasped)
         # print(success)
         return {"left_grasped": is_tray_grasped_left, "right_grasped": is_tray_grasped_right, "grasped": is_tray_grasped, "success": success}
     
@@ -151,7 +160,7 @@ class DualArmLiftTrayEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmLiftTray-v0", 
+        "DualArmLiftTray-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

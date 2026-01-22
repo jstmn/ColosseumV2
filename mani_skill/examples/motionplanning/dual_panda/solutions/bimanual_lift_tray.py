@@ -11,7 +11,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualArmLiftTrayEnv = gym.make(
-        'DualArmLiftTray-v0',
+        'DualArmLiftTray-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -143,37 +143,37 @@ def solve(env:DualArmLiftTrayEnv, seed, debug, vis):
             print("Failed to lift")
             return result
         
-        # 5. Move
-        print("\n5. Move...")
+        # # 5. Move
+        # print("\n5. Move...")
         
         
-        lift_1 = lift_1*sapien.Pose(p=[-0.3,0,0])
-        lift_2 = lift_2*sapien.Pose(p=[-0.3,0,0])
+        # lift_1 = lift_1*sapien.Pose(p=[-0.3,0,0])
+        # lift_2 = lift_2*sapien.Pose(p=[-0.3,0,0])
         
-        result = planner.move_to_pose_pair_with_screw(
-            lift_2,  # left
-            lift_1,  # right
-            # refine_steps=5
-        )
+        # result = planner.move_to_pose_pair_with_screw(
+        #     lift_2,  # left
+        #     lift_1,  # right
+        #     # refine_steps=5
+        # )
         
-        if result == -1:
-            print("Failed to lift")
-            return result
+        # if result == -1:
+        #     print("Failed to lift")
+        #     return result
         
-        # Place down
+        # # Place down
         
-        lift_1 = lift_1*sapien.Pose(p=[0,0,0.2])
-        lift_2 = lift_2*sapien.Pose(p=[0,0,0.2])
+        # lift_1 = lift_1*sapien.Pose(p=[0,0,0.2])
+        # lift_2 = lift_2*sapien.Pose(p=[0,0,0.2])
         
-        result = planner.move_to_pose_pair_with_screw(
-            lift_2,  # left
-            lift_1,  # right
-            # refine_steps=5
-        )
+        # result = planner.move_to_pose_pair_with_screw(
+        #     lift_2,  # left
+        #     lift_1,  # right
+        #     # refine_steps=5
+        # )
         
-        if result == -1:
-            print("Failed to lift")
-            return result
+        # if result == -1:
+        #     print("Failed to lift")
+        #     return result
 
         
         return result
