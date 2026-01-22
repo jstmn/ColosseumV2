@@ -185,22 +185,22 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         sapien_joint_names = [j.get_name() for j in self.robot.get_active_joints()]
         planner_joint_names = [self.planner.user_joint_names[idx] 
                               for idx in self.planner.move_group_joint_indices]
-        
-        print("SAPIEN Joint Order:")
-        for i, name in enumerate(sapien_joint_names):
-            print(f"  {i}: {name}")
-        
-        print("\nPlanner Joint Order:")
-        for i, name in enumerate(planner_joint_names):
-            print(f"  {i}: {name}")
+        if self.debug:
+            print("SAPIEN Joint Order:")
+            for i, name in enumerate(sapien_joint_names):
+                print(f"  {i}: {name}")
             
-        print("\nPlanner move_group_joint_indices:")
-        print(f"  {self.planner.move_group_joint_indices}")
-        
-        print("\nPlanner joint_name_2_idx:")
-        for name in ["panda_1_joint1", "panda_2_joint1", "panda_1_joint2", "panda_2_joint2"]:
-            if name in self.planner.joint_name_2_idx:
-                print(f"  {name} -> {self.planner.joint_name_2_idx[name]}")
+            print("\nPlanner Joint Order:")
+            for i, name in enumerate(planner_joint_names):
+                print(f"  {i}: {name}")
+                
+            print("\nPlanner move_group_joint_indices:")
+            print(f"  {self.planner.move_group_joint_indices}")
+            
+            print("\nPlanner joint_name_2_idx:")
+            for name in ["panda_1_joint1", "panda_2_joint1", "panda_1_joint2", "panda_2_joint2"]:
+                if name in self.planner.joint_name_2_idx:
+                    print(f"  {name} -> {self.planner.joint_name_2_idx[name]}")
 
         # Check if they match
         if sapien_joint_names == planner_joint_names:
@@ -950,7 +950,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         # Prepare targets
         # Convert pose to [x, y, z, qw, qx, qy, qz]
         target_7d = np.concatenate([pose.p, pose.q])
-        print(target_7d)
+        # print(target_7d)
         left_target = None
         right_target = None
         

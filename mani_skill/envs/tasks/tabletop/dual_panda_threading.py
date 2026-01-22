@@ -19,7 +19,7 @@ from mani_skill.utils.structs.pose import Pose
 sys.path.insert(0, '/home/prajwal-vijay/Documents/ManiSkill/mani_skill/utils/building/actors')
 
 
-@register_env("DualPandaThreading-v0", max_episode_steps=1000)
+@register_env("DualArmThreading-v1", max_episode_steps=1000)
 class DualPandaThreadingEnv(BaseEnv):
     """
     A threading task environment for Dual Panda arms.
@@ -50,7 +50,7 @@ class DualPandaThreadingEnv(BaseEnv):
             eye_radius=0.01,
             eye_distance_from_end=0.02,
             density=8000.0,
-            color=np.array([0.6, 0.6, 0.65, 1.0]),
+            color=np.array([0.3, 0.3, 0.3, 1.0]),
             initial_pose=sapien.Pose(p=[0.0, 0.0, 0.85]),
         )
         
@@ -214,7 +214,7 @@ class DualPandaThreadingEnv(BaseEnv):
 
 if __name__ == "__main__":
     env = gym.make(
-        "DualPandaThreading-v0",
+        "DualArmThreading-v1",
         robot_uids="dual_panda",
         obs_mode="state_dict",
         control_mode="pd_joint_delta_pos",

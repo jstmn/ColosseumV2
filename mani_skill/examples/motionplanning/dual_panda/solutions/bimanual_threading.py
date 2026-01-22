@@ -12,7 +12,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualPandaThreadingEnv = gym.make(
-        'DualPandaThreading-v0',
+        'DualArmThreading-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -141,9 +141,9 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             return result
         planner.close_gripper(arm_index=2, t=10)
         
-        lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186],q=[0,0,0.707,-0.707])
+        lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186-0.17],q=[0,0,0.707,-0.707])
         lift_2_pose = lift_2_pose*sapien.Pose(p=[0,0.0,-0.03])
-        lift_1_pose = sapien.Pose(p=[-0.24, -0.011, 1.36], q=[0.707,-0.707,0,0])
+        lift_1_pose = sapien.Pose(p=[-0.24, -0.011, 1.36-0.1], q=[0.707,-0.707,0,0])
         lift_1_approach_pose = lift_1_pose*sapien.Pose(p=[-0.4,0,0])
         
         result = planner.move_to_pose_with_screw(
@@ -171,7 +171,12 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             print("Failed grasp_approach")
             return result
         # planner.render_wait()
-        
+        viewer = planner.base_env.render_human()
+        while True:
+            if viewer.window.key_down("c"):
+                break
+            planner.base_env.render_human()
+
         return result
     except Exception as e:
         print("Exception during Motion Planning:", e)

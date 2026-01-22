@@ -36,7 +36,9 @@ class BimanualPlanner:
         self.urdf = str(urdf)
         urdf = self.replace_package_keyword(package_keyword_replacement)
         self.urdf = str(urdf)
-        print(self.urdf)
+        self.debug = False
+        if self.debug:
+            print(self.urdf)
         # Handle SRDF
         self.srdf = urdf.replace(".urdf", ".srdf")
         if srdf == "":
@@ -55,15 +57,16 @@ class BimanualPlanner:
         # Build Pinocchio model to get full list of joints/links
         temp_robot = pinocchio.buildModelFromUrdf(urdf)
         all_joint_names = list(temp_robot.names[1:])
-        print("\n=== Pinocchio Joint Order ===")
-        for i, name in enumerate(all_joint_names):
-            print(f"  {i}: {name}")
+        if self.debug:    
+            print("\n=== Pinocchio Joint Order ===")
+            for i, name in enumerate(all_joint_names):
+                print(f"  {i}: {name}")
 
         all_link_names = [
             f.name for f in temp_robot.frames 
             if f.type == pinocchio.FrameType.BODY
         ]
-
+        
         # --- UPDATED: No mobile base in this URDF ---
         # The robot is fixed to the table, so we don't need to filter out root joints
         if not user_joint_names:
@@ -204,7 +207,8 @@ class BimanualPlanner:
                 v = self.link_name_2_idx[collision.link_name2]
                 cnt[u][v] += 1
             if i % echo_freq == 0:
-                print("Finish %.1f%%!" % (i * 100 / sample_time))
+                if self.debug:
+                    print("Finish %.1f%%!" % (i * 100 / sample_time))
 
         import xml.etree.ElementTree as ET
         from xml.dom import minidom
@@ -357,7 +361,8 @@ class BimanualPlanner:
                 random_full_q = self.pinocchio_model.get_random_configuration()
                 q = np.copy(start_qpos)
                 q[active_indices] = random_full_q[active_indices]
-                print(f"  [IK] Attempt {attempt+1}: Restarting with random configuration...")
+                if self.debug:
+                    print(f"  [IK] Attempt {attempt+1}: Restarting with random configuration...")
             for i in range(max_iter):
                 q = np.array(q, dtype=np.float64)
                 # print(len(q), self.pinocchio_model.nq)
@@ -632,10 +637,11 @@ class BimanualPlanner:
             
             # E. Check convergence
             if task_error < threshold and constraint_violation < 0.1:
-                print(f"✓ Converged in {step} steps")
-                print(f"  Final task error: {task_error:.6f}")
-                print(f"  Final constraint: {constraint_violation:.6f}")
-                break
+                if self.debug:
+                    print(f"✓ Converged in {step} steps")
+                    print(f"  Final task error: {task_error:.6f}")
+                    print(f"  Final constraint: {constraint_violation:.6f}")
+                    break
             
             # F. Clamp object twist
             if task_error > step_size:
@@ -684,7 +690,8 @@ class BimanualPlanner:
             
             # L. Debug
             if step % 10 == 0:
-                print(f"[Step {step}] Task: {task_error:.4f}, Constraint: {constraint_violation:.4f}")
+                if self.debug:
+                    print(f"[Step {step}] Task: {task_error:.4f}, Constraint: {constraint_violation:.4f}")
             
             # M. Collision check
             if check_collisions and step % 10 == 0:
@@ -696,10 +703,11 @@ class BimanualPlanner:
         
         # N. Final check
         if step >= max_steps - 1:
-            print(f"⚠ Reached max steps")
-            print(f"  Final task error: {task_error:.4f}")
-            print(f"  Final constraint: {constraint_violation:.4f}")
-            
+            if self.debug:
+                print(f"⚠ Reached max steps")
+                print(f"  Final task error: {task_error:.4f}")
+                print(f"  Final constraint: {constraint_violation:.4f}")
+                
             if constraint_violation < 0.15:  # Relaxed acceptance
                 print("  → Accepting solution (constraint within tolerance)")
             else:
@@ -1290,7 +1298,8 @@ class BimanualPlanner:
                     # --- Add this debug block ---
                     contacts = self.planning_world.collide_full()
                     for c in contacts:
-                        print(f"[DEBUG] Collision: {c.link_name1} <--> {c.link_name2}")
+                        if self.debug:
+                            print(f"[DEBUG] Collision: {c.link_name1} <--> {c.link_name2}")
                     # ----------------------------
                     print(f"[Screw] Collision detected at step {step}")
                     return {"status": "Collision"}

@@ -16,7 +16,7 @@ import os
 from mani_skill import PACKAGE_ASSET_DIR
 
 # 1. Define the Empty Environment
-@register_env("DualArmPourPot-v0", max_episode_steps=1000)
+@register_env("DualArmPourPot-v1", max_episode_steps=1000)
 class DualArmPourPotEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
@@ -62,18 +62,26 @@ class DualArmPourPotEnv(BaseEnv):
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         name="pot",
                                         scale=[1,1,1],
-                                        type="dynamic")
+                                        type="dynamic", color=np.array((129/255, 133/255, 137/255, 1)))
         self.tray = self.load_glb_as_actor(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
                                            sapien.Pose(),
                                            name="tray",
                                            scale=[0.4,0.4,0.4],
-                                           type="dynamic")
+                                           type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
+    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static",color=None):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
+        if color is not None:
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color = color  # Green [R, G, B, A]
+            custom_material.roughness = 0.0
+            custom_material.metallic = 0.8
+            builder.add_visual_from_file(glb_file_path, scale=scale, material=custom_material)
+        else:
+            builder.add_visual_from_file(glb_file_path, scale=scale)
+        # builder.add_visual_from_file(glb_file_path, scale=scale)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
@@ -172,7 +180,7 @@ class DualArmPourPotEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmPourPot-v0", 
+        "DualArmPourPot-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

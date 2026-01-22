@@ -13,7 +13,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualArmPickBottleEnv = gym.make(
-        'DualArmPickBottle-v0',
+        'DualArmPickBottle-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -80,6 +80,7 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     closing, center = grasp_info["closing"], grasp_info["center"]
     
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, env.obj.pose.sp.p)
+    grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
 
     grasp_1_approach_pose = grasp_pose*sapien.Pose(p=[0.15,0,-0.1])
     grasp_1_approach_pose.q = np.array([-0.5,0.5,0.5,0.5])
@@ -171,20 +172,20 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         print("Failed to lift")
         return res
     
-    grasp_1 = sapien.Pose(
-        p=np.array([-0.2, -0.141, 1]),
-        q=grasp_pose.q
-    )
-    grasp_2 = sapien.Pose(
-        p=np.array([0.1, 0.141, 1]),
-        q=lift_2.q
-    )
+    # grasp_1 = sapien.Pose(
+    #     p=np.array([-0.2, -0.141, 1]),
+    #     q=grasp_pose.q
+    # )
+    # grasp_2 = sapien.Pose(
+    #     p=np.array([0.1, 0.141, 1]),
+    #     q=lift_2.q
+    # )
 
-    res = planner.move_to_pose_pair_with_screw(
-        grasp_2,  # left
-        grasp_1,  # right
-        # refine_steps=5
-    )
+    # res = planner.move_to_pose_pair_with_screw(
+    #     grasp_2,  # left
+    #     grasp_1,  # right
+    #     # refine_steps=5
+    # )
     
     return res
 

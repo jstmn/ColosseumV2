@@ -16,7 +16,7 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 
 
-@register_env("TwoRobotStack3Cube-v1", max_episode_steps=100)
+@register_env("DualArmStack3Cube-v1", max_episode_steps=100)
 class TwoRobotStack3Cube(BaseEnv):
     """
     **Task Description:**
@@ -178,44 +178,6 @@ class TwoRobotStack3Cube(BaseEnv):
         
         self.agent.reset(qpos)
 
-    def evaluate(self):
-        pos_A = self.cubeA.pose.p
-        pos_B = self.cubeB.pose.p
-        pos_C = self.cubeC.pose.p
-        offset_1 = pos_B - pos_A
-        offset_2 = pos_C - pos_A
-        xy_1_flag = (
-            torch.linalg.norm(offset_1[..., :2], axis=1)
-            # <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
-            <= 0.02+0.005
-        )
-        xy_2_flag = (
-            torch.linalg.norm(offset_2[..., :2], axis=1)
-            <= 0.02+0.005
-        )
-        z_1_flag = torch.abs(offset_1[..., 2] - 0.02 * 2) <= 0.005
-        z_2_flag = torch.abs(offset_2[..., 2] - 0.02 * 4) <= 0.005
-        xy_flag = torch.logical_and(xy_1_flag, xy_2_flag)
-        z_flag = torch.logical_and(z_1_flag, z_2_flag)
-        
-        are_cubes_stacked = torch.logical_and(xy_flag, z_flag)
-        cubeA_to_goal_dist = torch.linalg.norm(
-            self.cubeA.pose.p[:, :2] - self.goal_region.pose.p[..., :2], axis=1
-        )
-        cubeA_placed = cubeA_to_goal_dist < self.goal_radius
-        # is_cubeA_grasped = self.left_agent.is_grasping(self.cubeA)
-        # is_cubeB_grasped = self.right_agent.is_grasping(self.cubeB)
-        success = (
-            are_cubes_stacked * cubeA_placed
-        )
-        return {
-            # "is_cubeA_grasped": is_cubeA_grasped,
-            # "is_cubeB_grasped": is_cubeB_grasped,
-            "are_cubes_stacked": are_cubes_stacked,
-            "cubeA_placed": cubeA_placed,
-            "success": success.bool(),
-        }
-
     def _get_obs_extra(self, info: dict):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
@@ -236,6 +198,43 @@ class TwoRobotStack3Cube(BaseEnv):
         obs["goal_region_pos"] = self.goal_region.pose.p
         return obs
 
+    def evaluate(self):
+        pos_A = self.cubeA.pose.p
+        pos_B = self.cubeB.pose.p
+        pos_C = self.cubeC.pose.p
+        offset_1 = pos_B - pos_A
+        offset_2 = pos_C - pos_A
+        xy_1_flag = (
+            torch.linalg.norm(offset_1[..., :2], axis=1)
+            # <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
+            <= 0.02+0.005
+        )
+        xy_2_flag = (
+            torch.linalg.norm(offset_2[..., :2], axis=1)
+            <= 0.02+0.005
+        )
+        z_1_flag = torch.abs(offset_1[..., 2] - 0.02 * 2) <= 0.005
+        z_2_flag = torch.abs(offset_2[..., 2] - 0.02 * 4) <= 0.005
+        # xy_flag = torch.logical_and(xy_1_flag, xy_2_flag)
+        z_flag = torch.logical_and(z_1_flag, z_2_flag)
+        
+        are_cubes_stacked = z_flag
+        cubeA_to_goal_dist = torch.linalg.norm(
+            self.cubeA.pose.p[:, :2] - self.goal_region.pose.p[..., :2], axis=1
+        )
+        cubeA_placed = cubeA_to_goal_dist < self.goal_radius
+
+        success = (
+            are_cubes_stacked * cubeA_placed
+        )
+        return {
+            # "is_cubeA_grasped": is_cubeA_grasped,
+            # "is_cubeB_grasped": is_cubeB_grasped,
+            "are_cubes_stacked": are_cubes_stacked,
+            "cubeA_placed": cubeA_placed,
+            "success": success,
+        }
+        
     def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
         return 0.0
 
@@ -247,7 +246,7 @@ class TwoRobotStack3Cube(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "TwoRobotStack3Cube-v1", 
+        "DualArmStack3Cube-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",

@@ -349,6 +349,34 @@ class DualPanda(BaseAgent):
         self.tcp_2 = sapien_utils.get_obj_by_name(
             self.robot.get_links(), self.ee_2_link_name
         )
+        # super()._after_init()
+        
+        # # Get the table link
+        # table_link = sapien_utils.get_obj_by_name(
+        #     self.robot.get_links(), "table"
+        # )
+        
+        # if table_link:
+        #     # In ManiSkill3, access visual components through the link directly
+        #     # Get all components from the link
+        #     render_component = table_link.find_component_by_type(sapien.render.RenderBodyComponent)
+            
+        #     if render_component:
+        #         for shape in render_component.render_shapes:
+        #             material = shape.material
+                    
+        #             # Set the texture
+        #             texture_path = "path/to/your/texture_0.jpg"
+        #             material.base_color_texture = sapien.render.RenderTexture2D(
+        #                 filename=texture_path
+        #             )
+                    
+        #             # Optionally adjust other properties
+        #             material.base_color = [1.0, 1.0, 1.0, 1.0]
+        #             material.roughness = 0.5
+        #             material.metallic = 0.0
+
+
 
     def is_grasping(
         self, object: Actor, arm_index: int = 1, min_force=0.5, max_angle=85

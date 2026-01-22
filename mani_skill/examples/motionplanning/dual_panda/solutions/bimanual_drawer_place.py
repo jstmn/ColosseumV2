@@ -15,7 +15,7 @@ def main():
     Test the dual panda motion planner with various scenarios.
     """
     env:DualArmDrawerPlaceEnv = gym.make(
-        'DualArmDrawerPlace-v0',
+        'DualArmDrawerPlace-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
@@ -111,7 +111,7 @@ def solve(env, seed, debug=False, vis=False):
         closing, center = grasp_info["closing"], grasp_info["center"]
         lift_2 = env.agent.build_grasp_pose(approaching, closing, env.obj.pose.sp.p)
 
-        grasp_1_pose = grasp_1_pose * sapien.Pose(p=[0,0,-0.1])
+        grasp_1_pose = grasp_1_pose * sapien.Pose(p=[0.02,0.0,-0.15])
         ready_lift_1 = grasp_1_pose * sapien.Pose(p=[0,0,-0.3])
         ready_lift_2 = lift_2 * sapien.Pose(p=[0,0,-0.1])
         res = planner.move_to_pose_pair_with_screw(
@@ -123,6 +123,12 @@ def solve(env, seed, debug=False, vis=False):
             print("Failed to Ready lift")
             return res
         # planner.render_wait()
+        # viewer = planner.base_env.render_human()
+        # while True:
+        #     if viewer.window.key_down("c"):
+        #         break
+        #     planner.base_env.render_human()
+            
         res = planner.move_to_pose_pair_with_screw(
             grasp_1_pose,  # left
             lift_2

@@ -14,7 +14,7 @@ from mani_skill.utils import sapien_utils
 import torch
 
 # 1. Define the Empty Environment
-@register_env("DualArmPickCube-v0", max_episode_steps=1000)
+@register_env("DualArmPickCube-v1", max_episode_steps=1000)
 class DualArmPickCubeEnv(BaseEnv):
     """
     A minimal environment for Dual Panda motion planning.
@@ -122,7 +122,7 @@ class DualArmPickCubeEnv(BaseEnv):
 if __name__ == "__main__":
     # Now you can load this safe environment
     env = gym.make(
-        "DualArmEmpty-v0", 
+        "DualArmPickCube-v1", 
         robot_uids="dual_panda", # Force the dual panda
         obs_mode="state_dict", 
         control_mode="pd_joint_delta_pos",
