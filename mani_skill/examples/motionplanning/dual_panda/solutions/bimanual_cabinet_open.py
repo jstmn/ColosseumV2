@@ -39,7 +39,7 @@ def solve(env, seed, debug=False, vis=False):
     # --------------------------------------------------------------------------
     # 1. Identify Target (Right Door Handle)
     # --------------------------------------------------------------------------
-    print("1. Identifying Right Handle...")
+    # print("1. Identifying Right Handle...")
     
     # Get the cabinet and right door link
     cabinet = env.unwrapped.open_cabinet

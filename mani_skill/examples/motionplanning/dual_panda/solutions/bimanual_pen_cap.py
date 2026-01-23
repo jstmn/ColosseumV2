@@ -103,7 +103,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
 
     if result == -1:
-        print("Failed grasp_approach")
+        # print("Failed grasp_approach")
         return result
     
     # viewer = planner.base_env.render_human()
@@ -118,7 +118,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
 
     if result==-1:
-        print("Failed grasp")
+        # print("Failed grasp")
         return result
     
     
@@ -136,7 +136,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
     
     if result == -1:
-        print("Failed to lift")
+        # print("Failed to lift")
         return result
     
     # Put cap
@@ -146,7 +146,7 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
     
     if result == -1:
-        print("Failed to lift")
+        # print("Failed to lift")
         return result
     
     planner.render_wait()

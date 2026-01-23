@@ -46,7 +46,7 @@ class BimanualPlanner:
             if os.path.exists(potential_srdf):
                 self.srdf = potential_srdf
             else:
-                print("Generating dummy SRDF to prevent crash...")
+                # print("Generating dummy SRDF to prevent crash...")
                 dummy_srdf_path = self.urdf.replace(".urdf", "_dummy.srdf")
                 with open(dummy_srdf_path, "w") as f:
                     f.write(f'<?xml version="1.0"?><robot name="dummy_robot"></robot>')
@@ -195,7 +195,7 @@ class BimanualPlanner:
         return rtn_urdf
 
     def generate_collision_pair(self, sample_time=1000, echo_freq=100000):
-        print("Generating collision pairs (no SRDF provided)...")
+        # print("Generating collision pairs (no SRDF provided)...")
         n_link = len(self.user_link_names)
         cnt = np.zeros((n_link, n_link), dtype=np.int32)
         for i in range(sample_time):
@@ -232,7 +232,7 @@ class BimanualPlanner:
                 minidom.parseString(ET.tostring(root)).toprettyxml(indent="    ")
             )
             srdf_file.close()
-        print("Saving the SRDF file to %s" % self.srdf)
+        # print("Saving the SRDF file to %s" % self.srdf)
 
     def wrap_joint_limit(self, q) -> bool:
         n = len(q)
@@ -729,7 +729,7 @@ class BimanualPlanner:
                 "duration": duration,
             }
         except Exception as e:
-            print(f"[Screw Constrained] TOPP Failed: {e}")
+            # print(f"[Screw Constrained] TOPP Failed: {e}")
             return {"status": "Success (No TOPP)", "position": path}
         
     # Helper needed for the function above
@@ -874,7 +874,7 @@ class BimanualPlanner:
                 constraint_function=constraint_function,
                 constraint_jacobian=constraint_jacobian,
                 constraint_tolerance=constraint_tolerance,
-                verbose=True,
+                verbose=False,
                 no_simplification=True
             )
         else:
@@ -900,7 +900,7 @@ class BimanualPlanner:
                 constraint_function=constraint_function,
                 constraint_jacobian=constraint_jacobian,
                 constraint_tolerance=constraint_tolerance,
-                verbose=True,
+                verbose=False,
                 no_simplification=False
             )
             
@@ -908,13 +908,13 @@ class BimanualPlanner:
         if status == "Exact solution":
             # print("PATH:",path)
             if simplify_path and len(path) > 2:
-                print("Smoothing path...")
+                # print("Smoothing path...")
                 path = self._smooth_path(
                     path, 
                     simplification_time=simplification_time,
                     fixed_joints=fixed_joints
                 )
-                print(f"✓ Smoothed to {len(path)} waypoints")
+                # print(f"✓ Smoothed to {len(path)} waypoints")
 
             points_per_segment = 12 
             new_path_segments = []
@@ -941,7 +941,7 @@ class BimanualPlanner:
                     "duration": duration,
                 }
             except Exception as e:
-                print(f"TOPP Parameterization Failed: {e}")
+                # print(f"TOPP Parameterization Failed: {e}")
                 return {"status": "Success (No TOPP)", "position": path}
         else:
             return {"status": "RRT Failed. %s" % status}
@@ -1301,7 +1301,7 @@ class BimanualPlanner:
                         if self.debug:
                             print(f"[DEBUG] Collision: {c.link_name1} <--> {c.link_name2}")
                     # ----------------------------
-                    print(f"[Screw] Collision detected at step {step}")
+                    # print(f"[Screw] Collision detected at step {step}")
                     return {"status": "Collision"}
             
             path.append(q.copy())
@@ -1328,13 +1328,13 @@ class BimanualPlanner:
                 "duration": duration,
             }
         except Exception as e:
-            print(f"[Screw] TOPP Failed: {e}")
+            # print(f"[Screw] TOPP Failed: {e}")
             # return {"status": "Success (No TOPP)", "position": path}
-            print(f"[Screw] TOPP Failed: {e}")
+            # print(f"[Screw] TOPP Failed: {e}")
             
             # FALLBACK: Constant velocity parameterization if TOPP fails
             # This ensures the robot still moves even if the dynamics calculation fails
-            print("[Screw] Falling back to constant velocity profile")
+            # print("[Screw] Falling back to constant velocity profile")
             
             # Create a simple time array assuming constant small time steps
             # n_steps = len(path)

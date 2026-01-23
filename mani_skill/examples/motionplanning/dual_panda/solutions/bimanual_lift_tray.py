@@ -114,7 +114,7 @@ def solve(env:DualArmLiftTrayEnv, seed, debug, vis):
         )
 
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
 
         result = planner.move_to_pose_pair_with_screw(
@@ -123,13 +123,13 @@ def solve(env:DualArmLiftTrayEnv, seed, debug, vis):
         )
         
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         
         planner.close_gripper(arm_index=1, t=10)
         planner.close_gripper(arm_index=2, t=10)
         
-        print("\n5. Lifting...")
+        # # print("\n5. Lifting...")
         lift_1 = grasp_1_pose*sapien.Pose(p=[0,0,-0.2])
         lift_2 = grasp_2_pose*sapien.Pose(p=[0,0,-0.2])
         
@@ -140,7 +140,7 @@ def solve(env:DualArmLiftTrayEnv, seed, debug, vis):
         )
         
         if result == -1:
-            print("Failed to lift")
+            # print("Failed to lift")
             return result
         
         # # 5. Move

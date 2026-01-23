@@ -16,7 +16,7 @@ def main():
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
     )
-    print("=== Testing Dual Panda Motion Planner ===\n")
+    # print("=== Testing Dual Panda Motion Planner ===\n")
 
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
@@ -28,7 +28,7 @@ def main():
         #     print(f"✗ Test failed (seed={seed})")
         
     env.close()
-    print("\n=== All tests completed ===")
+    # print("\n=== All tests completed ===")
 
 def solve(env:DualArmLiftPotEnv, seed, debug, vis):
     env.reset(seed=seed)
@@ -111,7 +111,7 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         )
 
         if res==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return res
         
         planner.render_wait()
@@ -122,13 +122,13 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         )
 
         if res==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return res
         
         planner.close_gripper(arm_index=1, t=10)
         planner.close_gripper(arm_index=2, t=10)
         
-        print("\n5. Lifting...")
+        # # print("\n5. Lifting...")
         lift_1 = grasp_1_pose*sapien.Pose(p=[0,-0.2,0])
         lift_2 = grasp_2_pose*sapien.Pose(p=[0,0.2,0])
         
@@ -139,7 +139,7 @@ def solve(env:DualArmLiftPotEnv, seed, debug, vis):
         )
         
         if res == -1:
-            print("Failed to lift")
+            # print("Failed to lift")
             return res
         
         # # 5. Move

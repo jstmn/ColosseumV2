@@ -90,7 +90,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         
         obb_tripod = get_actor_obb(env.ring_tripod)
@@ -120,7 +120,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
                 
         # result = planner.move_arm_to_pose_with_RRTConnect(
@@ -137,7 +137,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=2
         )
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         planner.close_gripper(arm_index=2, t=10)
         
@@ -152,7 +152,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         
         result = planner.move_to_pose_with_screw(
@@ -160,7 +160,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=2
         )
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
 
         result = planner.move_to_pose_with_screw(
@@ -168,7 +168,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         # planner.render_wait()
         # viewer = planner.base_env.render_human()

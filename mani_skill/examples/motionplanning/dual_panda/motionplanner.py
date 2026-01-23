@@ -726,7 +726,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if result["status"] != "Success":
-            print(f"Constrained Screw planning failed: {result['status']}")
+            # print(f"Constrained Screw planning failed: {result['status']}")
             return -1
                 
         if dry_run: return result
@@ -774,7 +774,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         # print(result['position'])
         if result["status"] != "Success":
-            print(f"Screw planning failed: {result['status']}")
+            # print(f"Screw planning failed: {result['status']}")
             return -1
             
         if dry_run: return result
@@ -985,7 +985,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         # print(result['position'])
         if result["status"] != "Success":
-            print(f"Screw planning failed: {result['status']}")
+            # print(f"Screw planning failed: {result['status']}")
             return -1
         # self.render_wait()
         if dry_run: return result

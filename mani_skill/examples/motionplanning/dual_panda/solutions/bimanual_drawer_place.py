@@ -56,8 +56,8 @@ def solve(env, seed, debug=False, vis=False):
             tcp_2_p = np.array(tcp_2_pose.p).flatten().copy()
             tcp_2_q = np.array(tcp_2_pose.q).flatten().copy()
         
-        print(f"Initial TCP1 (right) p={tcp_1_p}, q={tcp_1_q}")
-        print(f"Initial TCP2 (left) p={tcp_2_p}, q={tcp_2_q}")
+        # print(f"Initial TCP1 (right) p={tcp_1_p}, q={tcp_1_q}")
+        # print(f"Initial TCP2 (left) p={tcp_2_p}, q={tcp_2_q}")
         
         FINGER_LENGTH = 0.025
         env = env.unwrapped
@@ -120,7 +120,7 @@ def solve(env, seed, debug=False, vis=False):
         )
         
         if res == -1:
-            print("Failed to Ready lift")
+            # print("Failed to Ready lift")
             return res
         # planner.render_wait()
         # viewer = planner.base_env.render_human()
@@ -135,7 +135,7 @@ def solve(env, seed, debug=False, vis=False):
         )
         
         if res == -1:
-            print("Failed to lift")
+            # print("Failed to lift")
             return res
         # planner.render_wait()
         planner.close_gripper(arm_index=1)
@@ -151,7 +151,7 @@ def solve(env, seed, debug=False, vis=False):
         )
         # planner.render_wait()
         if res == -1:
-            print("Failed to Hold")
+            # print("Failed to Hold")
             return res
         
         res = planner.move_to_pose_with_screw(
@@ -160,7 +160,7 @@ def solve(env, seed, debug=False, vis=False):
         )
         
         if res == -1:
-            print("Failed to pull")
+            # print("Failed to pull")
             return res
         # planner.render_wait()
         release_2 = pull_1 * sapien.Pose(p=[-0.1, 0.15, 0.2])
@@ -172,7 +172,7 @@ def solve(env, seed, debug=False, vis=False):
         )
         
         if res == -1:
-            print("Failed to Release")
+            # print("Failed to Release")
             return res
         
         planner.open_gripper(arm_index=1)
@@ -183,13 +183,13 @@ def solve(env, seed, debug=False, vis=False):
         )
         
         if res == -1:
-            print("Failed to Release")
+            # print("Failed to Release")
             return res
         
         # planner.render_wait()
         return res
     except Exception as e:
-        print(e)
+        # print(e)
         return res
 
 if __name__ == "__main__":

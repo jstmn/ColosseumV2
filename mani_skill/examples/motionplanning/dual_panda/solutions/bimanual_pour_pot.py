@@ -113,7 +113,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         )
 
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         
         result = planner.move_to_pose_pair_with_screw(
@@ -122,13 +122,13 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         )
 
         if result==-1:
-            print("Failed grasp_approach")
+            # print("Failed grasp_approach")
             return result
         
         planner.close_gripper(arm_index=1, t=10)
         planner.close_gripper(arm_index=2, t=10)
         
-        print("\n5. Lifting...")
+        # print("\n5. Lifting...")
         lift_1 = grasp_1_pose*sapien.Pose(p=[-0.2,-0.2,0])
         lift_2 = grasp_2_pose*sapien.Pose(p=[-0.2,0.2,0])
         
@@ -139,11 +139,11 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         )
         
         if result == -1:
-            print("Failed to lift")
+            # print("Failed to lift")
             return result
         
         # 5. Lift up
-        print("\n5. Lifting...")
+        # print("\n5. Lifting...")
         
         
         lift_1 = lift_1*sapien.Pose(q=[np.cos(-np.pi/2.05), 0, 0, np.sin(-np.pi/2.05)])
@@ -156,7 +156,7 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         )
         
         if result == -1:
-            print("Failed to lift")
+            # print("Failed to lift")
             return result
         
         lift_1 = lift_1*sapien.Pose(q=[np.cos(np.pi/2.05), 0, 0, np.sin(np.pi/2.05)])
@@ -169,8 +169,10 @@ def solve(env:DualArmPourPotEnv, seed, debug, vis):
         )
         
         if result == -1:
-            print("Failed to lift")
-
+            # print("Failed to lift")
+            return result
+        
+        
         return result
     
     except Exception as e:
