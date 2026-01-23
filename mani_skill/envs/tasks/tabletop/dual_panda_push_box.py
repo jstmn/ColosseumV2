@@ -52,16 +52,6 @@ class DualPandaPushBoxEnv(BaseEnv):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
-    def _default_sim_config(self):
-        return SimConfig(
-            gpu_memory_config=GPUMemoryConfig(
-                found_lost_pairs_capacity=2**25,
-                max_rigid_patch_count=2**19,
-                max_rigid_contact_count=2**21,
-            )
-        )
-
-    @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.3 + 0.83]) # 0.83: height of the table
         return [
@@ -75,7 +65,6 @@ class DualPandaPushBoxEnv(BaseEnv):
                 far=10,
             )
         ]
-
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""

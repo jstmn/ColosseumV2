@@ -20,13 +20,9 @@ def main():
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
     )
-    # increase_handle_friction(env)
-    # debug_collision_properties(env)
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)            
-        # print(f"res: {'Success' if success else 'Failure'}")
-        # env.reset()
     env.close()
 
 def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
@@ -55,15 +51,12 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         tcp_2_p = np.array(tcp_2_pose.p).flatten().copy()
         tcp_2_q = np.array(tcp_2_pose.q).flatten().copy()
     
-    print(f"Initial TCP1 (right) p={tcp_1_p}, q={tcp_1_q}")
-    print(f"Initial TCP2 (left) p={tcp_2_p}, q={tcp_2_q}")
     
     FINGER_LENGTH = 0.025
     env = env.unwrapped
 
     # retrieves the object oriented bounding box (trimesh box object)
     # For articulation links, we need to get the collision meshes directly
-    # print("LINKS:",env.open_cabinet.links_map)
     link = env.open_cabinet.links[1] if len(env.open_cabinet.links) > 1 else env.open_cabinet.root
     # Get collision meshes from all objects managed by this link
     meshes = []
@@ -85,9 +78,9 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         approaching = open_cabinet_transform[:3, 0].cpu().numpy()
     else:
         approaching = np.array(open_cabinet_transform[:3, 0])
-    # # get transformation matrix of the tcp pose, is default batched and on torch
+    # get transformation matrix of the tcp pose, is default batched and on torch
     target_closing = env.agent.tcp_1.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
-    # # we can build a simple grasp pose using this information for Panda
+    # we can build a simple grasp pose using this information for Panda
     grasp_info = compute_grasp_info_by_obb(
         obb,
         approaching=approaching,
@@ -117,14 +110,8 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         grasp_2_approach_pose,
         grasp_1_approach_pose  # left
     )
-    # viewer = planner.base_env.render_human()
-    # while True:
-    #     if viewer.window.key_down("c"):
-    #         break
-    #     planner.base_env.render_human()
 
     if res==-1:
-        print("Failed grasp_approach")
         return res
     
     res = planner.move_to_pose_pair_with_screw(
@@ -133,7 +120,6 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     )
     
     if res == -1:
-        print("Failed grasp")
         return res
     
     planner.close_gripper(arm_index=1)
@@ -148,7 +134,6 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
     )
     
     if res == -1:
-        print("Failed to Pull")
         return res
     
     

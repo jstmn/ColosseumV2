@@ -54,11 +54,6 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         
 
     def _load_scene(self, options: dict):
-        # Load a simple floor and lighting
-        # self.add_ground(altitude=0)
-        # self._setup_lighting()
-        # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
-
         # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
         model_id = "1005"
         builder = articulations.get_articulation_builder(
@@ -81,12 +76,6 @@ class DualArmDrawerPlaceEnv(BaseEnv):
             initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
         )
         self.open_cabinet = builder.build(name=f"drawer-{model_id}")
-        
-        # Ensure the cabinet is static (fixed root)
-        # PartNet assets loaded via builder usually default to dynamic, 
-        # so we lock the root link to prevent it from falling if it's not on the ground.
-        # if self.open_cabinet.root.entity.find_component_by_type(sapien.physx.PhysxRigidDynamicComponent):
-        #      self.open_cabinet.root.entity.find_component_by_type(sapien.physx.PhysxRigidDynamicComponent).kinematic = True
     
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -129,7 +118,6 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         above_ground = box_pos[..., 2] > 0.9
         inside = torch.norm(box_pos[..., :2] - drawer_pos[..., :2]) < 0.25
         success = above_ground * inside
-        # print(success)
         return {"above_ground": above_ground, "inside": inside, "success": success}
         
     def _get_obs_extra(self, info: dict):
@@ -176,24 +164,7 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
         # Render the frame
         env.render()  # <--- Updates the GUI
-        
     
     env.close()
-    
-#     mani_skill/utils/scene_builder/table/scene_builder.py
-# qpos = np.array(
-#                 [0.0, np.pi / 8, 0, -np.pi * 5 / 8, 0, np.pi * 3 / 4, -np.pi / 4, 0.04, 0.04]
-#             )
-
-# Jeremy Morgan
-# 11:11 PM
-# def initialize(self, env_idx: torch.Tensor, table_z_rotation_angle: float = np.pi/2.0, qpos_0: Optional[np.ndarray] = None):
-# use qpos_0

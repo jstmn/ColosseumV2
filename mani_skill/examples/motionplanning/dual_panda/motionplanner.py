@@ -7,7 +7,6 @@ from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.examples.motionplanning.base_motionplanner.motionplanner import BaseMotionPlanningSolver
 from mani_skill.examples.motionplanning.two_finger_gripper.motionplanner import (
     TwoFingerGripperMotionPlanningSolver,
-    # build_two_finger_gripper_grasp_pose_visual
 )
 from scipy.spatial.transform import Rotation
 
@@ -116,7 +115,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         vis: bool = True,
         base_pose: sapien.Pose = None,
         visualize_target_grasp_pose: bool = True,
-        print_env_info: bool = True,
+        print_env_info: bool = False,
         joint_vel_limits: float = 0.9,
         joint_acc_limits: float = 0.9,
     ):
@@ -129,11 +128,11 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         # Initialize gripper states for both arms
         self.gripper_1_state = self.OPEN
         self.gripper_2_state = self.OPEN
-        self.debug = debug
+        self.debug = False
         # Visualization objects (will be set up after parent init)
         self.grasp_pose_visual_1 = None
         self.grasp_pose_visual_2 = None
-        self.print_env_info = print_env_info
+        self.print_env_info = False
             
         # Call parent init (this calls setup_planner internally)
         super().__init__(
@@ -180,7 +179,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     
     def _verify_joint_ordering(self):
         """Verify that joint ordering is as expected"""
-        print("\n=== Verifying Joint Ordering ===")
         
         sapien_joint_names = [j.get_name() for j in self.robot.get_active_joints()]
         planner_joint_names = [self.planner.user_joint_names[idx] 
@@ -204,14 +202,13 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
 
         # Check if they match
         if sapien_joint_names == planner_joint_names:
-            print("✓ Joint orderings match!")
+            if self.debug:
+                print("✓ Joint orderings match!")
         else:
-            print("⚠ WARNING: Joint orderings differ! May need mapping.")
             self._create_joint_mapping(sapien_joint_names, planner_joint_names)
     
     def _create_joint_mapping(self, sapien_names, planner_names):
         """Create mapping between SAPIEN and planner joint orders if needed"""
-        # print("\n=== Creating Joint Mapping ===")
         
         # Map: planner_idx -> sapien_idx
         self.planner_to_sapien_map = []
@@ -219,14 +216,14 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             if p_name in sapien_names:
                 self.planner_to_sapien_map.append(sapien_names.index(p_name))
             else:
-                print(f"WARNING: Planner joint {p_name} not found in SAPIEN!")
+                if self.debug:
+                    print(f"WARNING: Planner joint {p_name} not found in SAPIEN!")
         
         # Map: sapien_idx -> planner_idx
         self.sapien_to_planner_map = [None] * len(sapien_names)
         for planner_idx, sapien_idx in enumerate(self.planner_to_sapien_map):
             self.sapien_to_planner_map[sapien_idx] = planner_idx
         
-        # print(f"Mapping created: {len(self.planner_to_sapien_map)} joints")
         self.needs_mapping = True
     
     def _convert_qpos_sapien_to_planner(self, qpos_sapien: np.ndarray) -> np.ndarray:
@@ -319,7 +316,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             final_pos = current_qpos[0:7]
         for i in range(n_step + refine_steps):
             qpos_18d = result["position"][min(i, n_step - 1)]
-            # print("QPOS18d", qpos_18d)
             if arm_index == 1:
                 arm_1_pose = qpos_18d[0:7]
                 arm_2_pose = final_pos
@@ -337,12 +333,8 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
             
-            # if self.print_env_info:
-                # print(f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}")
-            
             if self.vis:
                 self.base_env.render_human()
-                # time.sleep(0.02)
                 
         return obs, reward, terminated, truncated, info
     
@@ -385,7 +377,8 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if isinstance(ik_result, str):
-            print(f"IK Failed: {ik_result}")
+            if self.debug:
+                print(f"IK Failed: {ik_result}")
             self.render_wait()
             return -1
         
@@ -394,11 +387,12 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         collisions_env = self.planner.check_for_env_collision(qpos=ik_result)
         
         if len(collisions_self) > 0 or len(collisions_env) > 0:
-            print("❌ IK solution is in collision")
-            for c in collisions_self:
-                print(f"   Self-collision: {c.link_name1} <-> {c.link_name2}")
-            for c in collisions_env:
-                print(f"   Environment collision: {c.link_name1} <-> {c.link_name2}")
+            if self.debug:
+                print("IK solution is in collision")
+                for c in collisions_self:
+                    print(f"   Self-collision: {c.link_name1} <-> {c.link_name2}")
+                for c in collisions_env:
+                    print(f"   Environment collision: {c.link_name1} <-> {c.link_name2}")
             self.render_wait()
             return -1
         
@@ -412,15 +406,13 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if result["status"] != "Success":
-            print(f"Planning failed: {result['status']}")
+            if self.debug:
+                print(f"Planning failed: {result['status']}")
             self.render_wait()
             return -1
         
-        # self.render_wait()
-        
         if dry_run:
             return result
-        # self.render_wait()
         return self.follow_path(result, refine_steps=refine_steps)
     
     def move_arm_to_pose_with_RRTConnect(
@@ -443,7 +435,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         
         # Get current qpos
         current_qpos = self.robot.get_qpos().cpu().numpy()[0]
-        # current_qpos = self._convert_qpos_sapien_to_planner(current_qpos_sapien)
         
         # Helper function to convert SAPIEN pose to IK format
         def sapien_pose_to_ik_format(sapien_pose):
@@ -493,10 +484,10 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if isinstance(ik_result, str):
-            print(f"IK Failed: {ik_result}")
+            if self.debug:
+                print(f"IK Failed: {ik_result}")
             self.render_wait()
             return -1
-        # print("IK RESULT:", ik_result)
         # Plan with fixed joints for the other arm
         # (The planner will automatically fix gripper joints)
         result = self.planner.plan_qpos_to_qpos(
@@ -508,12 +499,11 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if result["status"] != "Success":
-            print(f"Planning failed: {result['status']}")
+            if self.debug:
+                print(f"Planning failed: {result['status']}")
             self.render_wait()
             return -1
-        
-        # self.render_wait()
-        
+                
         if dry_run:
             return result
         
@@ -543,15 +533,11 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         qpos = self._convert_qpos_sapien_to_planner(qpos)
         
         for i in range(t):
-            # if self.control_mode == "pd_joint_pos":
-            # else:
-            #     action = np.hstack([qpos, qpos * 0, self.gripper_1_state, self.gripper_2_state])
             action = np.hstack([qpos[0:7], g1_val, qpos[9:16], g2_val])
-            # print(action)
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
             
-            if self.print_env_info:
+            if self.debug:
                 print(f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}")
             
             if self.vis:
@@ -586,11 +572,10 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
                 action = np.hstack([qpos[0:7], g1_val, qpos[9:16], g2_val])
             else:
                 action = np.hstack([qpos, qpos * 0, self.gripper_1_state, self.gripper_2_state])
-            # print(action)
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
             
-            if self.print_env_info:
+            if self.debug:
                 print(f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}")
             
             if self.vis:
@@ -601,8 +586,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     def plan_dual_arm_constrained_motion(
         self,
         obj_goal_pos: np.ndarray,
-        # left_grasp_transform: np.ndarray,
-        # right_grasp_transform: np.ndarray,
         current_object_pose,
         current_left_pose,
         current_right_pose,
@@ -653,11 +636,10 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if result["status"] != "Success":
-            print(f"Constrained planning failed: {result['status']}")
+            if self.debug:
+                print(f"Constrained planning failed: {result['status']}")
             self.render_wait()
             return -1
-        
-        # self.render_wait()
         
         if dry_run:
             return result
@@ -692,17 +674,18 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         
         T_obj_from_L = T_L @ left_grasp_T
         T_obj_from_R = T_R @ right_grasp_T
-        
-        print("\n=== Grasp Transform Verification ===")
-        print(f"Original object pos: {T_obj[:3, 3]}")
-        print(f"From left hand:      {T_obj_from_L[:3, 3]}")
-        print(f"From right hand:     {T_obj_from_R[:3, 3]}")
-        print(f"Reconstruction error (L): {np.linalg.norm(T_obj[:3, 3] - T_obj_from_L[:3, 3]):.6f}")
-        print(f"Reconstruction error (R): {np.linalg.norm(T_obj[:3, 3] - T_obj_from_R[:3, 3]):.6f}")
+        if self.debug:
+            print("\n=== Grasp Transform Verification ===")
+            print(f"Original object pos: {T_obj[:3, 3]}")
+            print(f"From left hand:      {T_obj_from_L[:3, 3]}")
+            print(f"From right hand:     {T_obj_from_R[:3, 3]}")
+            print(f"Reconstruction error (L): {np.linalg.norm(T_obj[:3, 3] - T_obj_from_L[:3, 3]):.6f}")
+            print(f"Reconstruction error (R): {np.linalg.norm(T_obj[:3, 3] - T_obj_from_R[:3, 3]):.6f}")
         
         # If error is large, something is wrong with the input poses
         if np.linalg.norm(T_obj[:3, 3] - T_obj_from_L[:3, 3]) > 0.01:
-            print("WARNING: Large grasp transform error! Check input poses.")
+            if self.debug:
+                print("WARNING: Large grasp transform error! Check input poses.")
         
         
         # 3. Prepare Target
@@ -726,7 +709,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         )
         
         if result["status"] != "Success":
-            print(f"Constrained Screw planning failed: {result['status']}")
             return -1
                 
         if dry_run: return result
@@ -772,165 +754,11 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             step_size=0.01, # 1cm/step roughly
             visualize_callback=None
         )
-        # print(result['position'])
         if result["status"] != "Success":
-            print(f"Screw planning failed: {result['status']}")
             return -1
             
         if dry_run: return result
         return self.follow_path(result)
-    
-    # def move_to_pose_with_screw(
-    # self,
-    # pose: sapien.Pose,
-    # arm_index: int, 
-    # dry_run: bool = False,
-    # use_hybrid: bool = True,  # NEW PARAMETER
-    # rrt_fraction: float = 0.9  # Go 90% with RRT, 10% with screw
-    # ):
-    #     """
-    #     Move a single arm linearly (screw motion).
-    #     Uses hybrid RRT+Screw by default for robustness.
-    #     """
-    #     pose = to_sapien_pose(pose)
-        
-    #     if use_hybrid:
-    #         # HYBRID APPROACH: RRT most of the way, screw for final smooth approach
-    #         print(f"[Hybrid] Using RRT for {rrt_fraction*100:.0f}% + Screw for final {(1-rrt_fraction)*100:.0f}%")
-            
-    #         # Get current TCP pose
-    #         if arm_index == 1:
-    #             current_pose = self.env_agent.tcp_1_pose
-    #         else:
-    #             current_pose = self.env_agent.tcp_2_pose
-            
-    #         # Compute intermediate pose (e.g., 90% of the way)
-    #         alpha = rrt_fraction
-            
-    #         # Linear interpolation of position
-    #         current_p = current_pose.p
-    #         target_p = pose.p
-    #         if hasattr(current_p, 'cpu'):
-    #             current_p = current_p.cpu().numpy()
-    #         if hasattr(target_p, 'cpu'):
-    #             target_p = target_p.cpu().numpy()
-                
-    #         intermediate_p = (1 - alpha) * current_p + alpha * target_p
-            
-    #         # Slerp for orientation
-    #         current_q = current_pose.q
-    #         target_q = pose.q
-    #         if hasattr(current_q, 'cpu'):
-    #             current_q = current_q.cpu().numpy()
-    #         if hasattr(target_q, 'cpu'):
-    #             target_q = target_q.cpu().numpy()
-                
-    #         # Normalize quaternions
-    #         current_q = current_q / np.linalg.norm(current_q)
-    #         target_q = target_q / np.linalg.norm(target_q)
-            
-    #         # Slerp using scipy
-    #         from scipy.spatial.transform import Rotation, Slerp
-    #         key_times = [0, 1]
-    #         key_rots = Rotation.from_quat([current_q, target_q])
-    #         slerp = Slerp(key_times, key_rots)
-    #         intermediate_rot = slerp(alpha)
-    #         intermediate_q = intermediate_rot.as_quat()
-            
-    #         intermediate_pose = sapien.Pose(p=intermediate_p, q=intermediate_q)
-            
-    #         # 1. Use RRT to get to intermediate pose (collision-free, stable)
-    #         print(f"[Hybrid Step 1/2] RRT to intermediate pose...")
-    #         result_rrt = self.move_arm_to_pose_with_RRTConnect(
-    #             intermediate_pose,
-    #             arm_index=arm_index,
-    #             dry_run=False,
-    #             refine_steps=5
-    #         )
-            
-    #         if result_rrt == -1:
-    #             print("[Hybrid] RRT to intermediate failed, trying full RRT to target...")
-    #             # Fallback: just use RRT all the way
-    #             return self.move_arm_to_pose_with_RRTConnect(
-    #                 pose,
-    #                 arm_index=arm_index,
-    #                 dry_run=dry_run,
-    #                 refine_steps=10
-    #             )
-            
-    #         # 2. Use Screw for final smooth approach (short distance, less likely to fail)
-    #         print(f"[Hybrid Step 2/2] Screw motion for final approach...")
-    #         # Note: Don't call use_hybrid again (would infinite loop)
-    #         return self._screw_motion_pure(pose, arm_index, dry_run)
-        
-    #     else:
-    #         # Pure screw motion (original behavior)
-    #         return self._screw_motion_pure(pose, arm_index, dry_run)
-
-
-    # def _screw_motion_pure(
-    #     self,
-    #     pose: sapien.Pose,
-    #     arm_index: int,
-    #     dry_run: bool = False
-    # ):
-    #     """
-    #     Pure screw motion (extracted from move_to_pose_with_screw).
-    #     This is called by the hybrid approach for the final segment.
-    #     """
-    #     pose = to_sapien_pose(pose)
-        
-    #     # Get current qpos
-    #     current_qpos_sapien = self.robot.get_qpos().cpu().numpy()[0]
-    #     current_qpos = self._convert_qpos_sapien_to_planner(current_qpos_sapien)
-    #     self.planner.robot.set_qpos(current_qpos, True)
-        
-    #     # Prepare targets
-    #     target_7d = np.concatenate([pose.p, pose.q])
-    #     print(f"[Screw] Target: {target_7d}")
-        
-    #     left_target = None
-    #     right_target = None
-        
-    #     if arm_index == 1: # Right Arm
-    #         right_target = target_7d
-    #         self._update_grasp_visual(pose, None)
-    #         curr_pose_L = self.planner.pinocchio_model.get_link_pose(
-    #             self.planner.link_name_2_idx["panda_2_hand_tcp"]
-    #         )
-    #         left_target = np.concatenate([curr_pose_L[:3], curr_pose_L[3:]])
-    #     else: # Left Arm
-    #         left_target = target_7d
-    #         self._update_grasp_visual(None, pose)
-    #         curr_pose_R = self.planner.pinocchio_model.get_link_pose(
-    #             self.planner.link_name_2_idx["panda_1_hand_tcp"]
-    #         )
-    #         right_target = np.concatenate([curr_pose_R[:3], curr_pose_R[3:]])
-        
-    #     def screw_vis_callback(q_planner):
-    #         if self.vis:
-    #             q_sapien = self._convert_qpos_planner_to_sapien(q_planner)
-    #             self.robot.set_qpos(q_sapien)
-    #             self.base_env.render_human()
-        
-    #     # Call Planner with SMALLER step size for final approach
-    #     result = self.planner.plan_screw(
-    #         target_pose_L=left_target,
-    #         target_pose_R=right_target,
-    #         current_qpos=current_qpos,
-    #         step_size=0.002,  # Smaller for final approach
-    #         max_steps=1000,   # Shorter timeout for final approach
-    #         visualize_callback=None,
-    #         check_collisions=True
-    #     )
-        
-    #     if result["status"] != "Success":
-    #         print(f"[Screw] Planning failed: {result['status']}")
-    #         return -1
-            
-    #     if dry_run: 
-    #         return result
-    #     return self.follow_path(result, arm_index=arm_index)
     
     def move_to_pose_with_screw(
         self,
@@ -950,7 +778,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         # Prepare targets
         # Convert pose to [x, y, z, qw, qx, qy, qz]
         target_7d = np.concatenate([pose.p, pose.q])
-        # print(target_7d)
         left_target = None
         right_target = None
         
@@ -983,11 +810,8 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             step_size=0.005, # 1cm/step roughly
             visualize_callback=None
         )
-        # print(result['position'])
         if result["status"] != "Success":
-            print(f"Screw planning failed: {result['status']}")
             return -1
-        # self.render_wait()
         if dry_run: return result
         return self.follow_path(result, arm_index=arm_index)
     

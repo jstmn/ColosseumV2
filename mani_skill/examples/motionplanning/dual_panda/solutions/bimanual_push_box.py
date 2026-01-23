@@ -74,9 +74,9 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
     dist_2 = np.linalg.norm(p2 - box_pos)
     closer_arm = 1 if dist_1 <= dist_2 else 2
     
-    print(f"Arm 1 distance to box: {dist_1:.3f}")
-    print(f"Arm 2 distance to box: {dist_2:.3f}")
-    print(f"Using arm {closer_arm} (closer to box)")
+    # print(f"Arm 1 distance to box: {dist_1:.3f}")
+    # print(f"Arm 2 distance to box: {dist_2:.3f}")
+    # print(f"Using arm {closer_arm} (closer to box)")
     
     FINGER_LENGTH = 0.025
     
@@ -113,7 +113,7 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
         grasp_approach_pose = grasp_pose * sapien.Pose(p=[0, 0.16, 0])
         
     # Move closer arm to grasp approach pose
-    print(f"\n--- Moving arm {closer_arm} to Step 1 ---")
+    # print(f"\n--- Moving arm {closer_arm} to Step 1 ---")
     result = planner.move_to_pose_with_screw(
         grasp_approach_pose,
         arm_index=closer_arm
@@ -124,15 +124,15 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
         return result
     
     move_front = goal_pos[..., 1] - box_pos[..., 1]
-    print(f"✓ Arm {closer_arm} reached Step 1")
+    # print(f"✓ Arm {closer_arm} reached Step 1")
     if closer_arm==2:
         grasp_pose = grasp_pose * sapien.Pose(p=[0, move_front+0.05, 0])
     else:
         grasp_pose = grasp_pose * sapien.Pose(p=[0, -move_front+0.05, 0])
     grasp_pose = grasp_pose * sapien.Pose(p=[0, 0, 0])
-    print("Calculated Grasp Pose", grasp_pose)
+    # print("Calculated Grasp Pose", grasp_pose)
     # Move to grasp pose
-    print(f"\n--- Moving arm {closer_arm} to Step 2 ---")
+    # print(f"\n--- Moving arm {closer_arm} to Step 2 ---")
     result = planner.move_to_pose_with_screw(
         grasp_pose,
         arm_index=closer_arm
@@ -142,14 +142,14 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
         print(f"Failed to move arm {closer_arm} to Step 2")
         return result
     
-    print(f"✓ Arm {closer_arm} reached Step 2")
+    # print(f"✓ Arm {closer_arm} reached Step 2")
     
     # Close gripper
-    print(f"\n--- Closing arm {closer_arm} gripper ---")
-    print(f"✓ Arm {closer_arm} gripper closed")
+    # print(f"\n--- Closing arm {closer_arm} gripper ---")
+    # print(f"✓ Arm {closer_arm} gripper closed")
     
     # Move back up
-    print(f"\n--- Moving arm {closer_arm} back ---")
+    # print(f"\n--- Moving arm {closer_arm} back ---")
     
     grasp_approach_pose = grasp_approach_pose * sapien.Pose(p=[0, 0.05, 0])
     result = planner.move_to_pose_with_screw(
@@ -161,7 +161,7 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
         print(f"Failed to lift arm {closer_arm}")
         return result
     
-    print(f"✓ Arm {closer_arm} lifted successfully")
+    # print(f"✓ Arm {closer_arm} lifted successfully")
     # planner.render_wait()
     if env.evaluate()["success"] == torch.tensor(True):
         return result
@@ -183,9 +183,9 @@ def solve(env:DualPandaPushBoxEnv, seed, debug, vis):
         return result
 
     # Move to grasp pose
-    print(f"\n--- Moving arm {closer_arm} to Step 3 ---")
+    # print(f"\n--- Moving arm {closer_arm} to Step 3 ---")
     move_side = goal_pos[..., 0] - box_pos[..., 0]
-    print(move_side)
+    # print(move_side)
     if closer_arm == 2:
         grasp_pose = grasp_pose * sapien.Pose(p=[-move_side-0.05, 0, 0])
     else:

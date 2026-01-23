@@ -52,9 +52,6 @@ class DualArmPickCubeEnv(BaseEnv):
     
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
-        # self.add_ground(altitude=0)
-        # self._setup_lighting()
-        # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
         self.obj = actors.build_cube(
             self.scene,
             half_size=self.cube_half_size,
@@ -155,16 +152,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
     env.close()

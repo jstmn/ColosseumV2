@@ -46,7 +46,6 @@ class DualArmPourPotEnv(BaseEnv):
                 far=10,
             )
         ]
-
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -55,18 +54,6 @@ class DualArmPourPotEnv(BaseEnv):
 
     
     def _load_scene(self, options: dict):
-        # Load a simple floor and lighting
-        # self.add_ground(altitude=0)
-        # self._setup_lighting()
-        # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
-        # self.ball = actors.build_sphere(
-        #     self.scene,
-        #     radius=self.cube_half_size,
-        #     color=np.array([12, 42, 160, 255]) / 255,
-        #     name="ball",
-        #     body_type="dynamic",
-        #     initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
-        # )
         self.ball = self.load_glb_as_actor(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/tomato.glb"),
                                            sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
@@ -97,7 +84,6 @@ class DualArmPourPotEnv(BaseEnv):
             builder.add_visual_from_file(glb_file_path, scale=scale, material=custom_material)
         else:
             builder.add_visual_from_file(glb_file_path, scale=scale)
-        # builder.add_visual_from_file(glb_file_path, scale=scale)
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
@@ -122,8 +108,6 @@ class DualArmPourPotEnv(BaseEnv):
                 p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
                 q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
                 init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
-                # rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
-                # init_pose_sapien = rotation_pose * init_pose_sapien
                 self.pot.set_pose(init_pose_sapien)
             
             xyz[..., 2] = 0.9
@@ -138,7 +122,6 @@ class DualArmPourPotEnv(BaseEnv):
         # Dual Panda has 14+ gripper joints. 
         # You can define a custom "qpos" (joint positions) here if you want.
         # 0-6: Left Arm, 7-8: Left Gripper, 9-15: Right Arm, 16-17: Right Gripper
-        # qpos = np.zeros(self.agent.robot.dof)
         qpos = np.array([0.599, 2.358, 0.4, 0.442, -0.561, 0.697, -2.511, -2.513, 1.695, -1.775, 1.395, 1.347, -0.479, 2.031, 0.04, 0.04, 0.04, 0.04])
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
@@ -147,15 +130,6 @@ class DualArmPourPotEnv(BaseEnv):
         self.agent.reset(qpos)
 
     def _get_obs_extra(self, info: dict):
-        # THIS FIXES YOUR ERROR.
-        # We manually define what "extra" info we want, handling both arms correctly.
-        
-        # Access the specific attributes for Dual Panda
-        # (Using getattr to be safe, but usually it's tcp_pose_1 / tcp_pose_2 or similar)
-        
-        # Note: In many ManiSkill versions, dual agents might return a list for tcp_pose
-        # But if the error says 'tcp_1_pose', we use that.
-        
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
@@ -179,7 +153,6 @@ class DualArmPourPotEnv(BaseEnv):
         offset = tray_pos - ball_pos
         in_tray = (torch.abs(offset[..., 1]) < DualArmPourPotEnv.tray_half_width) * (torch.abs(offset[..., 0]) < DualArmPourPotEnv.tray_half_length)
         success = (ball_pos[..., 2] >= 0.83) * (ball_pos[..., 2] < 0.9) * in_tray
-        # print(success)
         return {"inside_tray": in_tray,"success": success}
     
     def compute_dense_reward(self, obs, action, info):
@@ -213,16 +186,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
     env.close()

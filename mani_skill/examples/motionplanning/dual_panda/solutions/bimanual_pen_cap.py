@@ -21,12 +21,7 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
-        
-        # if success:
-        #     print(f"✓ Test passed (seed={seed})")
-        # else:
-        #     print(f"✗ Test failed (seed={seed})")
-        
+            
     env.close()
     print("\n=== All tests completed ===")
 
@@ -103,22 +98,14 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
 
     if result == -1:
-        print("Failed grasp_approach")
         return result
-    
-    # viewer = planner.base_env.render_human()
-    # while True:
-    #     if viewer.window.key_down("c"):
-    #         break
-    #     planner.base_env.render_human()
-    
+        
     result = planner.move_to_pose_pair_with_screw(
         grasp_pen_pose,  # left
         grasp_cap_pose
     )
 
     if result==-1:
-        print("Failed grasp")
         return result
     
     
@@ -136,7 +123,6 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
     
     if result == -1:
-        print("Failed to lift")
         return result
     
     # Put cap
@@ -146,7 +132,6 @@ def solve(env:DualArmPenCapEnv, seed, debug, vis):
     )
     
     if result == -1:
-        print("Failed to lift")
         return result
     
     planner.render_wait()
