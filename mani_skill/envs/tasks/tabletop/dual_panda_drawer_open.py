@@ -35,7 +35,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
     
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-1.3, -0.4, 0.7+0.83], target=[0.1, 0, 0.1+0.83])
+        pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
         return [
             CameraConfig(
                 "base_camera",

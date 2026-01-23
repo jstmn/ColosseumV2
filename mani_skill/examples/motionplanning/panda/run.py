@@ -71,11 +71,10 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=RaiseCube-v1
+ENV_ID=DualArmStack3Cube-v1
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
-ENV_ID="CookItemInPan-v1"
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \

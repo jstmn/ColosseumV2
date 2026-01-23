@@ -28,11 +28,13 @@ class DualArmPourPotEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-1.3, -0.4, 0.7+0.83], target=[0.1, 0, 0.1+0.83])
+        pose = sapien_utils.look_at(eye=[-1.0, 0.0, 0.75 + 0.83], target=[0.0, 0, 0.2 + 0.83]) # 0.83: height of the table
         return [
             CameraConfig(
                 "base_camera",
@@ -44,6 +46,7 @@ class DualArmPourPotEnv(BaseEnv):
                 far=10,
             )
         ]
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
