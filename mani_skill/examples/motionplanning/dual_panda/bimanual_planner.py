@@ -305,7 +305,7 @@ class BimanualPlanner:
 
     # --- UPDATED: Default link names for new URDF ---
     def IK(self, left_target_pose=None, right_target_pose=None, start_qpos=None, left_link_name="panda_1_hand_tcp", right_link_name="panda_2_hand_tcp", threshold=1e-3, max_iter=100, step_size=0.1, attempts=200):
-        print("HI FROM IK")
+        # print("HI FROM IK")
         if start_qpos is None:
             start_qpos = self.robot.get_qpos()
 
@@ -353,7 +353,7 @@ class BimanualPlanner:
         
         target_L_se3 = to_pin_SE3(left_target_pose)
         target_R_se3 = to_pin_SE3(right_target_pose)
-        print(target_L_se3, target_R_se3)
+        # print(target_L_se3, target_R_se3)
         for attempt in range(attempts):
             if attempt == 0:
                 q = np.copy(start_qpos)

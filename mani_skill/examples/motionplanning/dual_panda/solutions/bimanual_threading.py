@@ -171,11 +171,11 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             print("Failed grasp_approach")
             return result
         # planner.render_wait()
-        viewer = planner.base_env.render_human()
-        while True:
-            if viewer.window.key_down("c"):
-                break
-            planner.base_env.render_human()
+        # viewer = planner.base_env.render_human()
+        # while True:
+        #     if viewer.window.key_down("c"):
+        #         break
+        #     planner.base_env.render_human()
 
         return result
     except Exception as e:

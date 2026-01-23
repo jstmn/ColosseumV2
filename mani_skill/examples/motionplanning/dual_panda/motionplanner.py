@@ -211,7 +211,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     
     def _create_joint_mapping(self, sapien_names, planner_names):
         """Create mapping between SAPIEN and planner joint orders if needed"""
-        print("\n=== Creating Joint Mapping ===")
+        # print("\n=== Creating Joint Mapping ===")
         
         # Map: planner_idx -> sapien_idx
         self.planner_to_sapien_map = []
@@ -226,7 +226,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         for planner_idx, sapien_idx in enumerate(self.planner_to_sapien_map):
             self.sapien_to_planner_map[sapien_idx] = planner_idx
         
-        print(f"Mapping created: {len(self.planner_to_sapien_map)} joints")
+        # print(f"Mapping created: {len(self.planner_to_sapien_map)} joints")
         self.needs_mapping = True
     
     def _convert_qpos_sapien_to_planner(self, qpos_sapien: np.ndarray) -> np.ndarray:
