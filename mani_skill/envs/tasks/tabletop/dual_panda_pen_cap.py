@@ -47,7 +47,6 @@ class DualArmPenCapEnv(BaseEnv):
                 far=10,
             )
         ]
-
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
