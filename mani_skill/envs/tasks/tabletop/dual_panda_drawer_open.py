@@ -55,11 +55,6 @@ class DualArmDrawerOpenEnv(BaseEnv):
         
 
     def _load_scene(self, options: dict):
-        # Load a simple floor and lighting
-        # self.add_ground(altitude=0)
-        # self._setup_lighting()
-        # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
-
         # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
         model_id = "1005"
         builder = articulations.get_articulation_builder(
@@ -93,7 +88,6 @@ class DualArmDrawerOpenEnv(BaseEnv):
                 init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
 
                 self.open_cabinet.set_pose(init_pose_sapien)
-            # self.obj.set_pose(sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]))
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
             self.open_cabinet.set_qvel(np.zeros(self.open_cabinet.dof))
@@ -159,14 +153,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
         # Render the frame
-        env.render()  # <--- Updates the GUI
-        
-    
+        env.render()  # <--- Updates the GUI    
     env.close()

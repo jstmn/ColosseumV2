@@ -102,15 +102,6 @@ class DualArmPickBottleEnv(BaseEnv):
         self.agent.reset(qpos)
 
     def _get_obs_extra(self, info: dict):
-        # THIS FIXES YOUR ERROR.
-        # We manually define what "extra" info we want, handling both arms correctly.
-        
-        # Access the specific attributes for Dual Panda
-        # (Using getattr to be safe, but usually it's tcp_pose_1 / tcp_pose_2 or similar)
-        
-        # Note: In many ManiSkill versions, dual agents might return a list for tcp_pose
-        # But if the error says 'tcp_1_pose', we use that.
-        
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
@@ -170,16 +161,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
     env.close()

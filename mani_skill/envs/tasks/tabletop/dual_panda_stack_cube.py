@@ -50,16 +50,6 @@ class TwoRobotStackCube(BaseEnv):
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
-    # @property
-    # def _default_sim_config(self):
-    #     return SimConfig(
-    #         gpu_memory_config=GPUMemoryConfig(
-    #             found_lost_pairs_capacity=2**25,
-    #             max_rigid_patch_count=2**19,
-    #             max_rigid_contact_count=2**21,
-    #         )
-    #     )
-
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.0 + 0.83]) # 0.83: height of the table
@@ -80,17 +70,8 @@ class TwoRobotStackCube(BaseEnv):
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    # def _load_agent(self, options: dict):
-    #     super()._load_agent(
-    #         options, [sapien.Pose(p=[0, -1, 0]), sapien.Pose(p=[0, 1, 0])]
-    #     )
-
     def _load_scene(self, options: dict):
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-        # self.table_scene = TableSceneBuilder(
-        #     env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        # )
-        # self.table_scene.build()
         self.cubeA = actors.build_cube(
             self.scene,
             half_size=0.02,
@@ -118,7 +99,6 @@ class TwoRobotStackCube(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # self.scene.initialize(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
             cubeA_xyz = torch.zeros((b, 3))
             cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 - 0.05
@@ -201,7 +181,6 @@ class TwoRobotStackCube(BaseEnv):
         
         z_flag = torch.abs(offset[..., 2] - 0.02 * 2) <= 0.005
         
-        # is_cubeB_on_cubeA = torch.logical_and(xy_flag, z_flag)
         is_cubeB_on_cubeA = z_flag
         cubeB_to_goal_dist = torch.linalg.norm(
             self.cubeB.pose.p[..., :2] - self.goal_region.pose.p[..., :2], axis=1
@@ -212,7 +191,6 @@ class TwoRobotStackCube(BaseEnv):
         success = (
             is_cubeB_on_cubeA * cubeB_placed
         )
-        # print(success)
         return {
             "is_cubeB_on_cubeA": is_cubeB_on_cubeA,
             "cubeB_placed": cubeB_placed,
@@ -248,15 +226,5 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     

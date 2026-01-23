@@ -26,7 +26,6 @@ class DualArmPenCapEnv(BaseEnv):
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
     """
-    # cube_half_size = 0.02
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
@@ -108,16 +107,7 @@ class DualArmPenCapEnv(BaseEnv):
         
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):
-        # THIS FIXES YOUR ERROR.
-        # We manually define what "extra" info we want, handling both arms correctly.
-        
-        # Access the specific attributes for Dual Panda
-        # (Using getattr to be safe, but usually it's tcp_pose_1 / tcp_pose_2 or similar)
-        
-        # Note: In many ManiSkill versions, dual agents might return a list for tcp_pose
-        # But if the error says 'tcp_1_pose', we use that.
-        
+    def _get_obs_extra(self, info: dict):        
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
@@ -199,14 +189,6 @@ class DualArmPenCapEnv(BaseEnv):
         is_deep_enough = depth_into_cap > min_depth
         success = is_aligned * is_deep_enough
         
-        # print({
-        #     "distance_to_axis": distance_to_axis.item(), 
-        #     "depth_into_cap": depth_into_cap, 
-        #     "is_aligned": is_aligned.item(), 
-        #     "is_deep_enough": is_deep_enough,
-        #     "success": success
-        # })
-        
         return {
             "is_aligned": is_aligned,
             "is_deep_enough": is_deep_enough,
@@ -234,16 +216,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
     env.close()

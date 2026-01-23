@@ -85,7 +85,6 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     )
 
     if res==-1:
-        # print("Failed grasp_approach")
         return res
             
     grasp_pose = grasp_pose*sapien.Pose(p=[0.13,0,0.00])

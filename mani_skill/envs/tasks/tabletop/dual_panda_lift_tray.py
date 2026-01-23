@@ -67,9 +67,6 @@ class DualArmLiftTrayEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
-        # self.add_ground(altitude=0)
-        # self._setup_lighting()
-        # self.ground = build_ground(self.scene, floor_width=floor_width, altitude=-self.table_height, name=f"ground{name_suffix}")
         self.tray = self.load_glb_as_actor(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
                                            sapien.Pose(),
@@ -118,8 +115,6 @@ class DualArmLiftTrayEnv(BaseEnv):
                 init_pose_sapien = rotation_pose * init_pose_sapien
                 self.tray.set_pose(init_pose_sapien)
                 self.init_pose = init_pose_sapien
-            # xyz[..., 2] = 0.9
-            # self.ball.set_pose(Pose.create_from_pq(p=xyz,q=[1,0,0,0]))
             
             
     def _initialize_agent(self):
@@ -136,19 +131,9 @@ class DualArmLiftTrayEnv(BaseEnv):
         self.agent.reset(qpos)
 
     def _get_obs_extra(self, info: dict):
-        # THIS FIXES YOUR ERROR.
-        # We manually define what "extra" info we want, handling both arms correctly.
-        
-        # Access the specific attributes for Dual Panda
-        # (Using getattr to be safe, but usually it's tcp_pose_1 / tcp_pose_2 or similar)
-        
-        # Note: In many ManiSkill versions, dual agents might return a list for tcp_pose
-        # But if the error says 'tcp_1_pose', we use that.
-        
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
             return np.hstack([pose.p, pose.q])
         
         if hasattr(self.agent, "tcp_pose"):
@@ -159,7 +144,6 @@ class DualArmLiftTrayEnv(BaseEnv):
             obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
         obs["tray_pose"] = self.tray.pose.raw_pose
-        # obs["ball_pose"] = self.ball.pose.raw_pose
         return obs
 
     def evaluate(self):
@@ -168,10 +152,8 @@ class DualArmLiftTrayEnv(BaseEnv):
         is_tray_grasped_left = self.agent.is_grasping(self.tray, arm_index=1)
         is_tray_grasped_right = self.agent.is_grasping(self.tray, arm_index=2)
         is_tray_grasped = torch.logical_or(is_tray_grasped_left, is_tray_grasped_right)
-        # print(is_ball_grasped_left, is_ball_grasped_right)
         offset_x = torch.abs(offset[..., 2])
         success = torch.logical_and(offset_x > 0.15, is_tray_grasped)
-        # print(success)
         return {"left_grasped": is_tray_grasped_left, "right_grasped": is_tray_grasped_right, "grasped": is_tray_grasped, "success": success}
     
     
@@ -206,16 +188,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
     env.close()

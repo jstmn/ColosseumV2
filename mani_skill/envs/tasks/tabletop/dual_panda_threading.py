@@ -108,10 +108,7 @@ class DualPandaThreadingEnv(BaseEnv):
             xyz[..., 1] += 0.1
             xyz[..., 2]=0.85
             
-            # theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
-            # self.needle.set_pose(sapien.Pose(p=list(xyz[0]), q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))]))
             self.needle.set_pose(sapien.Pose(p=list(xyz[0])))
-            # self.ring_tripod.set_pose(sapien.Pose(p=[0.3, 0.0, 0.9]))
         self._initialize_agent()
         
     def evaluate(self):
@@ -124,7 +121,6 @@ class DualPandaThreadingEnv(BaseEnv):
         needle_pose = self.needle.pose
         ring_pose = self.ring_tripod.pose # (1.0626)
         ring_pose = ring_pose * sapien.Pose(p=[0,0, 0.165])
-        # -0.191119, -0.314381, 0.850000
         # Needle parameters (from build_needle call)
         needle_length = 0.1
         eye_distance_from_end = 0.02
@@ -139,7 +135,6 @@ class DualPandaThreadingEnv(BaseEnv):
         
         # Compute needle eye position in world frame
         needle_direction = self._get_needle_direction_torch(needle_quat[0])
-        # needle_tip = needle_pos - needle_direction * needle_length
         needle_tip = needle_pose * sapien.Pose(p=[needle_length,0,0])
         needle_tip = needle_tip.p
         needle_eye = needle_tip - needle_direction * eye_distance_from_end
@@ -167,8 +162,6 @@ class DualPandaThreadingEnv(BaseEnv):
         is_near_plane = distance_to_plane < plane_tolerance
         is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
         success = is_near_plane * is_within_ring
-        # print(distance_to_ring_center, needle_tip)
-        # print({"dist_to_plane": distance_to_plane, "dist_to_centre": ring_radius - distance_to_ring_center - ring_margin, "success": success})
         return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
     
     def _get_needle_direction_torch(self, quat):

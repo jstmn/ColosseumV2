@@ -123,7 +123,6 @@ class TwoRobotStack3Cube(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # self.scene.initialize(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
             cubeA_xyz = torch.zeros((b, 3))
             cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 + 0.1
@@ -215,7 +214,6 @@ class TwoRobotStack3Cube(BaseEnv):
         offset_2 = pos_C - pos_A
         xy_1_flag = (
             torch.linalg.norm(offset_1[..., :2], axis=1)
-            # <= torch.linalg.norm(self.cube_half_size[:2]) + 0.005
             <= 0.02+0.005
         )
         xy_2_flag = (
@@ -224,7 +222,6 @@ class TwoRobotStack3Cube(BaseEnv):
         )
         z_1_flag = torch.abs(offset_1[..., 2] - 0.02 * 2) <= 0.005
         z_2_flag = torch.abs(offset_2[..., 2] - 0.02 * 4) <= 0.005
-        # xy_flag = torch.logical_and(xy_1_flag, xy_2_flag)
         z_flag = torch.logical_and(z_1_flag, z_2_flag)
         
         are_cubes_stacked = z_flag
@@ -237,8 +234,6 @@ class TwoRobotStack3Cube(BaseEnv):
             are_cubes_stacked * cubeA_placed
         )
         return {
-            # "is_cubeA_grasped": is_cubeA_grasped,
-            # "is_cubeB_grasped": is_cubeB_grasped,
             "are_cubes_stacked": are_cubes_stacked,
             "cubeA_placed": cubeA_placed,
             "success": success,
@@ -272,15 +267,6 @@ if __name__ == "__main__":
     # NOW you can run your IK loop here
     # 2. You MUST run a loop, or the window will close immediately
     while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
         # Render the frame
         env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
     
