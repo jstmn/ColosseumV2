@@ -122,7 +122,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
 
     if result==-1:
-        # print("Failed grasp_approach")
         return result
     
     result = planner.move_to_pose_pair_with_screw(
@@ -131,7 +130,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
 
     if result==-1:
-        # print("Failed grasp_approach")
         return result
     
     planner.close_gripper(arm_index=1, t=10)
@@ -144,7 +142,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
     
     planner.open_gripper(arm_index=1, t=10)
@@ -157,7 +154,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
     
     # Place B
@@ -168,7 +164,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
     
     planner.open_gripper(arm_index=2, t=10)
@@ -181,17 +176,14 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
     
     result = planner.move_to_pose_with_screw(
         grasp_C_approach_pose,  # left
         arm_index=1
-        # refine_steps=5
     )
     
     if result == -1:
-        # print("Failed to move above C")
         return result
     
     result = planner.move_to_pose_with_screw(
@@ -200,7 +192,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to grasp C")
         return result
     
     planner.close_gripper(arm_index=1, t=10)
@@ -213,7 +204,6 @@ def solve(env:TwoRobotStack3Cube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to place C")
         return result
     
     result = planner.open_gripper(arm_index=1, t=10)

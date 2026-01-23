@@ -24,11 +24,6 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        # if success:
-        #     print(f"✓ Test passed (seed={seed})")
-        # else:
-        #     print(f"✗ Test failed (seed={seed})")
-        
     env.close()
     print("\n=== All tests completed ===")
 
@@ -92,13 +87,7 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     if res==-1:
         # print("Failed grasp_approach")
         return res
-    
-    # viewer = planner.base_env.render_human()
-    # while True:
-    #     if viewer.window.key_down("c"):
-    #         break
-    #     planner.base_env.render_human()
-        
+            
     grasp_pose = grasp_pose*sapien.Pose(p=[0.13,0,0.00])
     grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
     res = planner.move_to_pose_with_screw(
@@ -107,12 +96,10 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     )
 
     if res==-1:
-        # print("Failed grasp_approach")
         return res
     
     planner.close_gripper(arm_index=1, t=10)
     
-    # print("\n5. Lifting...")
     lift_1 = sapien.Pose(
         p=np.array([-0.333, -0.10, 1.5]),
         q=np.array([-0.5,0.5,0.5,0.5])
@@ -126,15 +113,12 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1
-        # refine_steps=5
     )
     
     if res == -1:
-        # print("Failed to lift")
         return res
     
     # 5. Lift up
-    # print("\n5. Lifting...")
     lift_1 = sapien.Pose(
         p=np.array([-0.333, 0.04, 1.5]),
         q=np.array([-0.5,0.5,0.5,0.5])
@@ -148,15 +132,12 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     res = planner.move_to_pose_pair_with_screw(
         lift_2,  # left
         lift_1,  # right
-        # refine_steps=5
     )
     
     if res == -1:
-        # print("Failed to lift")
         return res
     
-            # 6. Open grippers
-    # print("\n6. Releasing...")
+    # 6. Open grippers
     planner.close_gripper(arm_index=2, t=5)
     planner.open_gripper(arm_index=1, t=5)
     lift_2 = sapien.Pose(
@@ -169,23 +150,7 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     )
     
     if res == -1:
-        # print("Failed to lift")
         return res
-    
-    # grasp_1 = sapien.Pose(
-    #     p=np.array([-0.2, -0.141, 1]),
-    #     q=grasp_pose.q
-    # )
-    # grasp_2 = sapien.Pose(
-    #     p=np.array([0.1, 0.141, 1]),
-    #     q=lift_2.q
-    # )
-
-    # res = planner.move_to_pose_pair_with_screw(
-    #     grasp_2,  # left
-    #     grasp_1,  # right
-    #     # refine_steps=5
-    # )
     
     return res
 

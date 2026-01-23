@@ -22,11 +22,6 @@ def main():
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
         
-        # if success:
-        #     print(f"✓ Test passed (seed={seed})")
-        # else:
-        #     print(f"✗ Test failed (seed={seed})")
-        
     env.close()
     print("\n=== All tests completed ===")
 
@@ -106,7 +101,6 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     )
 
     if result==-1:
-        # print("Failed grasp_approach")
         return result
     
     result = planner.move_to_pose_pair_with_screw(
@@ -115,7 +109,6 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     )
 
     if result==-1:
-        # print("Failed grasp_approach")
         return result
     
     planner.close_gripper(arm_index=1, t=10)
@@ -129,30 +122,17 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
-    
-    # # Place A
-    # result = planner.move_to_pose_with_screw(
-    #     place_A_pose,
-    #     arm_index=1
-    # )
-    
-    # if result == -1:
-    #     print("Failed to lift")
-    #     return result
-    
+        
     planner.open_gripper(arm_index=1, t=10)
 
     final_A_pose = sapien.Pose(p=[-0.4,-0.254,1.018],q=[0.138,0.694,0.694,-0.138])
     result = planner.move_to_pose_with_screw(
         final_A_pose,  # left
         arm_index=1
-        # refine_steps=5
     )
     
     if result == -1:
-        # print("Failed to Reset arm A")
         return result
     
     # Place B
@@ -163,7 +143,6 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     )
     
     if result == -1:
-        # print("Failed to lift")
         return result
     
     result = planner.open_gripper(arm_index=2, t=10)

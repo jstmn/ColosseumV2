@@ -55,8 +55,6 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         tcp_2_p = np.array(tcp_2_pose.p).flatten().copy()
         tcp_2_q = np.array(tcp_2_pose.q).flatten().copy()
     
-    # print(f"Initial TCP1 (right) p={tcp_1_p}, q={tcp_1_q}")
-    # print(f"Initial TCP2 (left) p={tcp_2_p}, q={tcp_2_q}")
     
     FINGER_LENGTH = 0.025
     env = env.unwrapped
@@ -117,11 +115,6 @@ def solve(env:DualArmDrawerOpenEnv, seed, debug=False, vis=False):
         grasp_2_approach_pose,
         grasp_1_approach_pose  # left
     )
-    # viewer = planner.base_env.render_human()
-    # while True:
-    #     if viewer.window.key_down("c"):
-    #         break
-    #     planner.base_env.render_human()
 
     if res==-1:
         # print("Failed grasp_approach")

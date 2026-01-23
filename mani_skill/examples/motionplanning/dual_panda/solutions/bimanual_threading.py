@@ -90,7 +90,6 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            # print("Failed grasp_approach")
             return result
         
         obb_tripod = get_actor_obb(env.ring_tripod)
@@ -120,16 +119,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            # print("Failed grasp_approach")
             return result
-                
-        # result = planner.move_arm_to_pose_with_RRTConnect(
-        #     grasp_2_pose,
-        #     arm_index=2
-        # )
-        # if result==-1:
-        #     print("Failed grasp_approach")
-        #     return result
         
         grasp_2_pose = grasp_2_pose*sapien.Pose(p=[0,0,0.12])
         result = planner.move_to_pose_with_screw(
@@ -137,8 +127,8 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=2
         )
         if result==-1:
-            # print("Failed grasp_approach")
             return result
+    
         planner.close_gripper(arm_index=2, t=10)
         
         lift_2_pose = sapien.Pose(p=[-0.228, -0.011, 1.186-0.17],q=[0,0,0.707,-0.707])
@@ -152,7 +142,6 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         )
         
         if result==-1:
-            # print("Failed grasp_approach")
             return result
         
         result = planner.move_to_pose_with_screw(
@@ -160,7 +149,6 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=2
         )
         if result==-1:
-            # print("Failed grasp_approach")
             return result
 
         result = planner.move_to_pose_with_screw(
@@ -168,15 +156,8 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
             arm_index=1
         )
         if result==-1:
-            # print("Failed grasp_approach")
             return result
-        # planner.render_wait()
-        # viewer = planner.base_env.render_human()
-        # while True:
-        #     if viewer.window.key_down("c"):
-        #         break
-        #     planner.base_env.render_human()
-
+    
         return result
     except Exception as e:
         print("Exception during Motion Planning:", e)

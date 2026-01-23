@@ -21,12 +21,6 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
-        
-        # if success:
-        #     print(f"✓ Test passed (seed={seed})")
-        # else:
-        #     print(f"✗ Test failed (seed={seed})")
-        
     env.close()
     print("\n=== All tests completed ===")
 
@@ -88,7 +82,6 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
     )
 
     if res==-1:
-        # print("Failed grasp_approach")
         return res
     
     res = planner.move_to_pose_with_screw(
@@ -97,12 +90,10 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
     )
 
     if res==-1:
-        # print("Failed grasp_approach")
         return res
     
     planner.close_gripper(arm_index=1, t=10)
-    
-    # print("\n5. Lifting...")
+
     lift_1 = sapien.Pose(
         p=np.array([-0.333, -0.10, 1.5]),
         q=np.array([0.546,-0.449,0.523,0.515])
@@ -116,15 +107,12 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
     res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1
-        # refine_steps=5
     )
     
     if res == -1:
-        # print("Failed to lift")
         return res
     
     # 5. Lift up
-    # print("\n5. Lifting...")
     lift_1 = sapien.Pose(
         p=np.array([-0.333, 0.04, 1.5]),
         q=np.array([0.546,-0.449,0.523,0.515])
@@ -138,15 +126,12 @@ def solve(env:DualArmPickCubeEnv, seed, debug, vis):
     res = planner.move_to_pose_pair_with_screw(
         lift_2,  # left
         lift_1,  # right
-        # refine_steps=5
     )
     
     if res == -1:
-        # print("Failed to lift")
         return res
     
     # 6. Open grippers
-    # print("\n6. Releasing...")
     planner.close_gripper(arm_index=2, t=10)
     planner.open_gripper(arm_index=1, t=10)
     
