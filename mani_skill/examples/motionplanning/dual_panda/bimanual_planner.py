@@ -32,7 +32,7 @@ class BimanualPlanner:
         if joint_acc_limits is None:
             joint_acc_limits = []
         
-        print("Initializing BimanualPlanner for Dual Panda Table...")
+        # print("Initializing BimanualPlanner for Dual Panda Table...")
         self.urdf = str(urdf)
         urdf = self.replace_package_keyword(package_keyword_replacement)
         self.urdf = str(urdf)
@@ -148,7 +148,7 @@ class BimanualPlanner:
                 print(f"Warning: Joint {name} not found in robot model!")
         
         self.move_group_joint_indices = sorted(self.move_group_joint_indices)
-        print(f"Manually compiled {len(self.move_group_joint_indices)} active joints.")
+        # print(f"Manually compiled {len(self.move_group_joint_indices)} active joints.")
         
         self.joint_types = self.pinocchio_model.get_joint_types()
         self.joint_limits = np.concatenate(self.pinocchio_model.get_joint_limits())

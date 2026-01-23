@@ -180,7 +180,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     
     def _verify_joint_ordering(self):
         """Verify that joint ordering is as expected"""
-        print("\n=== Verifying Joint Ordering ===")
+        # print("\n=== Verifying Joint Ordering ===")
         
         sapien_joint_names = [j.get_name() for j in self.robot.get_active_joints()]
         planner_joint_names = [self.planner.user_joint_names[idx] 
@@ -206,7 +206,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         if sapien_joint_names == planner_joint_names:
             print("✓ Joint orderings match!")
         else:
-            print("⚠ WARNING: Joint orderings differ! May need mapping.")
+            # print("⚠ WARNING: Joint orderings differ! May need mapping.")
             self._create_joint_mapping(sapien_joint_names, planner_joint_names)
     
     def _create_joint_mapping(self, sapien_names, planner_names):
@@ -551,7 +551,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
             
-            if self.print_env_info:
+            if self.debug:
                 print(f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}")
             
             if self.vis:
@@ -590,7 +590,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
             
-            if self.print_env_info:
+            if self.debug:
                 print(f"[{self.elapsed_steps:3}] Env Output: reward={reward} info={info}")
             
             if self.vis:
