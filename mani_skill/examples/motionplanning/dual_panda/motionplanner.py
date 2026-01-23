@@ -129,7 +129,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         # Initialize gripper states for both arms
         self.gripper_1_state = self.OPEN
         self.gripper_2_state = self.OPEN
-        
+        self.debug = debug
         # Visualization objects (will be set up after parent init)
         self.grasp_pose_visual_1 = None
         self.grasp_pose_visual_2 = None
@@ -211,7 +211,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     
     def _create_joint_mapping(self, sapien_names, planner_names):
         """Create mapping between SAPIEN and planner joint orders if needed"""
-        print("\n=== Creating Joint Mapping ===")
+        # print("\n=== Creating Joint Mapping ===")
         
         # Map: planner_idx -> sapien_idx
         self.planner_to_sapien_map = []
@@ -226,7 +226,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         for planner_idx, sapien_idx in enumerate(self.planner_to_sapien_map):
             self.sapien_to_planner_map[sapien_idx] = planner_idx
         
-        print(f"Mapping created: {len(self.planner_to_sapien_map)} joints")
+        # print(f"Mapping created: {len(self.planner_to_sapien_map)} joints")
         self.needs_mapping = True
     
     def _convert_qpos_sapien_to_planner(self, qpos_sapien: np.ndarray) -> np.ndarray:
@@ -283,7 +283,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         planner.joint_acc_limits = np.asarray(planner.joint_acc_limits) * self.joint_acc_limits
         
         # Print debug info about planner setup
-        if self.print_env_info:
+        if self.debug:
             print(f"\n=== Dual Panda Planner Setup ===")
             print(f"URDF: {self.env_agent.urdf_path}")
             print(f"SRDF: {srdf_path}")

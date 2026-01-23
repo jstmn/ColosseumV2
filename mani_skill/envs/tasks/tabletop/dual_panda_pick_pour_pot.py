@@ -30,7 +30,20 @@ class DualArmPourPotEnv(BaseEnv):
     agent: DualPanda # Type hinting for IDE support
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-    
+    @property
+    def _default_sensor_configs(self):
+        pose = sapien_utils.look_at(eye=[-1.3, -0.4, 0.7+0.83], target=[0.1, 0, 0.1+0.83])
+        return [
+            CameraConfig(
+                "base_camera",
+                pose=pose,
+                width=128,
+                height=128,
+                fov=np.pi / 3,
+                near=0.01,
+                far=10,
+            )
+        ]
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
