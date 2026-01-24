@@ -42,18 +42,15 @@ class DualPandaPushBoxEnv(BaseEnv):
 
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/TwoRobotStackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda
-
-    goal_radius = 0.06
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.3 + 0.83]) # 0.83: height of the table
+        pose = sapien_utils.look_at(eye=[0.6, 0.0, 0.8 + 0.83], target=[-0.2, 0, 0.1 + 0.83]) # 0.83: height of the table
         return [
             CameraConfig(
                 "base_camera",
@@ -65,6 +62,7 @@ class DualPandaPushBoxEnv(BaseEnv):
                 far=10,
             )
         ]
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
