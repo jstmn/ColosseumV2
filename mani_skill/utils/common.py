@@ -248,6 +248,9 @@ def flatten_state_dict(
             state = value
             if len(state.shape) == 1:
                 state = state[:, None]
+            elif len(state.shape) > 2:
+                # Flatten tensors with more than 2 dimensions (e.g., transformation matrices [batch, 4, 4] -> [batch, 16])
+                state = state.reshape(state.shape[0], -1)
         else:
             raise TypeError("Unsupported type: {}".format(type(value)))
         if state is not None:

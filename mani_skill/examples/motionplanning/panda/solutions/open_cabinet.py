@@ -215,15 +215,24 @@ def _open_cabinet_with_planner(
         return -1
 
     # Phase 3: Grasp the handle
-    planner.close_gripper()
+    planner.close_gripper(t=25)  # Longer grasp time for stability in headless mode
+
+    # Extra settling steps to secure grip before pulling (hold current position)
+    qpos = env_sim.agent.robot.get_qpos()[0, :7].cpu().numpy()
+    for _ in range(10):
+        if env.unwrapped.control_mode == "pd_joint_pos":
+            action = np.hstack([qpos, -1])  # -1 = gripper closed
+        else:
+            action = np.hstack([qpos, qpos * 0, -1])  # pd_joint_pos_vel
+        env.step(action)
 
     # Get current joint state and limits
     qpos = env_sim.handle_link.joint.qpos
     current_qpos = qpos[0].item() if qpos.ndim > 0 else float(qpos)
     qmin, qmax = _get_joint_limits(env_sim.handle_link.joint)
 
-    # Target: use provided target_frac or default to 0.25
-    frac = target_frac if target_frac is not None else 0.55
+    # Target: use provided target_frac or default to 0.90 (90% of door range)
+    frac = target_frac if target_frac is not None else 0.90
     target_qpos = qmin + frac * abs(qmax - qmin)
 
     # Phase 4: Open the door by following an arc
@@ -236,15 +245,14 @@ def _open_cabinet_with_planner(
 
     # Use smooth arc motion with small angle steps for reliable planning
     # Smaller steps = more reliable screw motion planning
-    angle_step = 0.05  # ~1.15 degrees per step
-    num_steps = 15
+    num_steps = 30  # More steps for larger openings
     step_angle = delta / num_steps
     current_angle = 0.0
 
     # Pull-back offsets to keep gripper behind the door surface
     pull_offsets = [-0.02, -0.04, -0.06, -0.08, -0.10]
     consecutive_failures = 0
-    max_failures = 8  # Allow more failures before giving up
+    max_failures = 10  # Allow more failures before giving up
 
     for _ in range(num_steps):
         target_angle = current_angle + step_angle
@@ -280,8 +288,8 @@ def _open_cabinet_with_planner(
                 qpos_val = qpos[0].item() if qpos.ndim > 0 else float(qpos)
                 current_angle = qpos_val - current_qpos
                 consecutive_failures = 0
-                # If we've opened past 65%, we can stop
-                if qpos_val >= qmin + 0.65 * abs(qmax - qmin):
+                # If we've opened past 85%, we can stop
+                if qpos_val >= qmin + 0.85 * abs(qmax - qmin):
                     break
 
         # Check current door opening

@@ -476,7 +476,7 @@ class ObjectInCabinetEnv(BaseEnv):
                 obj_pose=self.obj.pose.raw_pose,
                 tcp_to_obj_pos=self.obj.pose.p - self.agent.tcp.pose.p,
                 tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
-                target_link_qpos=self.handle_link.joint.qpos,
+                target_link_qpos=self.handle_link.joint.qpos.unsqueeze(-1),
                 target_handle_pos=info["handle_link_pos"],
             )
         return obs
