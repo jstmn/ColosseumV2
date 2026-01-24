@@ -143,7 +143,18 @@ def from_pd_joint_pos_to_ee(
         )
 
         flag = True
-        for _ in range(4):
+        # Check if gripper is closed (grasping) - use tighter tracking
+        gripper_action = ori_action_dict.get("gripper", None)
+        if gripper_action is not None:
+            gripper_val = gripper_action.cpu().numpy() if hasattr(gripper_action, 'cpu') else gripper_action
+            gripper_closed = np.any(gripper_val < 0)
+        else:
+            gripper_closed = False
+
+        # Tighter tracking when gripper is closed (manipulating objects)
+        pos_threshold = 0.001 if gripper_closed else 0.005  # 1mm when grasping, 5mm otherwise
+        max_substeps = 15 if gripper_closed else 6
+        for substep in range(max_substeps):
             if target_controller_is_delta:
                 delta_q = [1, 0, 0, 0]
                 if "root_translation" in arm_controller.config.frame:
@@ -209,7 +220,10 @@ def from_pd_joint_pos_to_ee(
             if render:
                 env.render_human()
 
-            if flag:
+            # Check position error - keep iterating until EE is close to target
+            current_ee_pos = ee_link.pose.p
+            pos_error = torch.norm(target_ee_pose_pin.p - current_ee_pos).item()
+            if flag and pos_error < pos_threshold:
                 break
     return info
 

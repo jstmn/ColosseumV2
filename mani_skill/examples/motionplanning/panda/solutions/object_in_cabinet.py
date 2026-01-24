@@ -56,7 +56,7 @@ def solve(env: ObjectInCabinetEnv, seed=None, debug=False, vis=False):
         print(f"Initial EE-to-handle distance: {ee_handle_dist:.3f}m")
 
     # ===== Phase 1: Open the door using live motion planning =====
-    res = _open_cabinet_with_planner(env, planner, debug=debug, target_frac=0.95)
+    res = _open_cabinet_with_planner(env, planner, debug=debug, target_frac=1.0)  # Fully open
     if res == -1:
         if debug:
             print("Failed to open cabinet door")
