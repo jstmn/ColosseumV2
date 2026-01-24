@@ -112,8 +112,14 @@ class ScoopBananaEnv(BaseEnv):
             type="dynamic"
         )
 
-        self.wall = actors.build_box(self.scene, half_sizes=[0.2, 0.02, 0.1], color=
-                                     [201/255, 204/255, 182/255, 1], name="wall", body_type="static", add_collision=True, initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071]))
+        self.wall = actors.build_box(
+            self.scene, half_sizes=[0.2, 0.02, 0.1], 
+            color=[201/255, 204/255, 182/255, 1], 
+            name="wall", 
+            body_type="kinematic", 
+            add_collision=True, 
+            initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071])
+        )
 
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):

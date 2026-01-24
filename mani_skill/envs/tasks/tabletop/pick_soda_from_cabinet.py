@@ -104,7 +104,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             half_sizes=[0.38/2, 0.01, 0.272],
             color=np.array([141, 117, 105, 255]) / 255,
             name="left",
-            body_type="static",
+            body_type="kinematic",
             initial_pose=sapien.Pose(p=[0.252629, 0.195302, 0.309642]),
         )
         self.right = actors.build_box(
@@ -112,7 +112,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             half_sizes=[0.38/2, 0.01, 0.272],
             color=np.array([141, 117, 105, 255]) / 255,
             name="right",
-            body_type="static",
+            body_type="kinematic",
             initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
         )
         self.back = actors.build_box(
@@ -120,7 +120,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             half_sizes=[0.58/2, 0.01, 0.272],
             color=np.array([141, 117, 105, 255]) / 255,
             name="back",
-            body_type="static",
+            body_type="kinematic",
             initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
         )
         self.soda = self.load_glb_as_actor(self.scene, 
