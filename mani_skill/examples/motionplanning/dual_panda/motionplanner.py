@@ -358,7 +358,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         right_pose = to_sapien_pose(right_pose)
         
         self._update_grasp_visual(right_pose, left_pose)
-        
+
         # Get current qpos and convert to planner space
         current_qpos_sapien = self.robot.get_qpos().cpu().numpy()[0]
         current_qpos = self._convert_qpos_sapien_to_planner(current_qpos_sapien)
@@ -727,7 +727,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         right_pose = to_sapien_pose(right_pose)
         
         self._update_grasp_visual(right_pose, left_pose)
-        
+
         # Get current qpos
         current_qpos_sapien = self.robot.get_qpos().cpu().numpy()[0]
         current_qpos = self._convert_qpos_sapien_to_planner(current_qpos_sapien)

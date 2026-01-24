@@ -73,12 +73,12 @@ class DualPandaPushBoxEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
 
-        self.cube_half_size = [0.06,0.04,0.02]
+        self.cube_half_size = [0.08,0.12,0.04]
 
         self.box = actors.build_box(
             self.scene,
             half_sizes=self.cube_half_size,
-            color=[0, 1, 0, 1],
+            color=[0, 0.5, 0, 1],
             name="Box",
             initial_pose=sapien.Pose(p=[1, 0, 0.02], q=[1,0,0,0]),
         )
@@ -97,8 +97,8 @@ class DualPandaPushBoxEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             box_xyz = torch.zeros((b, 3))
-            box_xyz[:, 0] = - torch.rand((b,)) * 0.1
-            box_xyz[:, 1] = torch.rand((b,)) * 0.8 - 0.4
+            box_xyz[:, 0] = - torch.rand((b,)) * 0.2
+            box_xyz[:, 1] = torch.rand((b,)) * 0.2 - 0.1
             box_xyz[:, 2] = 0.02 + 0.83
             
             goal_xyz = torch.zeros((b, 3))
@@ -106,14 +106,9 @@ class DualPandaPushBoxEnv(BaseEnv):
             goal_xyz[:, 1] = 0
             goal_xyz[:, 2] = 1e-3 + 0.83
             
-            qs = random_quaternions(
-                b,
-                lock_x=True,
-                lock_y=True,
-                lock_z=True,
-            )
-
-            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=[1,0,0,0]))
+            theta_by_2 = (torch.rand(b))*np.pi/6-np.pi/12
+            # theta_by_2 = 0
+            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=torch.tensor([float(np.cos(theta_by_2)),0,0,float(np.sin(theta_by_2))])))
 
             qs = random_quaternions(
                 b,
@@ -123,121 +118,35 @@ class DualPandaPushBoxEnv(BaseEnv):
             )
 
             self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=[1,0,0,0]))
+        self._initialize_agent()
 
     def _initialize_agent(self):
-        qpos = np.zeros(self.agent.robot.dof)
+        qpos = np.array([0.84, 2.307, 0.154, 0.17, -0.27, 0.273, -2.496, -2.473, 0.086, -0.096, 2.642, 2.633, -0.288, 1.875, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
-
-    def calculate_rectangle_overlap_percentage(self, rect1, rect2):
-        """
-        Calculate the percentage of overlap between two rectangles.
-        
-        Based on: https://math.stackexchange.com/questions/2449221/
-        
-        Args:
-            rect1: dict with keys 'left', 'right', 'top', 'bottom' (or use tuple (l, r, t, b))
-            rect2: dict with keys 'left', 'right', 'top', 'bottom' (or use tuple (l, r, t, b))
-        
-        Returns:
-            float: Percentage of overlap relative to rect1's area (0-100). Returns 0 if no overlap.
-        """
-        # Handle both dict and tuple inputs
-        if isinstance(rect1, dict):
-            l0, r0, t0, b0 = rect1['left'], rect1['right'], rect1['top'], rect1['bottom']
-        else:
-            l0, r0, t0, b0 = rect1
-        
-        if isinstance(rect2, dict):
-            l1, r1, t1, b1 = rect2['left'], rect2['right'], rect2['top'], rect2['bottom']
-        else:
-            l1, r1, t1, b1 = rect2
-        
-        # Calculate overlap area using the formula from Math.SE
-        # A_overlap = (max(l0, l1) - min(r0, r1)) * (max(t0, t1) - min(b0, b1))
-        overlap_width = min(r0, r1) - max(l0, l1)
-        overlap_height = min(t0, t1) - max(b0, b1)
-        
-        # If either dimension is negative or zero, there's no overlap
-        if overlap_width <= 0 or overlap_height <= 0:
-            return 0.0
-        
-        overlap_area = overlap_width * overlap_height
-        
-        # Calculate area of rect1
-        rect1_area = (r0 - l0) * (t0 - b0)
-        
-        if rect1_area <= 0:
-            return 0.0
-        
-        # Return percentage relative to rect1
-        percentage = (overlap_area / rect1_area) * 100
-        return percentage
-
-    def check_overlap_and_stop(self, rect1, rect2, threshold=50.0):
-        """
-        Check if two rectangles overlap by more than a threshold percentage.
-        If overlap exceeds threshold, return True (indicating we should stop).
-        
-        Args:
-            rect1: First rectangle
-            rect2: Second rectangle
-            threshold: Overlap percentage threshold (default 50%)
-        
-        Returns:
-            bool: True if overlap > threshold (should stop), False otherwise
-        """
-        overlap_pct = self.calculate_rectangle_overlap_percentage(rect1, rect2)
-        
-        if overlap_pct > threshold:
-            # print(f"⚠ Overlap detected: {overlap_pct:.2f}% > {threshold}% threshold - STOPPING")
-            return True
-        
-        return False
-
-    
+            
     def evaluate(self):
-        box_obb = get_actor_obb(self.box)
-        # Extract 2D rectangle bounds (x-y plane projection)
-        # OBB is a trimesh.primitives.Box object with primitive.extents and primitive.transform
-        box_transform = np.array(box_obb.primitive.transform)
-        box_extents = np.array(box_obb.primitive.extents)
-        box_center = box_transform[:3, 3]  # Get center from transformation matrix
-        # print(box_extents)
-        box_rect = (
-            box_center[0] - box_extents[2]/2,  # left
-            box_center[0] + box_extents[2]/2,  # right
-            box_center[1] + box_extents[1]/2,  # top
-            box_center[1] - box_extents[1]/2,  # bottom
-        )
+        # Get box center
+        box_pos = self.box.pose.sp.p
+        if hasattr(box_pos, 'cpu'):
+            box_center = box_pos.cpu().numpy()
+        else:
+            box_center = np.array(box_pos)
         
-        # For goal_region, use its pose and known half_sizes from the environment
-        # cube_half_size = [0.06, 0.04, 0.02], goal uses first two: [0.06, 0.04]
+        # Get goal region center
         goal_pos = self.goal_region.pose.sp.p
         if hasattr(goal_pos, 'cpu'):
             goal_center = goal_pos.cpu().numpy()
         else:
             goal_center = np.array(goal_pos)
         
-        goal_half_sizes = np.array([0.06, 0.04])  # half_sizes from cube_half_size[:2]
-        goal_rect = (
-            goal_center[0] - goal_half_sizes[0],  # left
-            goal_center[0] + goal_half_sizes[0],  # right
-            goal_center[1] + goal_half_sizes[1],  # top
-            goal_center[1] - goal_half_sizes[1],  # bottom
-        )
+        # Calculate euclidean distance between box and goal centers (x-y plane only)
+        distance = np.sqrt((box_center[0] - goal_center[0])**2 + (box_center[1] - goal_center[1])**2)
         
-        # print(f"Box rectangle (left, right, top, bottom): {box_rect}")
-        # print(f"Goal rectangle (left, right, top, bottom): {goal_rect}")
-        
-        # Calculate and display overlap
-        box_goal_overlap = self.calculate_rectangle_overlap_percentage(box_rect, goal_rect)
-        # print(f"Box-Goal overlap: {box_goal_overlap:.2f}%")
-        
-        # Check if overlap exceeds 50% threshold and stop if needed
-        if self.check_overlap_and_stop(box_rect, goal_rect, threshold=50.0):
-            # print(True)
+        # Success if distance is below threshold (0.15 is approximately the goal region size)
+        distance_threshold = 0.06
+        if distance < distance_threshold:
             return {"success": torch.tensor(True)}
-        # print(False)
+        
         return {"success": torch.tensor(False)}
         
     def _get_obs_extra(self, info: dict):
