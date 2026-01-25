@@ -32,3 +32,4 @@ from .pour_sphere import solve as solvePourSphere
 from .hammer_nail import solve as solveHammerNail
 from .open_cabinet import solve as solveOpenCabinet
 from .object_in_cabinet import solve as solveObjectInCabinet
+from .place_cube_in_drawer import solve as solvePlaceCubeInDrawer
