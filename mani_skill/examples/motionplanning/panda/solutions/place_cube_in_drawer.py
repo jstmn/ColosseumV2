@@ -82,8 +82,8 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
 
     # Pull drawer in +Y direction
     current_pos = grasp_pose.p.copy()
-    step_size = 0.15  # 15cm steps
-    max_steps = 3  # Up to 45cm total
+    step_size = 0.02  # 2cm steps
+    max_steps = 23  # Up to 46cm total
 
     for i in range(max_steps):
         current_pos[1] += step_size

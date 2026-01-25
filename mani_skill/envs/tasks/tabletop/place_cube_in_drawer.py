@@ -205,7 +205,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
         for cabinet in self._cabinets:
             for joint in cabinet.joints:
                 if joint.type[0] == "prismatic":
-                    joint.set_drive_properties(stiffness=100.0, damping=50.0)
+                    joint.set_drive_properties(stiffness=0.0, damping=50.0)
 
     def _after_reconfigure(self, options):
         self.cabinet_zs = []
