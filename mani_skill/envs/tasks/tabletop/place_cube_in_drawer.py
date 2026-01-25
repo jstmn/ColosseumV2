@@ -82,7 +82,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
+        pose = sapien_utils.look_at(eye=[0.15, 0.5, 0.8], target=[-0.1, 0.0, 0.1])
         return [
             CameraConfig(
                 "base_camera",
@@ -237,8 +237,8 @@ class PlaceCubeInDrawerEnv(BaseEnv):
             # Robot is at Y=-0.615, cabinet rotated so drawer faces -Y (towards robot)
             # Swapped: cabinet now on the right side
             cabinet_pos = torch.zeros((b, 3))
-            cabinet_pos[:, 0] = 0.0     # X position (right side)
-            cabinet_pos[:, 1] = -0.45    # Y position
+            cabinet_pos[:, 0] = torch.rand(b) * 0.2 - 0.1     # X position (right side)
+            cabinet_pos[:, 1] = (torch.rand(b) * 0.2 - 0.1) - 0.5    # Y position
             cabinet_pos[:, 2] = self.cabinet_zs[env_idx]
 
             # Rotate 90° clockwise around Z so drawer faces -Y
