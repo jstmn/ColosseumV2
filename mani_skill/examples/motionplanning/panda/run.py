@@ -119,14 +119,12 @@ def parse_args(args=None):
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
     parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
-    parser.add_argument("--ignore-keys", nargs="*", default=["obs/extra"], help="keys to ignore when saving the trajectory")
+    parser.add_argument("--ignore-keys", nargs="*", default=[], help="keys to ignore when saving the trajectory")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
     distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
-    print("Distraction set:")
-    print(json.dumps(distraction_set.to_dict(), indent=2))
     try:
         env = gym.make(
             env_id,
@@ -178,7 +176,6 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     solve = MP_SOLUTIONS[env_id]
     pbar = tqdm(range(args.num_traj), desc=f"proc_id: {proc_id}")
     seed = start_seed
-    print(f"Motion Planning Running on {env_id} with seed {seed}")
     successes = []
     solution_episode_lengths = []
     failed_motion_plans = 0
@@ -351,7 +348,7 @@ def main(args):
             seed = 0
         output_path = _main(args, start_seed=seed)
 
-    if args.ignore_keys and len(args.ignore_keys) > 0:
+    if args.ignore_keys is not None and len(args.ignore_keys) > 0:
         cprint(f"WARNING: Removing keys: {args.ignore_keys} from {output_path}", "yellow")
         remove_keys_from_h5(output_path, args.ignore_keys)
 

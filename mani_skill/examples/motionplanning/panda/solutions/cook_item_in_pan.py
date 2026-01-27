@@ -49,7 +49,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
                 return res
             # Retry with screw as fallback on RRT failure
             if not use_screw and attempt < max_retries - 1:
-                print(f"RRT failed, retrying with screw motion (attempt {attempt + 2})")
                 res = planner.move_to_pose_with_screw(target_pose)
                 if res != -1:
                     return res
@@ -58,8 +57,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
     # Get positions at start
     pan_pos = env_sim.pan.pose.p[0].cpu().numpy()
     apple_pos_initial = env_sim.food.pose.p[0].cpu().numpy()
-    print(f"Pan pos: {pan_pos}")
-    print(f"Apple pos (initial): {apple_pos_initial}")
 
     # Top-down grasp on the rim - approach from above, close along Y
     approaching = np.array([0.0, 0.0, -1.0])
@@ -96,11 +93,9 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Check if grasping
     is_grasping = env_sim.agent.is_grasping(env_sim.pan)
-    print(f"Is grasping pan: {is_grasping}")
 
     # Move to above stove
     stove_pos = env_sim.stove.pose.p[0].cpu().numpy()
-    print(f"Stove pos: {stove_pos}")
 
     above_stove = lift_pos.copy()
     above_stove[0] = stove_pos[0]  # center on stove X
@@ -135,7 +130,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
 
     # Use initial apple position (saved at start)
     apple_pos = apple_pos_initial.copy()
-    print(f"Apple pos (using initial): {apple_pos}")
 
     # Move above apple
     above_apple = apple_pos.copy()
