@@ -1,4 +1,6 @@
 import multiprocessing as mp
+from termcolor import cprint
+import h5py
 import os
 from copy import deepcopy
 import time
@@ -117,6 +119,7 @@ def parse_args(args=None):
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
     parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
+    parser.add_argument("--ignore-keys", nargs="*", default=["obs/extra"], help="keys to ignore when saving the trajectory")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
@@ -226,6 +229,103 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env.close()
     return output_h5_path
 
+
+def remove_keys_from_h5(h5_path: str, ignore_keys: list[str]) -> None:
+    """ This function removes specific keys from an h5 file and saves the result to a new file. H5 files have the 
+    following structure:
+
+        /                        Group
+        /traj_0                  Group
+        /traj_0/actions          Dataset {79, 8}
+        /traj_0/env_states       Group
+        /traj_0/env_states/actors Group
+        /traj_0/env_states/actors/cube Dataset {80, 13}
+        /traj_0/env_states/actors/table Dataset {80, 13}
+        /traj_0/env_states/articulations Group
+        /traj_0/env_states/articulations/panda Dataset {80, 31}
+        /traj_0/obs              Group
+        /traj_0/obs/agent        Group
+        /traj_0/obs/agent/qpos   Dataset {80, 9}
+        /traj_0/obs/agent/qvel   Dataset {80, 9}
+        /traj_0/obs/agent/world__T__ee Dataset {80, 4, 4}
+        /traj_0/obs/agent/world__T__root Dataset {80, 4, 4}
+        /traj_0/obs/extra        Group
+        /traj_0/obs/extra/is_grasped Dataset {80}
+        /traj_0/obs/extra/tcp_pose Dataset {80, 7}
+        /traj_1/
+        /traj_1/actions 
+        ...
+
+    Ignore keys used the format: '/obs/extra'. Note that the keys are assumed to be relative to a given trajectory in 
+    the h5 file.
+    """
+    if len(ignore_keys) == 0:
+        return
+
+    # Normalize ignore keys:
+    # - allow either "/obs/extra" or "obs/extra"
+    # - treat keys as paths relative to each "traj_*" group
+    norm_ignore_keys: list[str] = []
+    for k in ignore_keys:
+        if k is None:
+            continue
+        k2 = str(k).strip()
+        if not k2:
+            continue
+        k2 = k2.lstrip("/").rstrip("/")
+        if k2:
+            norm_ignore_keys.append(k2)
+
+    if not norm_ignore_keys:
+        return
+
+    tmp_path = h5_path + ".tmp_pruned"
+    if osp.exists(tmp_path):
+        os.remove(tmp_path)
+
+    def _copy_attrs(src_obj: h5py.Group | h5py.Dataset, dst_obj: h5py.Group | h5py.Dataset) -> None:
+        for k, v in src_obj.attrs.items():
+            dst_obj.attrs[k] = v
+
+    def _should_prune(rel_path: str) -> bool:
+        # Prune if this node is explicitly ignored.
+        # Descendants are naturally pruned by never recursing into pruned groups.
+        return rel_path in norm_ignore_keys
+
+    def _copy_group_pruned(src_traj_group: h5py.Group, dst_traj_group: h5py.Group) -> None:
+        """Copy a single traj group, excluding any paths matching norm_ignore_keys."""
+        _copy_attrs(src_traj_group, dst_traj_group)
+
+        def _recurse(src_group: h5py.Group, dst_group: h5py.Group, rel_prefix: str) -> None:
+            for name, obj in src_group.items():
+                child_rel = name if rel_prefix == "" else f"{rel_prefix}/{name}"
+                if _should_prune(child_rel):
+                    continue
+                if isinstance(obj, h5py.Dataset):
+                    src_group.file.copy(obj, dst_group, name=name)
+                elif isinstance(obj, h5py.Group):
+                    new_dst = dst_group.create_group(name)
+                    _copy_attrs(obj, new_dst)
+                    _recurse(obj, new_dst, child_rel)
+                else:
+                    raise ValueError(f"Unknown HDF5 object type: {type(obj)}")
+
+        _recurse(src_traj_group, dst_traj_group, "")
+
+    with h5py.File(h5_path, "r") as src, h5py.File(tmp_path, "w") as dst:
+        _copy_attrs(src, dst)
+
+        for top_name, top_obj in src.items():
+            if isinstance(top_obj, h5py.Group) and top_name.startswith("traj_"):
+                new_traj = dst.create_group(top_name)
+                _copy_group_pruned(top_obj, new_traj)
+            else:
+                src.copy(top_obj, dst, name=top_name)
+
+    os.replace(tmp_path, h5_path)
+
+
+
 def main(args):
     if args.num_procs > 1 and args.num_procs < args.num_traj:
         if args.num_traj < args.num_procs:
@@ -250,7 +350,12 @@ def main(args):
             seed = np.random.randint(0, int(2**32-1))
         else:
             seed = 0
-        _main(args, start_seed=seed)
+        output_path = _main(args, start_seed=seed)
+
+    if args.ignore_keys and len(args.ignore_keys) > 0:
+        cprint(f"WARNING: Removing keys: {args.ignore_keys} from {output_path}", "yellow")
+        remove_keys_from_h5(output_path, args.ignore_keys)
+
 
 if __name__ == "__main__":
     mp.set_start_method("spawn")

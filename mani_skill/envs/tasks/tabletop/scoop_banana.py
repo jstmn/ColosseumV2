@@ -100,10 +100,13 @@ class ScoopBananaEnv(BaseEnv):
         #     name="ball",
         #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
         # )
-        builder = actors.get_actor_builder(self.scene, "ycb:011_banana")
+        try:
+            builder = actors.get_actor_builder(self.scene, "ycb:011_banana")
+        except FileNotFoundError as e:
+            raise FileNotFoundError("You are missing the YCB dataset. Run 'python mani_skill/utils/download_asset.py ycb'")
         builder.initial_pose = sapien.Pose(p=[0, 0, 0])
         self.ball = builder.build_dynamic(name="ball")
-        
+
         self.dustpan = self.load_glb_as_actor(
             self.scene,
             glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),

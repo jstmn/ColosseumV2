@@ -217,7 +217,7 @@ def main(args):
         uids = [args.uid]
         show_progress = False
     else:
-        raise KeyError("{} not found.".format(args.uid))
+        raise KeyError("{} not found. Available assets: {}".format(args.uid, list(assets.DATA_SOURCES.keys())))
 
     for i, uid in enumerate(uids):
         if show_progress and verbose:

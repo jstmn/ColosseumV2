@@ -291,7 +291,6 @@ class RecordEpisode(gym.Wrapper):
         self.render_images = []
         self.video_nrows = int(np.sqrt(self.unwrapped.num_envs))
         self._avoid_overwriting_video = avoid_overwriting_video
-
         self._already_warned_about_state_dict_inconsistency = False
 
         # check if wrapped env is already wrapped by a CPU gym wrapper
