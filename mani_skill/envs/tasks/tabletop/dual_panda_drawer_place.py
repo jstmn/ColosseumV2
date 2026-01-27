@@ -130,8 +130,8 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
         else:
-            obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
+            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
+            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
 
         return obs
 

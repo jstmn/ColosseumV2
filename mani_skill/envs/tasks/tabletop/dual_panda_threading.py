@@ -202,8 +202,8 @@ class DualPandaThreadingEnv(BaseEnv):
             return np.hstack([pose.p, pose.q])
         
         # TCP poses for both arms
-        obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
-        obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
+        obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
+        obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
         
         # Object poses
         obs["needle_pose"] = pose_to_vec(self.needle.pose)

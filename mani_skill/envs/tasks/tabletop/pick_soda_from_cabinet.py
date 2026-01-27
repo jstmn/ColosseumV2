@@ -17,6 +17,7 @@ from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill import PACKAGE_ASSET_DIR
+from mani_skill.envs.distraction_set import DistractionSet
 import gymnasium as gym
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
@@ -44,6 +45,8 @@ class PickSodaFromCabinetEnv(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
+        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
+        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"

@@ -126,8 +126,8 @@ class DualArmLiftPotEnv(BaseEnv):
         else:
             # Fallback for the error you saw
             # We construct the 14D array manually if needed, or just return separate ones
-            obs["tcp_pose_left"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["tcp_pose_right"] = pose_to_vec(self.agent.tcp_2_pose)
+            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
+            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
         obs["pot_pose"] = self.pot.pose.raw_pose
         return obs
 
