@@ -1,7 +1,7 @@
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.raise_cube import RaiseCubeEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.raise_cube import RaiseCubeEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
