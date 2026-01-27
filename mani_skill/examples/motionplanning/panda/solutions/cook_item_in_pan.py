@@ -55,7 +55,6 @@ def solve(env: CookItemInPanEnv, seed=None, debug=False, vis=False):
         return -1
 
     # Get positions at start
-    pan_pos = env_sim.pan.pose.p[0].cpu().numpy()
     apple_pos_initial = env_sim.food.pose.p[0].cpu().numpy()
 
     # Top-down grasp on the rim - approach from above, close along Y

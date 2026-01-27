@@ -464,6 +464,8 @@ def save_ckpt(run_name, tag):
 if __name__ == "__main__":
     args = tyro.cli(Args)
 
+    assert args.sim_backend in ("physx_cpu", "physx_cuda")
+
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]
         run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"

@@ -198,26 +198,12 @@ class PickSodaFromCabinetEnv(BaseEnv):
         self.agent.reset(qpos)
     
     def evaluate(self):
-        # pos_shelf = self.shelf.pose.p
-        # pos_book = self.book_A.pose.p
-        # offset = pos_shelf - pos_book
-        # x_flag = torch.abs(offset[..., 0]) <= 0.13 + 0.005
-        # y_flag = (
-        #     torch.abs(offset[..., 1]) <= 0.18 + 0.005
-        # )
-        # z_flag = torch.abs(offset[..., 2]) <= 0.16 + 0.005
-        # is_book_in_shelf = torch.logical_and(torch.logical_and(x_flag, y_flag),  z_flag)
-
-        # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
-        # print(self.soda.pose.p)
-        is_soda_on_table = self.soda.pose.p[0][2] < 0.1
-        success = (is_soda_on_table)
+        is_soda_on_table = self.soda.pose.p[:, 2] < 0.1
         return {
-            # "is_book_grasped": is_book_grasped,
             "is_soda_on_table": is_soda_on_table,
             "is_soda_static": is_soda_static,
-            "success": success.bool()
+            "success": is_soda_on_table
         }
         
     def _get_obs_extra(self, info: Dict):
