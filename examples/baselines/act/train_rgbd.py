@@ -323,7 +323,9 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
 
         # flatten the rest of the data which should just be state data
         if 'extra' in obs_dict:
-            obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
+            obs_extra = {k: v for k, v in obs_dict['extra'].items() if k in ALLOWED_OBS_EXTRA_KEYS}
+            obs_extra_vectorized = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_extra.items()} # dirty fix for data that has one dimension (e.g. is_grasped)
+            obs_dict['extra'] = obs_extra_vectorized
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
 
         processed_obs = dict(state=obs_dict, rgb=rgb, depth=depth) if self.include_depth else dict(state=obs_dict, rgb=rgb)
