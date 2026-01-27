@@ -34,13 +34,14 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 import tyro
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop import *
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
 # causes at torch shape mismatch error, because the configuration space is [batch x ndof], but these values are
 # [batch x 4 x 4]
 OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
-
+ALLOWED_OBS_EXTRA_KEYS = {"tcp_pose", "left_arm_tcp", "right_arm_tcp", "goal_pos", "is_grasped"}
 
 @dataclass
 class Args:
@@ -321,7 +322,10 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             depth = torch.stack(images_depth, dim=1) # (ep_len, num_cams, 1, 224, 224) # float16
 
         # flatten the rest of the data which should just be state data
-        obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
+        if 'extra' in obs_dict:
+            obs_extra = {k: v for k, v in obs_dict['extra'].items() if k in ALLOWED_OBS_EXTRA_KEYS}
+            obs_extra_vectorized = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_extra.items()} # dirty fix for data that has one dimension (e.g. is_grasped)
+            obs_dict['extra'] = obs_extra_vectorized
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
 
         processed_obs = dict(state=obs_dict, rgb=rgb, depth=depth) if self.include_depth else dict(state=obs_dict, rgb=rgb)
@@ -461,6 +465,8 @@ def save_ckpt(run_name, tag):
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
+
+    assert args.sim_backend in ("physx_cpu", "physx_cuda")
 
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]

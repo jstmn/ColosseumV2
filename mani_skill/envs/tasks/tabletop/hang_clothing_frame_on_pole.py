@@ -183,7 +183,7 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.clothing_frame.is_static(lin_thresh=1e-1, ang_thresh=1) # Not working well
         # print(self.clothing_frame.pose.p)
-        is_soda_on_table = (self.clothing_frame.pose.p[0][2] < 0.43) and (self.clothing_frame.pose.p[0][2] > 0.4)
+        is_soda_on_table = (self.clothing_frame.pose.p[:,2] < 0.43) and (self.clothing_frame.pose.p[:,2] > 0.4)
         success = (is_soda_on_table)
         return {
             # "is_book_grasped": is_book_grasped,

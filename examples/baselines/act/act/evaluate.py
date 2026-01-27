@@ -15,8 +15,8 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs):
         if sim_backend == "physx_cpu":
             pre_process = lambda s_obs: (s_obs - stats['state_mean'].cpu().numpy()) / stats['state_std'].cpu().numpy()
         else:
-            pre_process = lambda s_obs: (s_obs - stats['state_mean']) / stats['state_std']
-        post_process = lambda a: a * stats['action_std'] + stats['action_mean']
+            pre_process = lambda s_obs: (s_obs - stats['state_mean'].to(device)) / stats['state_std'].to(device)
+        post_process = lambda a: a * stats['action_std'].to(device) + stats['action_mean'].to(device)
 
     # create action table for temporal ensembling
     action_dim = eval_envs.action_space.shape[-1]

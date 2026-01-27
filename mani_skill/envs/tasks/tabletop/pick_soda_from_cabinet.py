@@ -17,6 +17,7 @@ from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill import PACKAGE_ASSET_DIR
+from mani_skill.envs.distraction_set import DistractionSet
 import gymnasium as gym
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
@@ -44,6 +45,8 @@ class PickSodaFromCabinetEnv(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
+        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
+        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"
@@ -195,26 +198,12 @@ class PickSodaFromCabinetEnv(BaseEnv):
         self.agent.reset(qpos)
     
     def evaluate(self):
-        # pos_shelf = self.shelf.pose.p
-        # pos_book = self.book_A.pose.p
-        # offset = pos_shelf - pos_book
-        # x_flag = torch.abs(offset[..., 0]) <= 0.13 + 0.005
-        # y_flag = (
-        #     torch.abs(offset[..., 1]) <= 0.18 + 0.005
-        # )
-        # z_flag = torch.abs(offset[..., 2]) <= 0.16 + 0.005
-        # is_book_in_shelf = torch.logical_and(torch.logical_and(x_flag, y_flag),  z_flag)
-
-        # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
-        # print(self.soda.pose.p)
-        is_soda_on_table = self.soda.pose.p[0][2] < 0.1
-        success = (is_soda_on_table)
+        is_soda_on_table = self.soda.pose.p[:, 2] < 0.1
         return {
-            # "is_book_grasped": is_book_grasped,
             "is_soda_on_table": is_soda_on_table,
             "is_soda_static": is_soda_static,
-            "success": success.bool()
+            "success": is_soda_on_table
         }
         
     def _get_obs_extra(self, info: Dict):
