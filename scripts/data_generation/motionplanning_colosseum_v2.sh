@@ -3,37 +3,23 @@
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
-# ENVS=(
-#     "RaiseCube-v1"
-#     "PickSodaFromCabinet-v1"
-#     "PickDishFromRack-v1"
-#     "StackCube-v1"
-#     "PlaceBookInShelf-v1"
-#     "PlaceDishInRack-v1"
-#     "LiftPegUpright-v1"
-#     "RotateArrow-v1"
-#     "PegInsertionSide-v2"
-#     "PlugCharger-v1"
-#     "HammerNail-v1"
-#     "ScoopBanana-v1"
-#     "OpenDrawer-v1"
-#     "OpenCabinet-v1"
-#     "PlaceCubeInDrawer-v1"
-#     "CookItemInPan-v1"
-# )
 ENVS=(
-    # "DualArmPickCube-v1"
-    # "DualArmPickBottle-v1"
-    # "DualArmLiftPot-v1"
-    # "DualArmLiftTray-v1"
-    # "DualArmPushBox-v1"
-    # "DualArmPourPot-v1"
-    "DualArmThreading-v1"
-    "DualArmPenCap-v1"
-    "DualArmDrawerPlace-v1"
-    "DualArmDrawerOpen-v1"
-    "DualArmStackCube-v1"
-    "DualArmStack3Cube-v1"
+    "RaiseCube-v1"
+    "PickSodaFromCabinet-v1"
+    "PickDishFromRack-v1"
+    "StackCube-v1"
+    "PlaceBookInShelf-v1"
+    "PlaceDishInRack-v1"
+    "LiftPegUpright-v1"
+    "RotateArrow-v1"
+    "PegInsertionSide-v2"
+    "PlugCharger-v1"
+    "HammerNail-v1"
+    "ScoopBanana-v1"
+    "OpenDrawer-v1"
+    "OpenCabinet-v1"
+    "PlaceCubeInDrawer-v1"
+    "CookItemInPan-v1"
 )
 NUM_PROCS=15
 N_TRAJ=100
@@ -100,7 +86,7 @@ for ENV_ID in "${ENVS[@]}"; do
 
     N_DEMOS_0=$(h5ls -r ${TRAJ_PATH} | grep -c "/actions")
     N_DEMOS_TRANSLATED=$(h5ls -r demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}*.h5 | grep -c "/actions")
-    echo -e "${ENV_ID}:\tNum. demonstrations original, translated: ${N_DEMOS_0}, ${N_DEMOS_TRANSLATED}"
+    echo -e "${ENV_ID}:\tNumber of demonstrations original, translated: ${N_DEMOS_0}, ${N_DEMOS_TRANSLATED}"
 done
 
 # Merge trajectories
@@ -132,4 +118,4 @@ echo "  ---  MERGED TRAJECTORY: ${OUTPUT_PATH} ---  "
 echo "Saved to: ${OUTPUT_PATH}"
 
 N_FINAL_DEMOS=$(h5ls -r ${OUTPUT_PATH} | grep -c "/actions")
-echo -e "Num. demonstrations final: ${N_FINAL_DEMOS}"
+echo -e "Number of demonstrations in final h5 file: ${N_FINAL_DEMOS}"
