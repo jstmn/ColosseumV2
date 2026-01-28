@@ -34,10 +34,9 @@ ENV_ID="CookItemInPan-v1"
 python mani_skill/examples/demo_random_action.py \
     --env-id ${ENV_ID} \
     --num-envs 5 \
-    --render-mode "human" \
     --obs-mode "rgb" \
     --reward-mode "sparse" \
-    --sim-backend "cpu"
+    --sim-backend "cuda"
 """
 
 
