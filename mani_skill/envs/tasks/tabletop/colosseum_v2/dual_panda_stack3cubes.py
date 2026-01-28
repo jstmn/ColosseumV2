@@ -182,10 +182,11 @@ class TwoRobotStack3Cube(BaseEnv):
         obs = dict()
         obs["left_arm_tcp_pose"] = self.agent.tcp_1_pose.raw_pose
         obs["right_arm_tcp_pose"] = self.agent.tcp_2_pose.raw_pose
-        obs["cubeA_pose"] = self.cubeA.pose.raw_pose
-        obs["cubeB_pose"] = self.cubeB.pose.raw_pose
-        obs["cubeC_pose"] = self.cubeC.pose.raw_pose
-        obs["goal_region_pos"] = self.goal_region.pose.p
+        if "state" in self.obs_mode:
+            obs["cubeA_pose"] = self.cubeA.pose.raw_pose
+            obs["cubeB_pose"] = self.cubeB.pose.raw_pose
+            obs["cubeC_pose"] = self.cubeC.pose.raw_pose
+            obs["goal_region_pos"] = self.goal_region.pose.p
         return obs
 
     def evaluate(self):

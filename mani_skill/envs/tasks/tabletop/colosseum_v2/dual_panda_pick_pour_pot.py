@@ -132,17 +132,9 @@ class DualArmPourPotEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # Convert CUDA tensors to CPU numpy arrays before stacking
-            p = pose.p
-            q = pose.q
-            
-            # Handle CUDA tensors
-            if isinstance(p, torch.Tensor):
-                p = p.cpu().numpy() if p.is_cuda else p.numpy()
-            if isinstance(q, torch.Tensor):
-                q = q.cpu().numpy() if q.is_cuda else q.numpy()
-            
-            return np.hstack([p, q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

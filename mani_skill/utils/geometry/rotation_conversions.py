@@ -600,3 +600,36 @@ def matrix_to_rotation_6d(matrix: torch.Tensor) -> torch.Tensor:
     """
     batch_dim = matrix.size()[:-2]
     return matrix[..., :2, :].clone().reshape(batch_dim + (6,))
+
+
+def euler_angles_to_quaternion(euler_angles: torch.Tensor, convention: str) -> torch.Tensor:
+    """
+    Convert rotations given as Euler angles in radians to quaternions.
+
+    Args:
+        euler_angles: Euler angles in radians as tensor of shape (..., 3).
+        convention: Convention string of three uppercase letters from
+            {"X", "Y", and "Z"}.
+
+    Returns:
+        quaternions with real part first, as tensor of shape (..., 4).
+    """
+    return matrix_to_quaternion(euler_angles_to_matrix(euler_angles, convention))
+
+
+euler_angle_to_quaternion = euler_angles_to_quaternion  # alias
+
+
+def quaternions_to_euler_angles(quaternions: torch.Tensor, convention: str) -> torch.Tensor:
+    """
+    Convert rotations given as quaternions to Euler angles in radians.
+
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+        convention: Convention string of three uppercase letters.
+
+    Returns:
+        Euler angles in radians as tensor of shape (..., 3).
+    """
+    return matrix_to_euler_angles(quaternion_to_matrix(quaternions), convention)

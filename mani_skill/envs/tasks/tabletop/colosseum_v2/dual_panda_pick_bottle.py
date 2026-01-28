@@ -84,8 +84,8 @@ class DualArmPickBottleEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.3 - 0.1
+            xyz = torch.zeros((b, 3), device=self.device)
+            xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.1
             xyz[..., 2] = self.cube_half_size+0.83
             q = [0.707, 0.707, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
@@ -107,8 +107,9 @@ class DualArmPickBottleEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

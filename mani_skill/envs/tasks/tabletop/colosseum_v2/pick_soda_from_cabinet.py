@@ -95,7 +95,8 @@ class PickSodaFromCabinetEnv(BaseEnv):
         open_cab.quat = sapien.Pose(q=[0.7071,0,0,-0.7071]).q  # default orientation
         open_cab.pos = np.array([0.3, -0.12, 0.456])
         # choose scene indices to build into; if you have a batch, build into all relevant indices
-        built = open_cab.build(scene_idxs=[0])
+        scene_idxs = [i for i in range(self.num_envs)]
+        built = open_cab.build(scene_idxs=scene_idxs)
         # If environment uses multiple envs, repeat build for each environment index you care about.
         # Optionally keep a handle:
         self.open_cabinet = built
@@ -147,42 +148,23 @@ class PickSodaFromCabinetEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # qpos = np.array([0.654,-0.552,-0.679, 3.512, -3.071, 2.370, 0.399, 0.040, 0.04])
             self.table_scene.initialize(env_idx)
 
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.405
-            # xy = torch.rand((b, 2)) * 0.2 - 0.1
             region = [[0.13, -0.3],[0.162, -0.1]]
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )
             radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
             soda_xy = sampler.sample(radius, 100)
-            # # cubeB_xy = xy + sampler.sample(radius, 100, verbose=False)
 
             xyz[:, :2] = soda_xy
-            # qs = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=True,
-            # )
-            # [0.854,0.471,0.212,0.068] - q for sleeping book
-            # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
             self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.707, 0.707, 0, 0]).repeat(b,1)))
             self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
-            # xyz[:, :2] = cubeB_xy
-            # qs = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=False,
-            # )
-            # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
-            # return
+
         self._initialize_agent()
             
     def _initialize_agent(self):
@@ -192,7 +174,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
     
     def evaluate(self):
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
-        is_soda_on_table = self.soda.pose.p[:, 2] < 0.1
+        is_soda_on_table = self.soda.pose.p[..., 2] < 0.1
         return {
             "is_soda_on_table": is_soda_on_table,
             "is_soda_static": is_soda_static,
@@ -203,11 +185,8 @@ class PickSodaFromCabinetEnv(BaseEnv):
         obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         if "state" in self.obs_mode:
             obs.update(
-                # cabinet_pose=self.open_cabinet.pos,
                 soda_pose=self.soda.pose.raw_pose,
-                # tcp_to_cabinet_pos=self.open_cabinet.pose.p - self.agent.tcp.pose.p,
                 tcp_to_soda_pos=self.soda.pose.p - self.agent.tcp.pose.p,
-                # book_to_shelf_pos=self.shelf.pose.p - self.book_A.pose.p,
             )
         return obs
 

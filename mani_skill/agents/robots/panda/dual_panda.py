@@ -108,18 +108,27 @@ class DualPanda(BaseAgent):
         Get the proprioceptive state of the agent, default is the qpos and qvel of the robot and any controller state.
         """
         obs = super().get_proprioception()
+        
         def get_flat_pose(pose):
-            # Convert CUDA tensors to CPU numpy arrays before stacking
-            p = pose.p
-            q = pose.q
+            p, q = pose.p, pose.q
             
-            # Handle CUDA tensors
-            if isinstance(p, torch.Tensor):
-                p = p.cpu().numpy() if p.is_cuda else p.numpy()
-            if isinstance(q, torch.Tensor):
-                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            # 1. Ensure p is a Tensor
+            if not isinstance(p, torch.Tensor):
+                p = torch.from_numpy(p)
             
-            return np.hstack([p, q])
+            # 2. Ensure q is a Tensor
+            if not isinstance(q, torch.Tensor):
+                q = torch.from_numpy(q)
+            
+            # 3. Move both to the correct device (GPU) if they aren't already
+            # self.device comes from the BaseAgent class
+            if p.device != self.device:
+                p = p.to(self.device)
+            if q.device != self.device:
+                q = q.to(self.device)
+            
+            # 4. Use torch.cat instead of np.hstack
+            return torch.cat([p, q], dim=-1)
         
         world__T__ee_1 = self.robot.links_map[self.ee_1_link_name].pose
         obs["world__T__ee_1"] = get_flat_pose(world__T__ee_1)
@@ -130,7 +139,7 @@ class DualPanda(BaseAgent):
         obs["world__T__root"] = get_flat_pose(self.robot.root.pose)
 
         return obs
-
+    
     @property
     def _controller_configs(self):
         # -------------------------------------------------------------------------- #

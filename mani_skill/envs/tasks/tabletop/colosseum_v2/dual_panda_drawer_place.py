@@ -78,6 +78,8 @@ class DualArmDrawerPlaceEnv(BaseEnv):
             body_type="dynamic",
             initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
         )
+        scene_idxs = [i for i in range(self.num_envs)]
+        builder.set_scene_idxs(scene_idxs=scene_idxs)
         self.open_cabinet = builder.build(name=f"drawer-{model_id}")
     
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -133,19 +135,12 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         
     def _get_obs_extra(self, info: dict):
         obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
+        
+        # Helper to concatenate Pose p and q while keeping them on the correct device
         def pose_to_vec(pose):
-            # Convert CUDA tensors to CPU numpy arrays before stacking
-            p = pose.p
-            q = pose.q
-            
-            # Handle CUDA tensors
-            if isinstance(p, torch.Tensor):
-                p = p.cpu().numpy() if p.is_cuda else p.numpy()
-            if isinstance(q, torch.Tensor):
-                q = q.cpu().numpy() if q.is_cuda else q.numpy()
-            
-            return np.hstack([p, q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
@@ -154,7 +149,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
 
         return obs
-
+    
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL
         return 0.0

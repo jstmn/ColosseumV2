@@ -166,7 +166,9 @@ class DualPandaThreadingEnv(BaseEnv):
         obs = dict()
         
         def pose_to_vec(pose):
-            return np.hstack([pose.p, pose.q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         # TCP poses for both arms
         obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
