@@ -343,21 +343,13 @@ class HammerNailEnv(BaseEnv):
         for spec in self._nail_specs:
             builder = self.scene.create_actor_builder()
             if use_mesh:
-                if _HAS_COACD:
-                    builder.add_multiple_convex_collisions_from_file(
-                        filename=str(self._nail_mesh_path),
-                        scale=[mesh_scale] * 3,
-                        material=nail_material,
-                        density=5000,
-                        decomposition="coacd",
-                    )
-                else:
-                    builder.add_convex_collision_from_file(
-                        filename=str(self._nail_mesh_path),
-                        scale=[mesh_scale] * 3,
-                        material=nail_material,
-                        density=5000,
-                    )
+                builder.add_multiple_convex_collisions_from_file(
+                    filename=str(self._nail_mesh_path),
+                    scale=[mesh_scale] * 3,
+                    material=nail_material,
+                    density=5000,
+                    decomposition="coacd",
+                )
                 builder.add_visual_from_file(
                     str(self._nail_mesh_path),
                     scale=[mesh_scale] * 3,

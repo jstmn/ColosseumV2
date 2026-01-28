@@ -30,3 +30,5 @@ from .object_in_cabinet import ObjectInCabinetEnv
 from .dual_panda_push_box import DualPandaPushBoxEnv
 from .place_cube_in_drawer import PlaceCubeInDrawerEnv
 from .pick_soda_from_cabinet import PickSodaFromCabinetEnv
+from .book_in_shelf import PlaceBookEnv
+from .rotate_arrow import RotateArrowEnv

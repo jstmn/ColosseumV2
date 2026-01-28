@@ -19,14 +19,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.pose import Pose
-
-try:  # Optional dependency for convex decomposition
-    import coacd  # noqa: F401
-
-    _HAS_COACD = True
-except ImportError:
-    _HAS_COACD = False
-
+from mani_skill.envs.distraction_set import DistractionSet
 
 @register_env("CookItemInPan-v1", max_episode_steps=150, asset_download_ids=["ycb"])
 class CookItemInPanEnv(BaseEnv):
@@ -236,19 +229,12 @@ class CookItemInPanEnv(BaseEnv):
         for i in range(self.num_envs):
             builder = self.scene.create_actor_builder()
             scale = [self.pan_scale] * 3
-            if _HAS_COACD:
-                builder.add_multiple_convex_collisions_from_file(
-                    filename=self.pan_glb_path,
-                    scale=scale,
-                    decomposition="coacd",
-                    density=300.0,
-                )
-            else:
-                builder.add_nonconvex_collision_from_file(
-                    filename=self.pan_glb_path,
-                    scale=scale,
-                    density=300.0,
-                )
+            builder.add_multiple_convex_collisions_from_file(
+                filename=self.pan_glb_path,
+                scale=scale,
+                decomposition="coacd",
+                density=300.0,
+            )
             builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
             builder.initial_pose = sapien.Pose()
             builder.set_scene_idxs([i])
