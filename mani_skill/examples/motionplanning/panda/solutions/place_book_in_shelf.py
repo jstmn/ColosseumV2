@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.book_in_shelf import PlaceBookEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.book_in_shelf import PlaceBookEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 

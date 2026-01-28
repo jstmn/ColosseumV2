@@ -342,7 +342,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
         }
 
     def _get_obs_extra(self, info: Dict):
-        obs = {"tcp_pose": self.agent.tcp.pose.raw_pose}
+        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         if "state" in self.obs_mode:
             obs.update(
                 cube_pose=self.cube.pose.raw_pose,

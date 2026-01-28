@@ -288,20 +288,18 @@ class PourSphereEnv(BaseEnv):
         }
 
     def _get_obs_extra(self, info: Dict):
-        cup1_pose = self.cup1.pose
-        cup2_pose = self.cup2.pose
-        sphere_pose = self.sphere.pose
-
-        obs = {
-            "cup1_pos": cup1_pose.p,
-            "cup1_quat": cup1_pose.q,
-            "cup2_pos": cup2_pose.p,
-            "cup2_quat": cup2_pose.q,
-            "sphere_pos": sphere_pose.p,
-        }
+        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
 
         if "state" in self.obs_mode:
+            cup1_pose = self.cup1.pose
+            cup2_pose = self.cup2.pose
+            sphere_pose = self.sphere.pose
             obs.update(
+                cup1_pos=cup1_pose.p,
+                cup1_quat=cup1_pose.q,
+                cup2_pos=cup2_pose.p,
+                cup2_quat=cup2_pose.q,
+                sphere_pos=sphere_pose.p,
                 tcp_to_cup1=cup1_pose.p - self.agent.tcp_pose.p,
                 sphere_to_cup2=cup2_pose.p - sphere_pose.p,
             )

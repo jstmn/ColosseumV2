@@ -163,8 +163,9 @@ class DualPandaPushBoxEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["box_pose"] = self.box.pose.raw_pose
-        obs["goal_region_pose"] = self.goal_region.pose.raw_pose
+        if "state" in self.obs_mode:
+            obs["box_pose"] = self.box.pose.raw_pose
+            obs["goal_region_pose"] = self.goal_region.pose.raw_pose
         return obs
 
     def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):

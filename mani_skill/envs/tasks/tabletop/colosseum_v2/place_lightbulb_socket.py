@@ -192,7 +192,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
     
     def _get_obs_extra(self, info: Dict):
         obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if self.obs_mode_struct.use_state:
+        if "state" in self.obs_mode:
             obs.update(
                 lightbulb_pose=self.lightbulb.pose.raw_pose,
                 socket_position=self.socket_pos_tensor,

@@ -124,8 +124,9 @@ class DualArmPenCapEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["pen_pose"] = self.pen.pose.raw_pose
-        obs["cap_pose"] = self.cap.pose.raw_pose
+        if "state" in self.obs_mode:
+            obs["pen_pose"] = self.pen.pose.raw_pose
+            obs["cap_pose"] = self.cap.pose.raw_pose
         return obs
 
     def compute_dense_reward(self, obs, action, info):

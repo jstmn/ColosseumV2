@@ -41,7 +41,6 @@ from mani_skill.envs.tasks.tabletop import *
 # causes at torch shape mismatch error, because the configuration space is [batch x ndof], but these values are
 # [batch x 4 x 4]
 OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
-ALLOWED_OBS_EXTRA_KEYS = {"tcp_pose", "left_arm_tcp", "right_arm_tcp", "goal_pos", "is_grasped"}
 
 @dataclass
 class Args:
@@ -323,9 +322,7 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
 
         # flatten the rest of the data which should just be state data
         if 'extra' in obs_dict:
-            obs_extra = {k: v for k, v in obs_dict['extra'].items() if k in ALLOWED_OBS_EXTRA_KEYS}
-            obs_extra_vectorized = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_extra.items()} # dirty fix for data that has one dimension (e.g. is_grasped)
-            obs_dict['extra'] = obs_extra_vectorized
+            obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
 
         processed_obs = dict(state=obs_dict, rgb=rgb, depth=depth) if self.include_depth else dict(state=obs_dict, rgb=rgb)

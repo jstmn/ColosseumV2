@@ -204,8 +204,9 @@ class DualPandaThreadingEnv(BaseEnv):
         obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
         
         # Object poses
-        obs["needle_pose"] = pose_to_vec(self.needle.pose)
-        obs["ring_tripod_pose"] = pose_to_vec(self.ring_tripod.pose)
+        if "state" in self.obs_mode:
+            obs["needle_pose"] = pose_to_vec(self.needle.pose)
+            obs["ring_tripod_pose"] = pose_to_vec(self.ring_tripod.pose)
         
         return obs
     

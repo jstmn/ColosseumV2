@@ -1,7 +1,7 @@
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.object_in_cabinet import ObjectInCabinetEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.object_in_cabinet import ObjectInCabinetEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 
 from mani_skill.examples.motionplanning.panda.solutions.open_cabinet import (

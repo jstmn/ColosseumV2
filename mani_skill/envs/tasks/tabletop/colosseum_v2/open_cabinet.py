@@ -418,11 +418,9 @@ class OpenCabinetEnv(BaseEnv):
         }
 
     def _get_obs_extra(self, info: Dict):
-        obs = {
-            "tcp_pose": self.agent.tcp_pose.raw_pose,
-            "handle_pos": self.handle_link_positions(),
-        }
+        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         if "state" in self.obs_mode:
+            obs["handle_pos"] = self.handle_link_positions()
             obs["cabinet_qpos"] = self.cabinet.qpos
         return obs
 

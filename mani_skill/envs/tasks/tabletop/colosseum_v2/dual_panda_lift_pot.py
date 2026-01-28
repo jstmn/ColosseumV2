@@ -131,7 +131,8 @@ class DualArmLiftPotEnv(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["pot_pose"] = self.pot.pose.raw_pose
+        if "state" in self.obs_mode:
+            obs["pot_pose"] = self.pot.pose.raw_pose
         return obs
 
     def evaluate(self):

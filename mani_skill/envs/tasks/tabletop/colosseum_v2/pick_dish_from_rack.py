@@ -350,15 +350,16 @@ class PickDishFromRackEnv(BaseEnv):
         }
 
     def _get_obs_extra(self, info: Dict):
+        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         plate_pose = self.plate.pose
         rack_pose = self.dish_rack.pose
-        obs = {
-            "plate_pos": plate_pose.p,
-            "plate_quat": plate_pose.q,
-            "rack_pos": rack_pose.p,
-            "rack_quat": rack_pose.q,
-        }
         if "state" in self.obs_mode:
+            obs.update(
+                plate_pos=plate_pose.p,
+                plate_quat=plate_pose.q,
+                rack_pos=rack_pose.p,
+                rack_quat=rack_pose.q,
+            )
             goal_pos = torch.tensor(
                 self._plate_goal_position, device=self.device, dtype=plate_pose.p.dtype
             ).unsqueeze(0).repeat(plate_pose.p.shape[0], 1)

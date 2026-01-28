@@ -19,7 +19,7 @@ from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_env_utils import get_camera_configs, get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_env_utils import get_human_render_camera_config
 
 @register_env("PushCube-v2", max_episode_steps=50)
 class PushCubeV2Env(PushCubeEnv):
@@ -37,6 +37,7 @@ class PushCubeV2Env(PushCubeEnv):
 
     """
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+        raise NotImplementedError("This environment is out of date")
         distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
         self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self._human_render_shader = kwargs.pop("human_render_shader", None)

@@ -1,7 +1,7 @@
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.cook_item_in_pan import CookItemInPanEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.cook_item_in_pan import CookItemInPanEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import (
     PandaArmMotionPlanningSolver,
 )

@@ -8,8 +8,7 @@ from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils import common, sapien_utils
-from mani_skill.utils.building import actors
+from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
@@ -17,6 +16,7 @@ from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 import os
 import gymnasium as gym
+from mani_skill.envs.distraction_set import DistractionSet
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
@@ -43,6 +43,8 @@ class PlaceBookEnv(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
+        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
+        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"

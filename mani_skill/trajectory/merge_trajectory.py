@@ -1,3 +1,4 @@
+import os
 import argparse
 from pathlib import Path
 import h5py
@@ -34,7 +35,8 @@ def merge_trajectories(output_path: str, traj_paths: list, recompute_id: bool = 
 
     for traj_path in traj_paths:
         traj_path = str(traj_path)
-        logger.info(f"Merging{traj_path}")
+        logger.info(f"Merging trajectory: {traj_path}")
+        assert os.path.isfile(traj_path), f"Path {traj_path} is not a file"
 
         with h5py.File(traj_path, "r") as h5_file:
             json_data = load_json(traj_path.replace(".h5", ".json"))
@@ -89,6 +91,9 @@ def main():
 
     output_dir = Path(args.output_path).parent
     output_dir.mkdir(exist_ok=True, parents=True)
+
+    for path in traj_paths:
+        assert path.is_file(), f"Path {path} is not a file"
 
     merge_trajectories(args.output_path, traj_paths)
 

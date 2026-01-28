@@ -165,9 +165,10 @@ class TwoRobotStackCube(BaseEnv):
             # We construct the 14D array manually if needed, or just return separate ones
             obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        obs["cubeA_pose"] = self.cubeA.pose.raw_pose
-        obs["cubeB_pose"] = self.cubeB.pose.raw_pose
-        obs["goal_region_pos"] = self.goal_region.pose.p
+        if "state" in self.obs_mode:
+            obs["cubeA_pose"] = self.cubeA.pose.raw_pose
+            obs["cubeB_pose"] = self.cubeB.pose.raw_pose
+            obs["goal_region_pos"] = self.goal_region.pose.p
         return obs
 
 
