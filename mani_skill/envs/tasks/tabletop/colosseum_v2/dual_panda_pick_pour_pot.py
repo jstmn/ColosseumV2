@@ -98,26 +98,22 @@ class DualArmPourPotEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            xyz = torch.zeros((b, 3))
-            xyz[..., 0] = 0.1
-            xyz[..., 1] = torch.rand(b) * 0.2 - 0.1
-            xyz[..., 2] = self.cube_half_size+0.83
-            theta_by_2 = 0  # -pi/2 to pi/2
+            pot_xyz = torch.zeros((b, 3), device=self.device)
+            pot_xyz[..., 0] = 0.1
+            pot_xyz[..., 1] = torch.rand(b, device=self.device) * 0.2 - 0.1
+            pot_xyz[..., 2] = self.cube_half_size+0.83
             
-            # Set poses for each environment in the batch
-            for i in range(b):
-                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[0.5,0.5,0.5,0.5])
-                # Convert tensors to numpy float32 arrays
-                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
-                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
-                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
-                self.pot.set_pose(init_pose_sapien)
+            pot_q = torch.tensor([0.5, 0.5, 0.5, 0.5], device=self.device).repeat(b, 1)
+            self.pot.set_pose(Pose.create_from_pq(p=pot_xyz, q=pot_q))
             
-            xyz[..., 2] = 0.9
-            self.ball.set_pose(Pose.create_from_pq(p=xyz,q=[1,0,0,0]))
-            xyz[..., 0] = -0.2
-            xyz[..., 2] = 0.83 + self.cube_half_size
-            self.tray.set_pose(Pose.create_from_pq(p=xyz, q=[0.5, 0.5, 0.5, 0.5]))
+            ball_xyz = pot_xyz.clone()
+            ball_xyz[..., 2] = 0.9
+            self.ball.set_pose(Pose.create_from_pq(p=ball_xyz,q=[1,0,0,0]))
+
+            tray_xyz = pot_xyz.clone()
+            tray_xyz[..., 0] = -0.2
+            tray_xyz[..., 2] = 0.83 + self.cube_half_size
+            self.tray.set_pose(Pose.create_from_pq(p=tray_xyz, q=[0.5, 0.5, 0.5, 0.5]))
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -136,8 +132,17 @@ class DualArmPourPotEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
+            # Convert CUDA tensors to CPU numpy arrays before stacking
+            p = pose.p
+            q = pose.q
+            
+            # Handle CUDA tensors
+            if isinstance(p, torch.Tensor):
+                p = p.cpu().numpy() if p.is_cuda else p.numpy()
+            if isinstance(q, torch.Tensor):
+                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            
+            return np.hstack([p, q])
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

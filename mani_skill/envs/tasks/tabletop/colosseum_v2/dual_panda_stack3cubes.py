@@ -50,16 +50,6 @@ class TwoRobotStack3Cube(BaseEnv):
         self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
-    # @property
-    # def _default_sim_config(self):
-    #     return SimConfig(
-    #         gpu_memory_config=GPUMemoryConfig(
-    #             found_lost_pairs_capacity=2**25,
-    #             max_rigid_patch_count=2**19,
-    #             max_rigid_contact_count=2**21,
-    #         )
-    #     )
-
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.0 + 0.83]) # 0.83: height of the table
@@ -126,15 +116,15 @@ class TwoRobotStack3Cube(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
-            cubeA_xyz = torch.zeros((b, 3))
-            cubeA_xyz[:, 0] = torch.rand((b,)) * 0.2 + 0.1
-            cubeA_xyz[:, 1] = -0.15 - torch.rand((b,)) * 0.1 - 0.05
-            cubeB_xyz = torch.zeros((b, 3))
-            cubeB_xyz[:, 0] = torch.rand((b,)) * 0.1 + 0.05
-            cubeB_xyz[:, 1] = 0.15 + torch.rand((b,)) * 0.1 + 0.05
-            cubeC_xyz = torch.zeros((b, 3))
-            cubeC_xyz[:, 0] = -torch.rand((b,)) * 0.2 - 0.1
-            cubeC_xyz[:, 1] = -0.15 + torch.rand((b,)) * 0.1 + 0.05
+            cubeA_xyz = torch.zeros((b, 3), device=self.device)
+            cubeA_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.2 + 0.1
+            cubeA_xyz[:, 1] = -0.15 - torch.rand((b,), device=self.device) * 0.1 - 0.05
+            cubeB_xyz = torch.zeros((b, 3), device=self.device)
+            cubeB_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.1 + 0.05
+            cubeB_xyz[:, 1] = 0.15 + torch.rand((b,), device=self.device) * 0.1 + 0.05
+            cubeC_xyz = torch.zeros((b, 3), device=self.device)
+            cubeC_xyz[:, 0] = -torch.rand((b,), device=self.device) * 0.2 - 0.1
+            cubeC_xyz[:, 1] = -0.15 + torch.rand((b,), device=self.device) * 0.1 + 0.05
             
             cubeA_xyz[:, 2] = 0.02 + 0.83 
             cubeB_xyz[:, 2] = 0.02 + 0.83
@@ -164,8 +154,8 @@ class TwoRobotStack3Cube(BaseEnv):
             )
             self.cubeC.set_pose(Pose.create_from_pq(p=cubeC_xyz, q=qs))
 
-            target_region_xyz = torch.zeros((b, 3))
-            target_region_xyz[:, 0] = torch.rand((b,)) * 0.1 - 0.05
+            target_region_xyz = torch.zeros((b, 3), device=self.device)
+            target_region_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.1 - 0.05
             target_region_xyz[:, 1] = 0
             # set a little bit above 0 so the target is sitting on the table
             target_region_xyz[..., 2] = 1e-3 + 0.83
@@ -190,52 +180,45 @@ class TwoRobotStack3Cube(BaseEnv):
 
     def _get_obs_extra(self, info: dict):
         obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["cubeA_pose"] = self.cubeA.pose.raw_pose
-            obs["cubeB_pose"] = self.cubeB.pose.raw_pose
-            obs["cubeC_pose"] = self.cubeC.pose.raw_pose
-            obs["goal_region_pos"] = self.goal_region.pose.p
+        obs["left_arm_tcp_pose"] = self.agent.tcp_1_pose.raw_pose
+        obs["right_arm_tcp_pose"] = self.agent.tcp_2_pose.raw_pose
+        obs["cubeA_pose"] = self.cubeA.pose.raw_pose
+        obs["cubeB_pose"] = self.cubeB.pose.raw_pose
+        obs["cubeC_pose"] = self.cubeC.pose.raw_pose
+        obs["goal_region_pos"] = self.goal_region.pose.p
         return obs
 
     def evaluate(self):
         pos_A = self.cubeA.pose.p
         pos_B = self.cubeB.pose.p
         pos_C = self.cubeC.pose.p
-        offset_1 = pos_B - pos_A
-        offset_2 = pos_C - pos_A
-        xy_1_flag = (
-            torch.linalg.norm(offset_1[..., :2], axis=1)
-            <= 0.02+0.005
-        )
-        xy_2_flag = (
-            torch.linalg.norm(offset_2[..., :2], axis=1)
-            <= 0.02+0.005
-        )
-        z_1_flag = torch.abs(offset_1[..., 2] - 0.02 * 2) <= 0.005
-        z_2_flag = torch.abs(offset_2[..., 2] - 0.02 * 4) <= 0.005
-        z_flag = torch.logical_and(z_1_flag, z_2_flag)
-        
-        are_cubes_stacked = z_flag
+
+        # A is on the goal region
         cubeA_to_goal_dist = torch.linalg.norm(
-            self.cubeA.pose.p[:, :2] - self.goal_region.pose.p[..., :2], axis=1
+            pos_A[:, :2] - self.goal_region.pose.p[..., :2], axis=1
         )
         cubeA_placed = cubeA_to_goal_dist < self.goal_radius
 
-        success = (
-            are_cubes_stacked * cubeA_placed
+        # B is on top of A
+        offset_B_on_A = pos_B - pos_A
+        xy_B_on_A_flag = (
+            torch.linalg.norm(offset_B_on_A[..., :2], axis=1)
+            <= self.cube_half_size[0] + 0.005
         )
+        z_B_on_A_flag = torch.abs(offset_B_on_A[..., 2] - self.cube_half_size[2] * 2) <= 0.005
+        is_B_on_A = xy_B_on_A_flag & z_B_on_A_flag
+
+        # C is on top of B
+        offset_C_on_B = pos_C - pos_B
+        xy_C_on_B_flag = (
+            torch.linalg.norm(offset_C_on_B[..., :2], axis=1)
+            <= self.cube_half_size[0] + 0.005
+        )
+        z_C_on_B_flag = torch.abs(offset_C_on_B[..., 2] - self.cube_half_size[2] * 2) <= 0.005
+        is_C_on_B = xy_C_on_B_flag & z_C_on_B_flag
+
+        are_cubes_stacked = is_B_on_A & is_C_on_B
+        success = are_cubes_stacked & cubeA_placed
         return {
             "are_cubes_stacked": are_cubes_stacked,
             "cubeA_placed": cubeA_placed,

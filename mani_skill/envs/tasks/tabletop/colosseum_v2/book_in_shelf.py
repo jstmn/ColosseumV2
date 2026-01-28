@@ -75,7 +75,7 @@ class PlaceBookEnv(BaseEnv):
             os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
             name="custom_glb_shelf",
-            type="static",
+            type="kinematic",
             is_shelf=True
         )
 
@@ -97,14 +97,6 @@ class PlaceBookEnv(BaseEnv):
             custom_material.metallic = 0.0
             builder.add_visual_from_file(glb_file_path, material=custom_material)
         else:
-            # The existing books in the shelf are part of the shelf, so you can't just change the material of the shelf.
-            # If so, we'd change the shelf to a good wood texture.
-            # if is_shelf:
-            #     custom_material = sapien.render.RenderMaterial()
-            #     custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "partnet_mobility/dataset/45427/images/texture_0.jpg"))
-            #     builder.add_visual_from_file(glb_file_path, material=custom_material)
-            # else:
-            #     builder.add_visual_from_file(glb_file_path)
             builder.add_visual_from_file(glb_file_path)
 
         builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
@@ -112,6 +104,8 @@ class PlaceBookEnv(BaseEnv):
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)
+        elif type=="kinematic":
+            actor = builder.build_kinematic(name)
         else:
             actor = builder.build_static(name)
         return actor
@@ -123,38 +117,20 @@ class PlaceBookEnv(BaseEnv):
 
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.089
-            # xy = torch.rand((b, 2)) * 0.2 - 0.1
             region = [[0.03, -0.25],[0.09, 0]] 
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )
             radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
             bookA_xy = sampler.sample(radius, 100)
-            # cubeB_xy = xy + sampler.sample(radius, 100, verbose=False)
 
             xyz[:, :2] = bookA_xy
-            # qs = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=True,
-            # )
-            # [0.854,0.471,0.212,0.068] - q for sleeping book
-            # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
             self.book_A.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
 
-            xyz[..., 0] = 0.293 + float(torch.rand(b)*0.05)
-            xyz[..., 1] = -0.1 + float(torch.rand(b)*0.1)
+            xyz[..., 0] = 0.293 + torch.rand(b, device=self.device)*0.05
+            xyz[..., 1] = -0.1 + torch.rand(b, device=self.device)*0.1            
             xyz[..., 2] = 0
             self.shelf.set_pose(Pose.create_from_pq(p=xyz, q=[-0.5, -0.5, 0.5, 0.5]))
-            # xyz[:, :2] = cubeB_xy
-            # qs = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=False,
-            # )
-            # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
         self._initialize_agent()
         
     def _initialize_agent(self):

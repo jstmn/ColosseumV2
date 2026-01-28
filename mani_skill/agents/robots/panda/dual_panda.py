@@ -109,7 +109,17 @@ class DualPanda(BaseAgent):
         """
         obs = super().get_proprioception()
         def get_flat_pose(pose):
-            return np.hstack([pose.p, pose.q])
+            # Convert CUDA tensors to CPU numpy arrays before stacking
+            p = pose.p
+            q = pose.q
+            
+            # Handle CUDA tensors
+            if isinstance(p, torch.Tensor):
+                p = p.cpu().numpy() if p.is_cuda else p.numpy()
+            if isinstance(q, torch.Tensor):
+                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            
+            return np.hstack([p, q])
         
         world__T__ee_1 = self.robot.links_map[self.ee_1_link_name].pose
         obs["world__T__ee_1"] = get_flat_pose(world__T__ee_1)

@@ -84,33 +84,41 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             # Reset cabinet pose
-            xyz = torch.zeros((b, 3))
-            xyz[..., :2] = -torch.rand((b, 2)) * 0.2 + 0.1
+            xyz = torch.zeros((b, 3), device=self.device)
+            xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 + 0.1
             xyz[..., 0] += 0.2
             xyz[..., 2] = 0.456+0.8
-            theta_by_2 = torch.rand(b)*np.pi/16 - np.pi/32
-            for i in range(b):
-                # Reset cabinet pose
-                init_pose = Pose.create_from_pq(
-                    p=xyz[i:i+1], 
-                    q=[np.cos(theta_by_2), 0, 0, np.sin(theta_by_2)])
-                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
-                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
-                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
+            theta_by_2 = torch.rand(b, device=self.device)*np.pi/16 - np.pi/32
+            
+            dof_tensor = self.open_cabinet.dof
+            if isinstance(dof_tensor, torch.Tensor):
+                dof = int(dof_tensor.flatten()[0].cpu().item())
+            else:
+                dof = int(dof_tensor)
 
-                self.open_cabinet.set_pose(init_pose_sapien)
+            # Vectorized pose setting for the cabinet
+            cos_vals = torch.cos(theta_by_2)
+            sin_vals = torch.sin(theta_by_2)
+            qs = torch.zeros((b, 4), device=self.device)
+            qs[:, 0] = cos_vals
+            qs[:, 3] = sin_vals
+            cabinet_pose = Pose.create_from_pq(p=xyz, q=qs)
+            self.open_cabinet.set_pose(cabinet_pose)
             
-            xyz[..., :2] = torch.rand((b,2)) * 0.1 - 0.05 - 0.25
-            xyz[..., 2] = 0.85
+            # Vectorized: Set all object poses
+            obj_xyz = torch.rand((b, 2), device=self.device) * 0.1 - 0.05 - 0.25
+            obj_z = torch.full((b, 1), 0.85, device=self.device)
+            obj_poses_xyz = torch.cat([obj_xyz, obj_z], dim=1)
+            self.obj.set_pose(Pose.create_from_pq(p=obj_poses_xyz))
             
-            self.obj.set_pose(sapien.Pose(p=xyz[0].cpu().numpy()))
-            # Close the drawer (reset joint positions to 0)
-            self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
-            self.open_cabinet.set_qvel(np.zeros(self.open_cabinet.dof))
+            # Close the drawers
+            self.open_cabinet.set_qpos(torch.zeros((b, dof), device=self.device))
+            self.open_cabinet.set_qvel(torch.zeros((b, dof), device=self.device))
+        
+        self._initialize_agent()
         
     def _initialize_agent(self):
         # Reset the robot to a neutral position
-        qpos = np.zeros(self.agent.robot.dof)
         qpos = np.array([1.326, 1.373, -0.15, -0.569, -0.305, -0.1, -2.887, -2.768, -0.115, 1.35, 2.742, 1.358, 0.345, 3.281, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
 
@@ -127,8 +135,17 @@ class DualArmDrawerPlaceEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
+            # Convert CUDA tensors to CPU numpy arrays before stacking
+            p = pose.p
+            q = pose.q
+            
+            # Handle CUDA tensors
+            if isinstance(p, torch.Tensor):
+                p = p.cpu().numpy() if p.is_cuda else p.numpy()
+            if isinstance(q, torch.Tensor):
+                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            
+            return np.hstack([p, q])
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

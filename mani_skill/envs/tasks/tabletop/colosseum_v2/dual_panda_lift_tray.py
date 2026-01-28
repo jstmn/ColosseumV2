@@ -9,6 +9,7 @@ from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils import sapien_utils
 from mani_skill.envs.distraction_set import DistractionSet
 
@@ -89,24 +90,22 @@ class DualArmLiftTrayEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            xyz = torch.zeros((b, 3), device=self.device)
+            xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
             xyz[..., 2] = self.cube_half_size+0.83
-            theta_by_2 = torch.rand(b)*np.pi/8 - np.pi/16  # -pi/2 to pi/2
+            theta_by_2 = torch.rand(b, device=self.device)*np.pi/8 - np.pi/16  # -pi/2 to pi/2
             
-            # Set poses for each environment in the batch
-            for i in range(b):
-                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[0.5,0.5,0.5,0.5])
-                # Convert tensors to numpy float32 arrays
-                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
-                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
-                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
-                rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
-                init_pose_sapien = rotation_pose * init_pose_sapien
-                self.tray.set_pose(init_pose_sapien)
-                self.init_pose = init_pose_sapien
-            
-            
+            base_q = torch.tensor([0.5, 0.5, 0.5, 0.5], device=self.device).repeat(b, 1)
+            cos_vals = torch.cos(theta_by_2)
+            sin_vals = torch.sin(theta_by_2)
+            rot_q = torch.zeros((b, 4), device=self.device)
+            rot_q[:, 0] = cos_vals
+            rot_q[:, 3] = sin_vals
+            final_q = quaternion_multiply(rot_q, base_q)
+            final_pose = Pose.create_from_pq(p=xyz, q=final_q)
+            self.tray.set_pose(final_pose)
+            self.init_pose = final_pose
+        
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
@@ -124,7 +123,17 @@ class DualArmLiftTrayEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            return np.hstack([pose.p, pose.q])
+            # Convert CUDA tensors to CPU numpy arrays before stacking
+            p = pose.p
+            q = pose.q
+            
+            # Handle CUDA tensors
+            if isinstance(p, torch.Tensor):
+                p = p.cpu().numpy() if p.is_cuda else p.numpy()
+            if isinstance(q, torch.Tensor):
+                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            
+            return np.hstack([p, q])
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

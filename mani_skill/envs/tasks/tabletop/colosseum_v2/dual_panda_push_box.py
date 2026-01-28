@@ -96,28 +96,25 @@ class DualPandaPushBoxEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            box_xyz = torch.zeros((b, 3))
-            box_xyz[:, 0] = - torch.rand((b,)) * 0.2
-            box_xyz[:, 1] = torch.rand((b,)) * 0.2 - 0.1
+            box_xyz = torch.zeros((b, 3), device=self.device)
+            box_xyz[:, 0] = - torch.rand((b,), device=self.device) * 0.2
+            box_xyz[:, 1] = torch.rand((b,), device=self.device) * 0.2 - 0.1
             box_xyz[:, 2] = 0.02 + 0.83
             
-            goal_xyz = torch.zeros((b, 3))
+            goal_xyz = torch.zeros((b, 3), device=self.device)
             goal_xyz[:, 0] = -0.4
             goal_xyz[:, 1] = 0
             goal_xyz[:, 2] = 1e-3 + 0.83
             
-            theta_by_2 = (torch.rand(b))*np.pi/6-np.pi/12
-            # theta_by_2 = 0
-            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=torch.tensor([float(np.cos(theta_by_2)),0,0,float(np.sin(theta_by_2))])))
+            theta_by_2 = (torch.rand(b, device=self.device))*np.pi/6-np.pi/12
+            cos_vals = torch.cos(theta_by_2)
+            sin_vals = torch.sin(theta_by_2)
+            box_q = torch.zeros((b, 4), device=self.device)
+            box_q[:, 0] = cos_vals
+            box_q[:, 3] = sin_vals
+            self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=box_q))
 
-            qs = random_quaternions(
-                b,
-                lock_x=True,
-                lock_y=True,
-                lock_z=True,
-            )
-
-            self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=[1,0,0,0]))
+            self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=torch.tensor([1,0,0,0], device=self.device).repeat(b, 1)))
         self._initialize_agent()
 
     def _initialize_agent(self):
@@ -125,36 +122,35 @@ class DualPandaPushBoxEnv(BaseEnv):
         self.agent.reset(qpos)
             
     def evaluate(self):
-        # Get box center
-        box_pos = self.box.pose.sp.p
-        if hasattr(box_pos, 'cpu'):
-            box_center = box_pos.cpu().numpy()
-        else:
-            box_center = np.array(box_pos)
-        
-        # Get goal region center
-        goal_pos = self.goal_region.pose.sp.p
-        if hasattr(goal_pos, 'cpu'):
-            goal_center = goal_pos.cpu().numpy()
-        else:
-            goal_center = np.array(goal_pos)
-        
+        box_pos = self.box.pose.p
+        goal_pos = self.goal_region.pose.p
+
         # Calculate euclidean distance between box and goal centers (x-y plane only)
-        distance = np.sqrt((box_center[0] - goal_center[0])**2 + (box_center[1] - goal_center[1])**2)
-        
+        distance = torch.linalg.norm(
+            box_pos[:, :2] - goal_pos[:, :2],
+            dim=1
+        )
+
         # Success if distance is below threshold (0.15 is approximately the goal region size)
         distance_threshold = 0.06
-        if distance < distance_threshold:
-            return {"success": torch.tensor(True)}
-        
-        return {"success": torch.tensor(False)}
+        success = distance < distance_threshold
+        return {"success": success}
         
     def _get_obs_extra(self, info: dict):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
+            # Convert CUDA tensors to CPU numpy arrays before stacking
+            p = pose.p
+            q = pose.q
+            
+            # Handle CUDA tensors
+            if isinstance(p, torch.Tensor):
+                p = p.cpu().numpy() if p.is_cuda else p.numpy()
+            if isinstance(q, torch.Tensor):
+                q = q.cpu().numpy() if q.is_cuda else q.numpy()
+            
+            return np.hstack([p, q])
 
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

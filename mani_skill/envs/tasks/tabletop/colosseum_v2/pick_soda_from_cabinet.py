@@ -76,11 +76,7 @@ class PickSodaFromCabinetEnv(BaseEnv):
             env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
         self.table_scene.build()
-        
-        # self.cabinet_scene = RoboCasaSceneBuilder(
-        #     env=self, init_robot_base_pos=sapien.Pose(p=[4, -0.6, 0.94], q=[ 0.7071, 0, 0, 0.7071]) )
-        # self.cabinet_scene.build(build_config_idxs=[1])
-        
+                
         # If you previously built the full robocasa scene, skip it and use this:
         # programmatic open cabinet only:
         # size is width, depth, height (meters)
@@ -134,10 +130,6 @@ class PickSodaFromCabinetEnv(BaseEnv):
                                             scale=[0.008,0.008,0.008],
                                             type="dynamic")
         
-        # builder = actors.get_actor_builder(self.scene, "ycb:002_master_chef_can")
-        # builder.initial_pose = sapien.Pose(p=[0, 0, 0])
-        # self.soda = builder.build_dynamic(name="ball")
-
         
     @staticmethod
     def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
