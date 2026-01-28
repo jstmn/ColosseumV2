@@ -3,7 +3,7 @@ import numpy as np
 import sapien
 from transforms3d.euler import euler2quat
 
-from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.place_lightbulb_socket import PickLightbulbPlaceSocketEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.place_lightbulb_socket import PickLightbulbPlaceSocketEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 import torch

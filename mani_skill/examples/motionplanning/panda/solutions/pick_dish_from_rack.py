@@ -1,7 +1,7 @@
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.pick_dish_from_rack import PickDishFromRackEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.pick_dish_from_rack import PickDishFromRackEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import (
     PandaArmMotionPlanningSolver,
 )

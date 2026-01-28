@@ -2,7 +2,7 @@ import numpy as np
 import sapien
 from transforms3d.euler import euler2quat
 
-from mani_skill.envs.tasks.tabletop.colosseum_v2_versions.pick_cube_from_drawer import PickCubeFromDrawerEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.pick_cube_from_drawer import PickCubeFromDrawerEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 
 

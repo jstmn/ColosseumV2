@@ -16,7 +16,7 @@ from mani_skill.utils.sapien_utils import look_at
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import Array
-
+from mani_skill.envs.distraction_set import DistractionSet
 
 @register_env("LiftPegUpright-v1", max_episode_steps=50)
 class LiftPegUprightEnv(BaseEnv):
@@ -39,6 +39,8 @@ class LiftPegUprightEnv(BaseEnv):
     peg_half_length = 0.12
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
+        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 

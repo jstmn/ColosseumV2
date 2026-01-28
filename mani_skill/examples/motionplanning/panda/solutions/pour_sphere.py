@@ -1,7 +1,7 @@
 import numpy as np
 import sapien
 
-from mani_skill.envs.tasks.tabletop.pour_sphere import PourSphereEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.pour_sphere import PourSphereEnv
 from transforms3d.quaternions import axangle2quat, qmult
 
 from mani_skill.examples.motionplanning.panda.motionplanner import (

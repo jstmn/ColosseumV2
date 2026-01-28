@@ -3,7 +3,7 @@ import sapien
 import sapien.render
 from scipy.spatial.transform import Rotation
 
-from mani_skill.envs.tasks.tabletop.hammer_nail import HammerNailEnv
+from mani_skill.envs.tasks.tabletop.colosseum_v2.hammer_nail import HammerNailEnv
 from mani_skill.examples.motionplanning.base_motionplanner.utils import (
     compute_grasp_info_by_obb,
     get_actor_obb,

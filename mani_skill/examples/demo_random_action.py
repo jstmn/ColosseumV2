@@ -12,6 +12,34 @@ import tyro
 from dataclasses import dataclass
 from typing import List, Optional, Annotated, Union
 
+"""
+# ENV_ID="RaiseCube-v1"
+# ENV_ID="PickSodaFromCabinet-v1"
+# ENV_ID="PickDishFromRack-v1"
+# ENV_ID="StackCube-v1"
+# ENV_ID="PlaceBookInShelf-v1"
+# ENV_ID="PlaceDishInRack-v1"
+# ENV_ID="LiftPegUpright-v1"
+# ENV_ID="RotateArrow-v1"
+# ENV_ID="PegInsertionSide-v2"
+# ENV_ID="PlugCharger-v1"
+# ENV_ID="HammerNail-v1"
+# ENV_ID="ScoopBanana-v1"
+# ENV_ID="OpenDrawer-v1"
+# ENV_ID="OpenCabinet-v1"
+# ENV_ID="PlaceCubeInDrawer-v1"
+ENV_ID="CookItemInPan-v1"
+
+
+python mani_skill/examples/demo_random_action.py \
+    --env-id ${ENV_ID} \
+    --num-envs 5 \
+    --obs-mode "rgb" \
+    --reward-mode "sparse" \
+    --sim-backend "cuda"
+"""
+
+
 @dataclass
 class Args:
     env_id: Annotated[str, tyro.conf.arg(aliases=["-e"])] = "PushCube-v1"
