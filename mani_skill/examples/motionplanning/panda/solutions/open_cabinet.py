@@ -270,7 +270,7 @@ def _open_cabinet_with_planner(
         )
 
         # Try different pull-back distances with screw motion only
-        res = -1 
+        res = -1
         for pull_back in pull_offsets:
             pull_pose = target_pose * sapien.Pose([0, 0, pull_back])
             res = planner.move_to_pose_with_screw(pull_pose)

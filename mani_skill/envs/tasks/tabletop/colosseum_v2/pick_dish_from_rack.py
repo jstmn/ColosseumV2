@@ -18,7 +18,13 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from sapien.physx import PhysxRigidDynamicComponent
+try:  # Optional dependency for convex decomposition
+    import coacd  # noqa: F401
+
+    _HAS_COACD = True
+except ImportError:
+    _HAS_COACD = False
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +81,6 @@ class PickDishFromRackEnv(BaseEnv):
     _rack_y_ranges = [(-0.25, -0.15), (0.15, 0.25)]
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -146,14 +150,28 @@ class PickDishFromRackEnv(BaseEnv):
         )
         mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
 
-        builder.add_multiple_convex_collisions_from_file(
-            filename=str(self._plate_visual_mesh_path),
-            scale=[collision_scale, collision_scale, collision_scale],
-            pose=mesh_pose,
-            material=physical_material,
-            density=self._plate_density,
-            decomposition="coacd",
-        )
+        if _HAS_COACD:
+            builder.add_multiple_convex_collisions_from_file(
+                filename=str(self._plate_visual_mesh_path),
+                scale=[collision_scale, collision_scale, collision_scale],
+                pose=mesh_pose,
+                material=physical_material,
+                density=self._plate_density,
+                decomposition="coacd",
+            )
+        else:
+            logger.warning(
+                "coacd not installed; falling back to nonconvex collision for plate. "
+                "Run `pip install coacd` for better plate contacts."
+            )
+            builder.add_nonconvex_collision_from_file(
+                filename=str(self._plate_visual_mesh_path),
+                scale=[collision_scale, collision_scale, collision_scale],
+                pose=mesh_pose,
+                material=physical_material,
+                density=self._plate_density,
+            )
+
         plate_visual_material = sapien.render.RenderMaterial(
             base_color=[1.0, 1.0, 1.0, 1.0],
             specular=0.4,
@@ -170,7 +188,6 @@ class PickDishFromRackEnv(BaseEnv):
 
         builder.initial_pose = sapien.Pose()
         return builder.build(name="plate")
-
 
     def _build_rack(self):
         builder = self.scene.create_actor_builder()
@@ -219,7 +236,8 @@ class PickDishFromRackEnv(BaseEnv):
             b = len(env_idx)
 
             # Get table top Z coordinate
-            table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
+            table_p_arr = np.asarray(self.table_scene.table.pose.p.cpu()).ravel()
+
             table_z = float(table_p_arr[-1])
             table_top_z = table_z + float(self.table_scene.table_height)
 
@@ -303,28 +321,38 @@ class PickDishFromRackEnv(BaseEnv):
             plate_pose = Pose.create_from_pq(p=plate_pos, q=vertical_quat)
             self.plate.set_pose(plate_pose)
 
-            # Keep the plate fixed in the rack until it is grasped
-            self.plate.disable_gravity = True
-
             # Zero velocities so the plate remains stationary until grasped
             zero_velocity = torch.zeros((b, 3), device=device)
             self.plate.set_linear_velocity(zero_velocity)
             self.plate.set_angular_velocity(zero_velocity)
+
+            # Save initial pose so we can hold the plate in place each step
+            self._plate_initial_pose = plate_pose
             self._plate_gravity_enabled = False
 
     def step(self, action):
+        # Zero plate velocity each step to cancel gravity accumulation,
+        # but do NOT reset pose — the plate must stay physically interactable
+        # so the robot can grasp it.
+        if not self._plate_gravity_enabled:
+            zero_vel = torch.zeros((self.num_envs, 3), device=self.device)
+            self.plate.set_linear_velocity(zero_vel)
+            self.plate.set_angular_velocity(zero_vel)
+
         obs = super().step(action)
+
         if (
             not self._plate_gravity_enabled
             and bool(self.agent.is_grasping(self.plate).any())
         ):
-            self.plate.disable_gravity = False
             self._plate_gravity_enabled = True
+
         return obs
 
     def evaluate(self):
         plate_pos = self.plate.pose.p
-        table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
+        table_p_arr = np.asarray(self.table_scene.table.pose.p.cpu()).ravel()
+
         table_z = float(table_p_arr[-1])
         table_top_z = table_z + float(self.table_scene.table_height)
 
@@ -350,16 +378,15 @@ class PickDishFromRackEnv(BaseEnv):
         }
 
     def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
         plate_pose = self.plate.pose
         rack_pose = self.dish_rack.pose
+        obs = {
+            "plate_pos": plate_pose.p,
+            "plate_quat": plate_pose.q,
+            "rack_pos": rack_pose.p,
+            "rack_quat": rack_pose.q,
+        }
         if "state" in self.obs_mode:
-            obs.update(
-                plate_pos=plate_pose.p,
-                plate_quat=plate_pose.q,
-                rack_pos=rack_pose.p,
-                rack_quat=rack_pose.q,
-            )
             goal_pos = torch.tensor(
                 self._plate_goal_position, device=self.device, dtype=plate_pose.p.dtype
             ).unsqueeze(0).repeat(plate_pose.p.shape[0], 1)

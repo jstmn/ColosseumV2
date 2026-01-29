@@ -276,23 +276,12 @@ class PlaceDishInRackEnv(BaseEnv):
 
             self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
 
-            # Raise table to be reachable
-            table_pose = self.table_scene.table.pose
-            table_p = np.asarray(table_pose.p).ravel()
-            table_q = table_pose.q
-            if torch.is_tensor(table_q):
-                table_q = table_q.cpu().numpy().ravel()
-            else:
-                table_q = np.asarray(table_q).ravel()
-
-            # Apply height offset to bring table into robot's workspace
-            new_table_p = np.array([table_p[0], table_p[1], table_p[2] + self.table_height_offset], dtype=np.float32)
-            new_table_q = np.array(table_q, dtype=np.float32)
-            self.table_scene.table.set_pose(sapien.Pose(p=new_table_p, q=new_table_q))
-
             # Compute table top Z for placing objects
-            table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
-            table_z = float(table_p_arr[-1])
+            table_p = self.table_scene.table.pose.p
+            if table_p.ndim == 2:
+                table_z = float(table_p[0, 2].cpu())
+            else:
+                table_z = float(table_p[2].cpu())
             table_top_z = table_z + float(self.table_scene.table_height)
 
             # Set plate position (using pre-computed random values)

@@ -386,6 +386,9 @@ class HammerNailEnv(BaseEnv):
             nail = builder.build_dynamic(name=spec.name)
             nail.set_linear_damping(2.0)
             nail.set_angular_damping(5.0)
+            # Lock X and Z linear movement, allow only Y; lock all rotations.
+            # Must be set before GPU sim initialization.
+            nail.set_locked_motion_axes([True, False, True, True, True, True])
             self.nails.append(nail)
 
             rest_center = torch.from_numpy(spec.rest_center).to(torch.float32)
@@ -477,7 +480,8 @@ class HammerNailEnv(BaseEnv):
         self._choose_hammer_orientation()
         self._apply_hammer_z_rotation(-90.0)
         self._update_hammer_rest_height()
-        self.hammer.set_pose(
+        # Use underlying SAPIEN object since GPU sim is not yet initialized
+        self.hammer._objs[0].set_pose(
             sapien.Pose(
                 p=self._hammer_rest_center.tolist(),
                 q=self._hammer_orientation.tolist(),
@@ -521,7 +525,9 @@ class HammerNailEnv(BaseEnv):
     def _choose_hammer_orientation(self):
         import sapien.render
 
-        render_comp = self.hammer._objs[0].find_component_by_type(
+        # Use underlying SAPIEN object directly since GPU sim is not yet initialized
+        raw_hammer = self.hammer._objs[0]
+        render_comp = raw_hammer.find_component_by_type(
             sapien.render.RenderBodyComponent
         )
         if render_comp is None:
@@ -537,7 +543,7 @@ class HammerNailEnv(BaseEnv):
         best_q = candidates[0]
         best_extent = None
         for q in candidates:
-            self.hammer.set_pose(sapien.Pose(p=[0.0, 0.0, 0.0], q=q.tolist()))
+            raw_hammer.set_pose(sapien.Pose(p=[0.0, 0.0, 0.0], q=q.tolist()))
             aabb = render_comp.compute_global_aabb_tight()
             z_extent = float(aabb[1, 2] - aabb[0, 2])
             if best_extent is None or z_extent < best_extent:
@@ -548,13 +554,15 @@ class HammerNailEnv(BaseEnv):
     def _update_hammer_rest_height(self):
         import sapien.render
 
-        render_comp = self.hammer._objs[0].find_component_by_type(
+        # Use underlying SAPIEN object directly since GPU sim is not yet initialized
+        raw_hammer = self.hammer._objs[0]
+        render_comp = raw_hammer.find_component_by_type(
             sapien.render.RenderBodyComponent
         )
         if render_comp is None:
             return
 
-        self.hammer.set_pose(
+        raw_hammer.set_pose(
             sapien.Pose(p=[0.0, 0.0, 0.0], q=self._hammer_orientation.tolist())
         )
         aabb = render_comp.compute_global_aabb_tight()
@@ -605,10 +613,6 @@ class HammerNailEnv(BaseEnv):
                 nail.set_pose(pose)
                 nail.set_linear_velocity(torch.zeros((b, 3), device=self.device))
                 nail.set_angular_velocity(torch.zeros((b, 3), device=self.device))
-
-                # Lock X and Z linear movement, allow only Y movement, lock all rotations
-                # [lock_x, lock_y, lock_z, lock_rot_x, lock_rot_y, lock_rot_z]
-                nail.set_locked_motion_axes(torch.tensor([[True, False, True, True, True, True]] * b, device=self.device))
 
             # Randomize hammer position
             hammer_pos = self._hammer_rest_center.to(self.device).unsqueeze(0).repeat(b, 1)
