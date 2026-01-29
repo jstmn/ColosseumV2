@@ -253,16 +253,16 @@ class OpenCabinetEnv(BaseEnv):
             name="handle_link",
         )
 
-        # Store handle position relative to link
+        # Store handle position relative to link (single model, replicated for all envs)
+        handle_pos_list = [
+            meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
+            if meshes[link_ids[i] % len(meshes)] is not None
+            else [0, 0, 0]
+            for i, meshes in enumerate(handle_links_meshes)
+        ]
+        # Expand to num_envs (single model replicated across all parallel envs)
         self.handle_link_pos = common.to_tensor(
-            np.array(
-                [
-                    meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
-                    if meshes[link_ids[i] % len(meshes)] is not None
-                    else [0, 0, 0]
-                    for i, meshes in enumerate(handle_links_meshes)
-                ]
-            ),
+            np.array(handle_pos_list * self.num_envs),
             device=self.device,
         )
 
@@ -277,11 +277,14 @@ class OpenCabinetEnv(BaseEnv):
         )
 
     def _after_reconfigure(self, options):
-        self.cabinet_zs = []
+        cabinet_zs = []
         for cabinet in self._cabinets:
             collision_mesh = cabinet.get_first_collision_mesh()
-            self.cabinet_zs.append(-collision_mesh.bounding_box.bounds[0, 2])
-        self.cabinet_zs = common.to_tensor(self.cabinet_zs, device=self.device)
+            cabinet_zs.append(-collision_mesh.bounding_box.bounds[0, 2])
+        # Expand to num_envs (single model replicated across all parallel envs)
+        self.cabinet_zs = common.to_tensor(
+            cabinet_zs * self.num_envs, device=self.device
+        )
 
         target_qlimits = self.handle_link.joint.limits
         qmin, qmax = target_qlimits[..., 0], target_qlimits[..., 1]
@@ -330,7 +333,9 @@ class OpenCabinetEnv(BaseEnv):
                 self.scene.px.step()
                 self.scene._gpu_fetch_all()
 
-            handle_pos = self.handle_link_positions(env_idx)[0].cpu().numpy()
+            # Get handle position from first env for grasp computation (all envs share the same cabinet model)
+            handle_pos_all = self.handle_link_positions(env_idx)
+            handle_pos = handle_pos_all[0].cpu().numpy() if handle_pos_all.ndim >= 2 else handle_pos_all.cpu().numpy()
 
             # Compute grasp pose using EXACT same logic as motion planning solution
             # Get joint info

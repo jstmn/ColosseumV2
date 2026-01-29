@@ -10,10 +10,8 @@ from sapien.physx import PhysxMaterial
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
@@ -129,7 +127,6 @@ class PickDishFromRackEnv(BaseEnv):
 
         self.plate = self._build_plate()
         self.dish_rack = self._build_rack()
-        self._plate_gravity_enabled = False
 
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
@@ -214,119 +211,71 @@ class PickDishFromRackEnv(BaseEnv):
         return builder.build_kinematic(name="dish_rack")
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
-        device = self.device
-        with torch.device(device):
+        with torch.device(self.device):
             b = len(env_idx)
 
-            # Get table top Z coordinate
-            table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
-            table_z = float(table_p_arr[-1])
-            table_top_z = table_z + float(self.table_scene.table_height)
-
-            # Position rack on table with Y randomization (symmetric around robot)
-            rack_pos = torch.zeros((b, 3), device=device)
-            rack_pos[:, 0] = self._rack_position[0]  # Fixed X
-            # Randomly pick left or right range, then sample within that range
-            for i in range(b):
-                # Pick random range (0 = left/negative, 1 = right/positive)
-                range_idx = torch.randint(0, 2, (1,)).item()
-                y_min, y_max = self._rack_y_ranges[range_idx]
-                rack_pos[i, 1] = torch.rand(1, device=device).item() * (y_max - y_min) + y_min
-            rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
-
-            # Compute EE target position above rack center (for grasp approach)
-            # EE should be above the plate which is at rack center, at the top of the vertical plate
-            ee_target_x = rack_pos[0, 0].item()
-            ee_target_y = rack_pos[0, 1].item()
-            ee_target_z = table_top_z + self._plate_outer_radius * 2 + 0.25  # Above plate top + higher clearance
-
-            # Use IK to find qpos that places EE at target position
-            # Grasp pose: approaching from above (-Z), closing in Y direction
-            from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
-            import sapien
-
-            # Initialize table scene first with default qpos
+            # Initialize table scene with default qpos
             self.table_scene.initialize(env_idx)
 
-            # Create a temporary planner to compute IK
-            try:
-                planner = PandaArmMotionPlanningSolver(
-                    self,
-                    debug=False,
-                    vis=False,
-                    base_pose=self.agent.robot.pose,
-                    visualize_target_grasp_pose=False,
-                    print_env_info=False,
-                )
+            # Get table top Z coordinate
+            table_p = self.table_scene.table.pose.p
+            if table_p.ndim == 2:
+                table_z = table_p[0, 2]
+            else:
+                table_z = table_p[2]
+            table_top_z = float(table_z) + float(self.table_scene.table_height)
 
-                # Build target pose above rack
-                approaching = np.array([0, 0, -1])
-                closing = np.array([0, 1, 0])
-                target_pos = np.array([ee_target_x, ee_target_y, ee_target_z])
-                target_pose = self.agent.build_grasp_pose(approaching, closing, target_pos)
+            # Position rack on table with Y randomization (symmetric around robot)
+            rack_pos = torch.zeros((b, 3), device=self.device)
+            rack_pos[:, 0] = self._rack_position[0]  # Fixed X
 
-                # Compute IK
-                result = planner.planner.IK(target_pose, self.agent.robot.get_qpos()[0, :7].cpu().numpy())
-                if result["status"] == "Success":
-                    pregrasp_qpos = np.array(result["position"])
-                    # Add gripper open position
-                    pregrasp_qpos = np.append(pregrasp_qpos, [0.04, 0.04])
-                    # Re-initialize with computed qpos
-                    self.table_scene.initialize(env_idx, qpos_0=pregrasp_qpos)
-
-                planner.close()
-            except Exception as e:
-                # If IK fails, just use default initialization
-                pass
+            # Vectorized: randomly pick left or right Y range, then sample within
+            y_mins = torch.tensor(
+                [r[0] for r in self._rack_y_ranges], device=self.device
+            )
+            y_maxs = torch.tensor(
+                [r[1] for r in self._rack_y_ranges], device=self.device
+            )
+            range_idx = torch.randint(0, len(self._rack_y_ranges), (b,), device=self.device)
+            chosen_mins = y_mins[range_idx]
+            chosen_maxs = y_maxs[range_idx]
+            rack_pos[:, 1] = (
+                torch.rand(b, device=self.device) * (chosen_maxs - chosen_mins)
+                + chosen_mins
+            )
+            rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
 
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
 
             # Place plate VERTICALLY between the dividers in the rack
             plate_pos = rack_pos.clone()
-            # X,Y same as rack center
 
-            # When plate is vertical (after 90° rotation around X), its radius extends in Z direction
-            # Bottom of plate = center_z - plate_outer_radius
-            # Position center so bottom is at table level (bottom won't clip through)
-            plate_pos[:, 2] = table_top_z + self._plate_outer_radius  # Center at radius height
+            # When plate is vertical (after 90deg rotation around X), its radius extends in Z direction
+            # Position center so bottom is at table level
+            plate_pos[:, 2] = table_top_z + self._plate_outer_radius
 
-            # Plate vertical - normal pointing in +X direction (perpendicular to dividers)
-            # Dividers run in X (left-right), plate face should be perpendicular to Y (front-back)
             # Quaternion for 90deg rotation around X axis to make plate stand vertical
             vertical_quat = torch.tensor(
-                [[0.7071068, 0.7071068, 0, 0]],  # 90 deg around X axis
-                device=device,
-                dtype=torch.float32,
-            ).repeat(b, 1)
+                [0.7071068, 0.7071068, 0, 0], device=self.device, dtype=torch.float32
+            ).unsqueeze(0).expand(b, -1)
 
             plate_pose = Pose.create_from_pq(p=plate_pos, q=vertical_quat)
             self.plate.set_pose(plate_pose)
 
-            # Keep the plate fixed in the rack until it is grasped
-            self.plate.disable_gravity = True
-
             # Zero velocities so the plate remains stationary until grasped
-            zero_velocity = torch.zeros((b, 3), device=device)
+            zero_velocity = torch.zeros((b, 3), device=self.device)
             self.plate.set_linear_velocity(zero_velocity)
             self.plate.set_angular_velocity(zero_velocity)
-            self._plate_gravity_enabled = False
-
-    def step(self, action):
-        obs = super().step(action)
-        if (
-            not self._plate_gravity_enabled
-            and bool(self.agent.is_grasping(self.plate).any())
-        ):
-            self.plate.disable_gravity = False
-            self._plate_gravity_enabled = True
-        return obs
 
     def evaluate(self):
         plate_pos = self.plate.pose.p
-        table_p_arr = np.asarray(self.table_scene.table.pose.p).ravel()
-        table_z = float(table_p_arr[-1])
-        table_top_z = table_z + float(self.table_scene.table_height)
+        table_p = self.table_scene.table.pose.p
+        if table_p.ndim == 2:
+            table_z = table_p[0, 2]
+        else:
+            table_z = table_p[2]
+        table_top_z = float(table_z) + float(self.table_scene.table_height)
 
         # Check that plate is above table surface
         above_table = plate_pos[:, 2] > table_top_z - 0.01
