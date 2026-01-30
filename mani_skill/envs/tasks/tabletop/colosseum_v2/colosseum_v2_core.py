@@ -1,5 +1,3 @@
-from copy import deepcopy
-from dataclasses import dataclass, field
 from typing import Optional, Callable
 import os
 
@@ -15,7 +13,8 @@ from mani_skill.utils import sapien_utils
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 import os
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet, ColorRange
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.utils.building.actor_builder import ActorBuilder
 
 
 import numpy as np
@@ -26,8 +25,6 @@ from sapien.render import RenderBodyComponent
 from transforms3d.euler import euler2quat
 
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.envs.scene import ManiSkillScene
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.actor import Actor
 
@@ -193,12 +190,13 @@ class ColosseumV2Env(BaseEnv):
         for cfg in cfgs:
             rpy = np.random.uniform(*rpy_range)
             xyz = np.random.uniform(*xyz_range)
-            delta_pose = sapien.Pose(p=xyz, q=euler2quat(rpy[0], rpy[1], rpy[2]))
+            delta_quat = euler2quat(rpy[0], rpy[1], rpy[2]).astype(np.float32)
+            delta_pose = sapien.Pose(p=xyz, q=delta_quat)
             cfg.pose *= delta_pose
 
         return cfgs
 
-    def _load_from_builder(self, get_builder_fn: Callable[[], sapien.ActorBuilder], name: str, type_: str) -> Actor:
+    def _load_from_builder(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str) -> Actor:
         """ It's expected that the builder has had the following set:
             - add_box_collision
             - add_box_visual
@@ -222,7 +220,7 @@ class ColosseumV2Env(BaseEnv):
         actors = []
         for i in range(self.num_envs):
             name_i = f"{name}_env:{i}"
-            builder = get_builder_fn()
+            builder: ActorBuilder = get_builder_fn()
             builder.set_scene_idxs([i])
             if type_ == "dynamic":
                 actor = builder.build_dynamic(name=name_i)
@@ -247,7 +245,7 @@ class ColosseumV2Env(BaseEnv):
         if self._ds.MO_size_enabled() and object_type == "MO":
             scale_range = self._ds.MO_size_cfg["scale_range"]
             scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
-        
+
         elif self._ds.RO_size_enabled() and object_type == "RO":
             scale_range = self._ds.RO_size_cfg["scale_range"]
             scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
@@ -281,6 +279,12 @@ class ColosseumV2Env(BaseEnv):
             else:
                 raise ValueError(f"Invalid type: {type_}")
             self.remove_from_state_dict_registry(actor)
+
+            if object_type == "MO" and self._ds.MO_mass_enabled():
+                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+                new_mass = (actor.get_mass() * mass_scale).item()
+                actor.set_mass(new_mass)
+
             actors.append(actor)
 
         actor_merged = Actor.merge(actors, name=name)
@@ -307,7 +311,7 @@ class ColosseumV2Env(BaseEnv):
 
             for i in range(n_spheres):
                 def get_sphere_builder():
-                    builder = self.scene.create_actor_builder()
+                    builder: ActorBuilder = self.scene.create_actor_builder()
                     builder.add_sphere_collision(
                         radius=np.random.uniform(*radius_range),
                     )
@@ -317,7 +321,7 @@ class ColosseumV2Env(BaseEnv):
                         base_color=color_range.sample_rgba(),
                         ),
                     )
-                    builder.initial_pose = sapien.Pose()
+                    builder.set_initial_pose(sapien.Pose())
                     return builder
 
                 self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(self._load_from_builder(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic"))
@@ -343,11 +347,6 @@ class ColosseumV2Env(BaseEnv):
         # Manipulation object
         if manipulation_object is not None:
             _set_color_or_texture(manipulation_object, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
-
-            if self._ds.MO_size_enabled():
-                scale_range = self._ds.MO_size_cfg["scale_range"]
-                # scale = np.random.uniform(*scale_range)
-                # manipulation_object.set_scale(scale)
 
         # Receiving object
         if receiving_object is not None:

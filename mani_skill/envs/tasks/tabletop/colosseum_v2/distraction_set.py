@@ -248,7 +248,7 @@ all_distractor_set = DistractionSet(
         "color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),
     },
     MO_mass_cfg = {
-        "mass_scale_range": (0.1, 0.25),
+        "mass_scale_range": (1000, 1001),
     },
 )
 
@@ -263,4 +263,5 @@ DISTRACTION_SETS = {
     "table_color".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
     "camera_pose".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
+    "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
 }

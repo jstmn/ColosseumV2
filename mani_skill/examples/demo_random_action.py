@@ -40,7 +40,7 @@ python mani_skill/examples/demo_random_action.py \
     --reward-mode "sparse" \
     --sim-backend "cuda" \
     --record-dir "demos/random_action" \
-    --distraction-set "MO_color" "distractor_object"
+    --distraction-set "MO_color" "distractor_object" "MO_mass"
 
     --distraction-set "all"
 """
