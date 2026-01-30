@@ -9,17 +9,17 @@ import tyro
 import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils import gym_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS, DistractionSet
 from mani_skill.utils.wrappers import RecordEpisode
 
 
 
 """
-# ENV_ID="RaiseCube-v1"
+ENV_ID="RaiseCube-v1"
 # ENV_ID="PickSodaFromCabinet-v1"
 # ENV_ID="PickDishFromRack-v1"
 # ENV_ID="StackCube-v1"
-ENV_ID="PlaceBookInShelf-v1"
+# ENV_ID="PlaceBookInShelf-v1"
 # ENV_ID="PlaceDishInRack-v1"
 # ENV_ID="LiftPegUpright-v1"
 # ENV_ID="RotateArrow-v1"
@@ -35,11 +35,13 @@ ENV_ID="PlaceBookInShelf-v1"
 
 python mani_skill/examples/demo_random_action.py \
     --env-id ${ENV_ID} \
-    --num-envs 10 \
+    --num-envs 5 \
     --obs-mode "rgb" \
     --reward-mode "sparse" \
     --sim-backend "cuda" \
     --record-dir "demos/random_action" \
+    --distraction-set "MO_color" "distractor_object"
+
     --distraction-set "all"
 """
 
@@ -88,7 +90,7 @@ class Args:
     seed: Annotated[Optional[Union[int, list[int]]], tyro.conf.arg(aliases=["-s"])] = None
     """Seed(s) for random actions and simulator. Can be a single integer or a list of integers. Default is None (no seeds)"""
 
-    distraction_set: Annotated[Optional[str], tyro.conf.arg(aliases=["-d"])] = None
+    distraction_set: Annotated[Optional[list[str]], tyro.conf.arg(aliases=["-d"])] = None
     """Distraction set"""
 
 def main(args: Args):
@@ -106,7 +108,14 @@ def main(args: Args):
         parallel_in_single_scene = False
     if args.render_mode == "human" and args.num_envs == 1:
         parallel_in_single_scene = False
-    distraction_set = DISTRACTION_SETS[args.distraction_set.upper()] if args.distraction_set is not None else None
+        
+    
+    # Create the distraction set
+    distraction_set = None
+    if args.distraction_set is not None:
+        distraction_sets = [DISTRACTION_SETS[distraction_set.upper()] for distraction_set in args.distraction_set]
+        distraction_set = DistractionSet.merge(distraction_sets)
+
     env_kwargs = dict(
         obs_mode=args.obs_mode,
         reward_mode=args.reward_mode,

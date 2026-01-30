@@ -64,48 +64,18 @@ class RaiseCubeEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
 
-        # Create table
-        # self._table_scenes = []
-        # add_visual_from_file = not self._distraction_set.table_color_enabled()
-        # for i in range(self.num_envs):
-        #     table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-        #     table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"-env-{i}", add_visual_from_file=add_visual_from_file)
-        #     self._table_scenes.append(table_scene)
-        # self.table_scene = Actor.merge([ts.table for ts in self._table_scenes], name="table")
-        # self.add_to_state_dict_registry(self.table_scene)
-
-        # # Create cube
-        # cube_actors = []
-        # for i in range(self.num_envs):
-        #     builder = self.scene.create_actor_builder()
-        #     builder.add_box_collision(half_size=[self.cube_half_size] * 3)
-        #     builder.add_box_visual(
-        #         half_size=[self.cube_half_size] * 3,
-        #         material=sapien.render.RenderMaterial(
-        #             base_color=np.array([12, 42, 160, 255]) / 255,
-        #         ),
-        #     )
-        #     builder.set_scene_idxs([i])
-        #     builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
-        #     actor = builder.build_dynamic(name=f"cube_{i}")
-        #     self.remove_from_state_dict_registry(actor)
-        #     cube_actors.append(actor)
-        # self.cube = Actor.merge(cube_actors, name="cube")
-        # self.add_to_state_dict_registry(self.cube)
-
-        cube_builder = self.scene.create_actor_builder()
-        cube_builder.add_box_collision(half_size=[self.cube_half_size] * 3)
-        cube_builder.add_box_visual(
-            half_size=[self.cube_half_size] * 3,
-            material=sapien.render.RenderMaterial(
-                base_color=np.array([12, 42, 160, 255]) / 255,
-            ),
-        )
-        self.cube = cube_builder.build_dynamic(name="cube")
-
-        # # load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor], receiving_object: Optional[Actor])
-        # self._distraction_set.load_scene_hook(scene=self.scene, manipulation_object=self.cube, table=self.table_scene)
-
+        def get_cube_builder():
+            cube_builder = self.scene.create_actor_builder()
+            cube_builder.add_box_collision(half_size=[self.cube_half_size] * 3)
+            cube_builder.add_box_visual(
+                half_size=[self.cube_half_size] * 3,
+                material=sapien.render.RenderMaterial(
+                    base_color=np.array([12, 42, 160, 255]) / 255,
+                ),
+            )
+            cube_builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
+            return cube_builder
+        self.cube = self._load_from_builder(get_cube_builder, name="cube", type_="dynamic")
         self.load_scene_hook(manipulation_object=self.cube)
 
     @property

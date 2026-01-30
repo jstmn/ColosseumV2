@@ -69,6 +69,33 @@ class DistractionSet:
     def get_partial_copy(self, keys: list[str]) -> "DistractionSet":
         return DistractionSet(**{k: v for k, v in self.__dict__.items() if k in keys})
 
+    @staticmethod
+    def merge(distraction_sets: list["DistractionSet"]) -> "DistractionSet":
+
+        if len(distraction_sets) == 0:
+            return DistractionSet()
+
+        elif len(distraction_sets) == 1:
+            return distraction_sets[0]
+        
+        elif len(distraction_sets) == 2:
+            ds_1, ds_2 = distraction_sets
+            ds_1_enabled, _ = ds_1.which_enabled_str()
+            ds_2_enabled, _ = ds_2.which_enabled_str()
+            for k in ds_1_enabled:
+                assert k not in ds_2_enabled, f"Variation {k} is enabled in both ds_1 and ds_2"
+            ds_merged = DistractionSet()
+            for k in ds_1_enabled:
+                setattr(ds_merged, f"{k}_cfg", getattr(ds_1, f"{k}_cfg"))
+            for k in ds_2_enabled:
+                setattr(ds_merged, f"{k}_cfg", getattr(ds_2, f"{k}_cfg"))
+            return ds_merged
+
+        elif len(distraction_sets) > 2:
+            merged_12 = DistractionSet.merge([distraction_sets[0], distraction_sets[1]])
+            return DistractionSet.merge([merged_12] + distraction_sets[2:])
+
+
     def MO_color_enabled(self) -> bool:
         return len(self.MO_color_cfg) > 0
 
@@ -180,8 +207,8 @@ class DistractionSet:
 # ^ can set the scale of the robot here
 all_distractor_set = DistractionSet(
     distractor_object_cfg={
-        "n_spheres": 1,
-        "radius_range": (0.01, 0.02),
+        "n_spheres": 2,
+        "radius_range": (0.01, 0.03),
         "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
         "x_lims": (-0.1, 0.1),
         "y_lims": (-0.1, 0.1),
@@ -208,9 +235,10 @@ all_distractor_set = DistractionSet(
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
     },
-    # light_color_cfg = {
-    #     "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
-    # },
+    light_color_cfg = {
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+    },
+    # ^ this works but makes it hard to see the color of the objects
     MO_size_cfg = {"scale_range": (0.5, 0.75)},
     RO_size_cfg = {"scale_range": (0.5, 0.75)},
     background_texture_cfg = {

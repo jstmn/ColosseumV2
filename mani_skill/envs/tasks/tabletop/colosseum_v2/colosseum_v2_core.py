@@ -1,29 +1,20 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Callable
 import os
 
 import numpy as np
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from typing import Any, Dict, Union
 import numpy as np
 import sapien
 import torch
-import trimesh
-from mani_skill import PACKAGE_ASSET_DIR, PACKAGE_DIR
-from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from math import fabs
-from mani_skill.utils.geometry import rotation_conversions
 import os
-import gymnasium as gym
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet, ColorRange
 
 
@@ -207,19 +198,61 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
+    def _load_from_builder(self, get_builder_fn: Callable[[], sapien.ActorBuilder], name: str, type_: str) -> Actor:
+        """ It's expected that the builder has had the following set:
+            - add_box_collision
+            - add_box_visual
+            - initial_pose
 
-    def load_glb_as_actor(self, glb_file_path: str, pose: sapien.Pose, name: str, type: str, object_type: str, color: list | None = None):
+
+        For example:
+            builder = self.scene.create_actor_builder()
+            builder.add_box_collision(half_size=[0.05] * 3)
+            builder.add_box_visual(
+                half_size=[0.05] * 3,
+                material=sapien.render.RenderMaterial(
+                    base_color=np.array([12, 42, 160, 255]) / 255,
+                ),
+            )
+            builder.initial_pose = sapien.Pose(p=[0, 0, 0.05])
+
+            self._load_from_builder(builder, name="cube", type_="dynamic")
+        """
+
+        actors = []
+        for i in range(self.num_envs):
+            name_i = f"{name}_env:{i}"
+            builder = get_builder_fn()
+            builder.set_scene_idxs([i])
+            if type_ == "dynamic":
+                actor = builder.build_dynamic(name=name_i)
+            elif type_ == "static":
+                actor = builder.build_static(name=name_i)
+            elif type_ == "kinematic":
+                actor = builder.build_kinematic(name=name_i)
+            else:
+                raise ValueError(f"Invalid type: {type_}")
+            self.remove_from_state_dict_registry(actor)
+            actors.append(actor)
+        actor = Actor.merge(actors, name=name)
+        self.add_to_state_dict_registry(actor)
+        return actor
+
+
+
+    def load_glb_as_actor(self, glb_file_path: str, pose: sapien.Pose, name: str, type_: str, object_type: str, color: list | None = None):
         """Load GLB file as a static actor in the scene"""
         assert object_type in ["MO", "RO"]
-        scale = (1, 1, 1)
+
         if self._ds.MO_size_enabled() and object_type == "MO":
             scale_range = self._ds.MO_size_cfg["scale_range"]
             scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
+        
         elif self._ds.RO_size_enabled() and object_type == "RO":
             scale_range = self._ds.RO_size_cfg["scale_range"]
             scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
         else:
-            raise ValueError(f"Invalid object type: {object_type}")
+            scale = (1, 1, 1)
 
         actors = []
 
@@ -238,10 +271,16 @@ class ColosseumV2Env(BaseEnv):
 
             builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
             builder.set_initial_pose(pose)
-            if type=="dynamic":
+            builder.set_scene_idxs([i])
+            if type_ == "dynamic":
                 actor = builder.build_dynamic(name_i)
-            else:
+            elif type_ == "static":
                 actor = builder.build_static(name_i)
+            elif type_ == "kinematic":
+                actor = builder.build_kinematic(name_i)
+            else:
+                raise ValueError(f"Invalid type: {type_}")
+            self.remove_from_state_dict_registry(actor)
             actors.append(actor)
 
         actor_merged = Actor.merge(actors, name=name)
@@ -259,24 +298,30 @@ class ColosseumV2Env(BaseEnv):
         """
 
         # New distractor spheres
+        # TODO: Add YCB objects
         if self._ds.distractor_object_enabled():
             n_spheres = self._ds.distractor_object_cfg["n_spheres"]
             radius_range = self._ds.distractor_object_cfg["radius_range"]
             color_range = self._ds.distractor_object_cfg["color_range"]
-            radii = np.random.uniform(*radius_range, size=n_spheres)
+            self._ds._internal["distractor_object_cfg"]["sphere_actors"] = []
 
-            self._ds._internal["distractor_object_cfg"]["sphere_radii"] = radii
-            self._ds._internal["distractor_object_cfg"]["sphere_actors"] = [
-                actors.build_sphere(
-                    self.scene,
-                    initial_pose=sapien.Pose(),
-                    name=f"distractor_sphere_{i}",
-                    radius=radii[i],
-                    color=color_range.sample_rgba(),
-                )
-                for i in range(n_spheres)
-            ]
-            # TODO: Add YCB objects
+            for i in range(n_spheres):
+                def get_sphere_builder():
+                    builder = self.scene.create_actor_builder()
+                    builder.add_sphere_collision(
+                        radius=np.random.uniform(*radius_range),
+                    )
+                    builder.add_sphere_visual(
+                        radius=np.random.uniform(*radius_range),
+                        material=sapien.render.RenderMaterial(
+                        base_color=color_range.sample_rgba(),
+                        ),
+                    )
+                    builder.initial_pose = sapien.Pose()
+                    return builder
+
+                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(self._load_from_builder(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic"))
+
 
         # Create the table and optionally set its color and/or texture
         if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
@@ -366,16 +411,18 @@ class ColosseumV2Env(BaseEnv):
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():
 
+            radius_range = self._ds.distractor_object_cfg["radius_range"]
             x_lims = self._ds.distractor_object_cfg["x_lims"]
             y_lims = self._ds.distractor_object_cfg["y_lims"]
-            radii = self._ds._internal["distractor_object_cfg"]["sphere_radii"]
             x_range = x_lims[1] - x_lims[0]
             y_range = y_lims[1] - y_lims[0]
 
-            # What happens if you set the poses such that the spheres collide with one another?
-            for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["sphere_actors"]):
+
+            for i in range(self._ds.distractor_object_cfg["n_spheres"]):
+                # What happens if you set the poses such that the spheres collide with one another?
+                # for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["sphere_actors"]):
                 xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
                 xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
-                xyz[:, 2] = radii[i]
-                sphere.set_pose(Pose.create_from_pq(p=xyz))
+                xyz[:, 2] = radius_range[1] + 0.01 # get the maximum radius
+                self._ds._internal["distractor_object_cfg"]["sphere_actors"][i].set_pose(Pose.create_from_pq(p=xyz))
