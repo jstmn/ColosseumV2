@@ -55,49 +55,26 @@ class PlaceBookEnv(ColosseumV2Env):
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0])) # Loads the panda arm
 
+
     def _load_scene(self, options: dict):
 
         self.shelf = self.load_glb_as_actor(
-            self.scene, 
-            os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
-            sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
+            glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
+            pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
             name="custom_glb_shelf",
-            type="kinematic",
-            is_shelf=True
+            type="static",
+            object_type="RO",
         )
 
-        self.book_A = self.load_glb_as_actor(self.scene, 
-            os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
-            sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
+        self.book_A = self.load_glb_as_actor(
+            glb_file_path=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
+            pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             name="book_A",
-            type="dynamic")
-
+            type="dynamic",
+            object_type="MO",
+        )
         self.load_scene_hook(manipulation_object=self.book_A, receiving_object=self.shelf)
 
-
-    @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static", color=None, is_shelf=False):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        if color is not None:
-            custom_material = sapien.render.RenderMaterial()
-            custom_material.base_color = color  # Green [R, G, B, A]
-            custom_material.roughness = 0.8
-            custom_material.metallic = 0.0
-            builder.add_visual_from_file(glb_file_path, material=custom_material)
-        else:
-            builder.add_visual_from_file(glb_file_path)
-
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
-
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        elif type=="kinematic":
-            actor = builder.build_kinematic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):

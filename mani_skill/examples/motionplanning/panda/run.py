@@ -81,7 +81,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 100 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 1 \
+    --num-procs 2 \
     --obs-mode "rgb" \
     --reward-mode "sparse" \
     --random-seed \

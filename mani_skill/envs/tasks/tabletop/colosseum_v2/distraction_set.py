@@ -1,7 +1,35 @@
 from dataclasses import dataclass, field
 import os
+import numpy as np
 
 from mani_skill import PACKAGE_ASSET_DIR
+
+
+@dataclass
+class ColorRange:
+    low: tuple[float, float, float]
+    high: tuple[float, float, float]
+
+    def __post_init__(self):
+        assert len(self.low) == 3, "low must be a tuple of three values"
+        assert len(self.high) == 3, "high must be a tuple of three values"
+        assert self.low[0] <= self.high[0], "low[0] must be less than high[0]"
+        assert self.low[1] <= self.high[1], "low[1] must be less than high[1]"
+        assert self.low[2] <= self.high[2], "low[2] must be less than high[2]"
+
+
+    def sample_rgba(self, include_alpha: bool = True):
+        rgb = np.random.uniform(self.low, self.high).tolist()
+        if include_alpha:
+            return rgb + [1]
+        else:
+            return rgb
+
+    def to_dict(self):
+        return dict(
+            low=self.low,
+            high=self.high,
+        )
 
 @dataclass
 class DistractionSet:
@@ -37,9 +65,8 @@ class DistractionSet:
     camera_pose_cfg: dict = field(default_factory=dict)
 
     unimplemented = {
-        "MO_size",
-        "RO_size",
         "background_texture"
+        "object_mass"
     }
 
     def get_partial_copy(self, keys: list[str]) -> "DistractionSet":
@@ -126,10 +153,6 @@ class DistractionSet:
         if self.camera_pose_enabled():
             assert_range_correct(self.camera_pose_cfg["rpy_range"])
             assert_range_correct(self.camera_pose_cfg["xyz_range"])
-        if self.distractor_object_enabled():
-            assert_range_correct(self.distractor_object_cfg["color_range"])
-        if self.table_color_enabled():
-            assert_range_correct(self.table_color_cfg["color_range"])
 
     def to_dict(self):
         return dict(
@@ -148,27 +171,30 @@ class DistractionSet:
         )
 
 
+# mani_skill/agents/base_agent.py
+# ^ can set the scale of the robot here
 all_distractor_set = DistractionSet(
     distractor_object_cfg={
         "n_spheres": 1,
-        "radius_range": (0.01, 0.02),"color_range": ((0, 0, 0), (1, 1, 1)),
+        "radius_range": (0.01, 0.02),
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
         "x_lims": (-0.1, 0.1),
         "y_lims": (-0.1, 0.1),
     },
     MO_color_cfg ={
-        "color_range": ((0, 0, 0), (1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
     MO_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
     },
     RO_color_cfg ={
-        "color_range": ((0, 0, 0), (1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
     RO_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
     },
     table_color_cfg = {
-        "color_range": ((0, 0, 0), (1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
     table_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
@@ -178,8 +204,10 @@ all_distractor_set = DistractionSet(
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
     },
     light_color_cfg = {
-        "ambient_light_range": (0.25, 0.75),
+        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
+    MO_size_cfg = {"scale_range": (0.5, 0.75)},
+    RO_size_cfg = {"scale_range": (0.5, 0.75)},
 )
 
 DISTRACTION_SETS = {

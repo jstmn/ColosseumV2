@@ -24,7 +24,7 @@ from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 import os
 import gymnasium as gym
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet, ColorRange
 
 
 import numpy as np
@@ -85,6 +85,34 @@ SHADER = "default"
 #             shader_pack=SHADER,
 #         )]
 
+def _set_color_or_texture(actor: Actor, color_cfg: dict, texture_cfg: dict, set_color: bool, set_texture: bool):
+
+    if not set_color and not set_texture:
+        return
+
+    # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
+    for obj in actor._objs:
+        # modify the i-th object which is in parallel environment i
+        render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
+        for render_shape in render_body_component.render_shapes:
+            for part in render_shape.parts:
+                # part.material: sapien.core.pysapien.RenderMaterial
+                if set_texture:
+                    texture = _get_random_texture(texture_cfg["textures_directory"])
+                if set_color:
+                    color = color_cfg["color_range"].sample_rgba()
+
+                if set_color and not set_texture:
+                    part.material.set_base_color(color)
+                elif not set_color and set_texture:
+                    part.material.set_base_color_texture(texture)
+                elif set_color and set_texture:
+                    if np.random.random() < 0.5:
+                        part.material.set_base_color(color)
+                    else:
+                        part.material.set_base_color_texture(texture)
+
+
 def get_human_render_camera_config(eye: tuple[float, float, float], target: tuple[float, float, float], shader: str | None = None):
     """ Configures the human render camera. Shader options:
         - minimal: The fastest shader with minimal GPU memory usage. Note that the background will always be black (normally it is the color of the ambient light)
@@ -99,10 +127,6 @@ def get_human_render_camera_config(eye: tuple[float, float, float], target: tupl
     return CameraConfig("render_camera", pose=pose, width=1264, height=1264, fov=np.pi / 3, near=0.01, far=100, shader_pack=SHADER)
 
 
-
-def _get_random_color(color_range: tuple):
-    assert (len(color_range) == 2) and (len(color_range[0]) == 3) and (len(color_range[1]) == 3), "color_range must be a tuple of two tuples of three floats"
-    return np.random.uniform(*color_range).tolist() + [1]
 
 def _get_random_texture(texture_dir: str):
     texture_files = [f for f in os.listdir(texture_dir) if f.endswith('.png')]
@@ -137,9 +161,8 @@ class ColosseumV2Env(BaseEnv):
 
     def _load_lighting(self, options: dict):
         if self._ds.light_color_enabled():
-            light_low, light_high = self._ds.light_color_cfg["ambient_light_range"]
             for sub_scene in self.scene.sub_scenes:
-                sub_scene.ambient_light = [np.random.uniform(light_low, light_high), np.random.uniform(light_low, light_high), np.random.uniform(light_low, light_high)]
+                sub_scene.ambient_light = self._ds.light_color_cfg["color_range"].sample_rgba(include_alpha=False)
                 theta_rand = np.random.uniform(0, 2*np.pi)
                 sub_scene.add_directional_light(
                     direction=[-np.cos(theta_rand), -np.sin(theta_rand), -1],
@@ -166,32 +189,37 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
-    def set_color_or_texture(self, actor: Actor, color_cfg: dict, texture_cfg: dict, set_color: bool, set_texture: bool):
 
-        if not set_color and not set_texture:
-            return
+    def load_glb_as_actor(self, glb_file_path: str, pose: sapien.Pose, name: str, type: str, object_type: str, color: list | None = None):
+        """Load GLB file as a static actor in the scene"""
+        assert object_type in ["MO", "RO"]
+        scale = (1, 1, 1)
+        if self._ds.MO_size_enabled() and object_type == "MO":
+            scale_range = self._ds.MO_size_cfg["scale_range"]
+            scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
+        elif self._ds.RO_size_enabled() and object_type == "RO":
+            scale_range = self._ds.RO_size_cfg["scale_range"]
+            scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
+        else:
+            raise ValueError(f"Invalid object type: {object_type}")
 
-        # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
-        for obj in actor._objs:
-            # modify the i-th object which is in parallel environment i
-            render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
-            for render_shape in render_body_component.render_shapes:
-                for part in render_shape.parts:
-                    # part.material: sapien.core.pysapien.RenderMaterial
-                    if set_texture:
-                        texture = _get_random_texture(texture_cfg["textures_directory"])
-                    if set_color:
-                        color = _get_random_color(color_cfg["color_range"])
+        builder = self.scene.create_actor_builder()
+        if color is not None:
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color = color  # Green [R, G, B, A]
+            custom_material.roughness = 0.8
+            custom_material.metallic = 0.0
+            builder.add_visual_from_file(filename=glb_file_path, scale=scale, material=custom_material)
+        else:
+            builder.add_visual_from_file(filename=glb_file_path, scale=scale)
 
-                    if set_color and not set_texture:
-                        part.material.set_base_color(color)
-                    elif not set_color and set_texture:
-                        part.material.set_base_color_texture(texture)
-                    elif set_color and set_texture:
-                        if np.random.random() < 0.5:
-                            part.material.set_base_color(color)
-                        else:
-                            part.material.set_base_color_texture(texture)
+        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+        builder.set_initial_pose(pose)
+        if type=="dynamic":
+            actor = builder.build_dynamic(name)
+        else:
+            actor = builder.build_static(name)
+        return actor
 
 
     def load_scene_hook(self, manipulation_object: Optional[Actor], receiving_object: Actor | None = None):
@@ -217,7 +245,7 @@ class ColosseumV2Env(BaseEnv):
                     initial_pose=sapien.Pose(),
                     name=f"distractor_sphere_{i}",
                     radius=radii[i],
-                    color=np.random.uniform(*color_range).tolist() + [1.0], # alpha=1.0
+                    color=color_range.sample_rgba(),
                 )
                 for i in range(n_spheres)
             ]
@@ -233,7 +261,7 @@ class ColosseumV2Env(BaseEnv):
 
             table_actors = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
             self.add_to_state_dict_registry(table_actors)
-            self.set_color_or_texture(table_actors, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
+            _set_color_or_texture(table_actors, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
         else:
             self._table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
             self._table_scene.build()
@@ -241,11 +269,16 @@ class ColosseumV2Env(BaseEnv):
 
         # Manipulation object
         if manipulation_object is not None:
-            self.set_color_or_texture(manipulation_object, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
+            _set_color_or_texture(manipulation_object, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
+
+            if self._ds.MO_size_enabled():
+                scale_range = self._ds.MO_size_cfg["scale_range"]
+                # scale = np.random.uniform(*scale_range)
+                # manipulation_object.set_scale(scale)
 
         # Receiving object
         if receiving_object is not None:
-            self.set_color_or_texture(receiving_object, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
+            _set_color_or_texture(receiving_object, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
 
 
     def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None):
