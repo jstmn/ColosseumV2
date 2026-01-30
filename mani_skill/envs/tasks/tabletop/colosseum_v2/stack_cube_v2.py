@@ -148,7 +148,8 @@ class StackCubeV2Env(StackCubeEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        return get_human_render_camera_config(eye=[0.5, 0.2, 0.5], target=[-0.1, 0, 0.1], shader=self._human_render_shader)
+        pose = sapien_utils.look_at(eye=[0.5, 0.2, 0.5], target=[-0.1, 0, 0.1])
+        return CameraConfig("render_camera", pose=pose, width=1000, height=1000, fov=np.pi / 3, near=0.01, far=100, shader_pack="rt")
 
     @property
     def _default_sensor_configs(self):

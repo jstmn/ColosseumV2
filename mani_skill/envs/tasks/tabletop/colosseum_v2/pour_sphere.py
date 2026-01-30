@@ -89,8 +89,8 @@ class PourSphereEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,
@@ -102,7 +102,7 @@ class PourSphereEnv(BaseEnv):
         # View from behind-left of robot (matching OpenCabinet setup)
         pose = sapien_utils.look_at(eye=[-0.8, -0.6, 0.7], target=[0.1, 0.0, 0.35])
         return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
+            "render_camera", pose=pose, width=1000, height=1000, fov=1, near=0.01, far=100, shader_pack="rt"
         )
 
     def _load_agent(self, options: Dict):

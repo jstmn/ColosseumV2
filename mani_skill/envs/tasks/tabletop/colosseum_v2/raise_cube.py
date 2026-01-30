@@ -105,7 +105,8 @@ class RaiseCubeEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        return get_human_render_camera_config(eye=(0.5, 0.6, 0.5), target=(0.0, 0.0, 0.1), shader=self._human_render_shader)
+        pose = sapien_utils.look_at(eye=(0.5, 0.6, 0.5), target=(0.0, 0.0, 0.1))
+        return CameraConfig("render_camera", pose=pose, width=1000, height=1000, fov=np.pi / 3, near=0.01, far=100, shader_pack="rt")
 
     # @property
     # def _default_sensor_configs(self):
@@ -121,7 +122,7 @@ class RaiseCubeEnv(BaseEnv):
         pose = sapien_utils.look_at(
             eye=self.sensor_cam_eye_pos, target=self.sensor_cam_target_pos
         )
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return [CameraConfig("base_camera", pose, 500, 500, np.pi / 2, 0.01, 100)]
 
 
     def _load_scene(self, options: dict):

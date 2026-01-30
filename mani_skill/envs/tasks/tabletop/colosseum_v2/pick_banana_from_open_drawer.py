@@ -50,14 +50,14 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
         pose = sapien_utils.look_at(eye=[0.0, 0, 0.8], target=[0.15, 0, 0.2])
         pose2 = sapien_utils.look_at(eye=[-0.3, 0.3, 0.6], target=[0.15, 0, 0.2])
         return [
-            CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100),
-            CameraConfig("side_camera", pose2, 128, 128, np.pi / 2, 0.01, 100)
+            CameraConfig("base_camera", pose, 500, 500, np.pi / 2, 0.01, 100),
+            CameraConfig("side_camera", pose2, 500, 500, np.pi / 2, 0.01, 100)
         ]
 
     @property
     def _default_human_render_camera_configs(self):
         pose = sapien_utils.look_at([-0.6, -0.7, 0.6], [0.15, 0.0, 0.35])
-        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
+        return CameraConfig("render_camera", pose, 500, 500, 1, 0.01, 100, shader_pack="rt")
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))

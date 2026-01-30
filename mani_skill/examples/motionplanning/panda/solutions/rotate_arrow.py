@@ -62,7 +62,6 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     res = None
     approach_pose = sapien.Pose(p=grasp_pose_init.p + np.array([-0.025, 0.0, 0.0]), q=grasp_pose_init.q)
     res = planner.move_to_pose_with_screw(approach_pose)
-    print(f"reached approach pose: {approach_pose}")
     if res == -1:
         return res
 

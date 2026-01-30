@@ -129,8 +129,8 @@ class HopperEnv(BaseEnv):
             CameraConfig(
                 uid="cam0",
                 pose=sapien_utils.look_at(eye=[0, -2.8, 0.8], target=[0, 0, 0]),
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 4,
                 near=0.01,
                 far=100,

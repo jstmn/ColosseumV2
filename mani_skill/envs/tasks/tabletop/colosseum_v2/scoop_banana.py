@@ -67,8 +67,8 @@ class ScoopBananaEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,
@@ -82,11 +82,12 @@ class ScoopBananaEnv(BaseEnv):
             CameraConfig(
                 "render_camera",
                 pose=pose,
-                width=512,
-                height=512,
+                width=1000,
+                height=1000,
                 fov=1,
                 near=0.01,
                 far=100,
+                shader_pack="rt"
             )
         ]
 

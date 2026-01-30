@@ -143,8 +143,8 @@ class SO100GraspCubeEnv(BaseDigitalTwinEnv):
             CameraConfig(
                 "base_camera",
                 pose=sapien.Pose(),
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=camera_fov_noise + self.base_camera_settings["fov"],
                 near=0.01,
                 far=100,

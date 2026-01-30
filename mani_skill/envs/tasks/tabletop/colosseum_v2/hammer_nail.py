@@ -160,8 +160,8 @@ class HammerNailEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 3,
                 near=0.01,
                 far=10,
@@ -175,7 +175,7 @@ class HammerNailEnv(BaseEnv):
             [0.4, 0.6, 0.35], [0.05, 0.10, 0.06 + self._hole_center_z]
         )
         return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1.0, near=0.01, far=10
+            "render_camera", pose=pose, width=1000, height=1000, fov=1.0, near=0.01, far=10, shader_pack="rt"
         )
 
     def _load_agent(self, options: dict):

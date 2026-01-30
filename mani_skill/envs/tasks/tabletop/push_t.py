@@ -136,8 +136,8 @@ class PushTEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,
@@ -238,7 +238,7 @@ class PushTEnv(BaseEnv):
         self.goal_tee = create_tee(
             name="goal_Tee",
             target=True,
-            base_color=np.array([128, 128, 128, 255]) / 255,
+            base_color=np.array([500, 500, 128, 255]) / 255,
         )
 
         # adding end-effector end-episode goal position
@@ -247,7 +247,7 @@ class PushTEnv(BaseEnv):
             radius=0.02,
             half_length=1e-4,
             material=sapien.render.RenderMaterial(
-                base_color=np.array([128, 128, 128, 255]) / 255
+                base_color=np.array([500, 500, 128, 255]) / 255
             ),
         )
         builder.initial_pose = sapien.Pose(p=[0, 0, 0.1])

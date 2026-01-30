@@ -252,7 +252,7 @@ class RoboCasaKitchenEnv(BaseEnv):
         # TODO (fix cameras to be where robocasa places them)
         pose = sapien_utils.look_at([3.0, -7.5, 2.5], [3.0, 0.0, 1.0])
         return [
-            CameraConfig("base_camera", pose, 128, 128, 60 * np.pi / 180, 0.01, 100)
+            CameraConfig("base_camera", pose, 500, 500, 60 * np.pi / 180, 0.01, 100)
         ]
 
     @property

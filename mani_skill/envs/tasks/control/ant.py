@@ -102,8 +102,8 @@ class AntEnv(BaseEnv):
             CameraConfig(
                 uid="side_cam",
                 pose=sapien_utils.look_at(eye=[0.5, -2, 1], target=[0, 0, 0]),
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=60 * np.pi / 180,
                 near=0.01,
                 far=100,

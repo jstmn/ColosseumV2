@@ -182,7 +182,7 @@ class ObjectInCabinetEnv(BaseEnv):
         # Camera from front-left to see robot, cabinet door, and object
         pose = sapien_utils.look_at(eye=[-0.6, -0.6, 0.8], target=[0.0, 0.0, 0.2])
         return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1.2, near=0.01, far=100
+            "render_camera", pose=pose, width=1000, height=1000, fov=1.2, near=0.01, far=100, shader_pack="rt"
         )
 
     @property
@@ -193,8 +193,8 @@ class ObjectInCabinetEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,

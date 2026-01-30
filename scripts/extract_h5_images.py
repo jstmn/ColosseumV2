@@ -65,7 +65,20 @@ The h5 file format is:
 python scripts/extract_h5_images.py --h5-file demos/RaiseCube-v1/motionplanning/trajectory.h5
 """
 
-def save_h5_images(h5_file_path: str):
+
+def get_env_id(h5_file_path: str) -> str:
+    splits = h5_file_path.split("/")
+    motionplanning_idx = splits.index("motionplanning")
+    env_id = splits[motionplanning_idx - 1]
+    return env_id
+
+def save_h5_images(h5_file_path: str, first_k: int | None = None):
+
+    if first_k is None:
+        first_k = int(1e10)
+
+    env_id = get_env_id(h5_file_path)
+
     with h5py.File(h5_file_path, 'r') as f:
 
         # First, create the save directories
@@ -76,6 +89,7 @@ def save_h5_images(h5_file_path: str):
             save_dirs[camera_name].mkdir(parents=True, exist_ok=True)
 
         # Then, save the images
+        n_saved = 0
         for traj_key in f.keys():
             assert traj_key.startswith('traj_')
             traj_group = f[traj_key]
@@ -85,12 +99,19 @@ def save_h5_images(h5_file_path: str):
             for camera_name in sensor_data.keys():
                 rgbs = sensor_data[camera_name]['rgb']
                 for i, rgb in enumerate(rgbs):
-                    image_path = save_dirs[camera_name] / f"{traj_key}___{i:03d}.png"
+                    image_path = save_dirs[camera_name] / f"{env_id}__{traj_key}__{i:03d}.png"
                     rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(str(image_path), rgb)
+                    n_saved += 1
+
+                    if i > first_k:
+                        break
+
+        print(f"Saved {n_saved} images to {list(str(x) for x in save_dirs.values())}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--h5-file", type=str, required=True)
+    parser.add_argument("--first-k", type=int, default=None)
     args = parser.parse_args()
-    save_h5_images(args.h5_file)
+    save_h5_images(args.h5_file, args.first_k)

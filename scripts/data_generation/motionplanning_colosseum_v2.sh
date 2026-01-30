@@ -59,6 +59,7 @@ for ENV_ID in "${ENVS[@]}"; do
             exit 1
         fi
     fi
+    python scripts/extract_h5_images.py --h5-file ${TRAJ_PATH}
 
     echo ""
     echo "----------------------------------------------------------------"

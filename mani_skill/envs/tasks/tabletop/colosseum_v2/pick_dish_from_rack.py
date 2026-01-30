@@ -99,8 +99,8 @@ class PickDishFromRackEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,
@@ -111,7 +111,7 @@ class PickDishFromRackEnv(BaseEnv):
     def _default_human_render_camera_configs(self):
         pose = sapien_utils.look_at([0.65, -0.35, 0.35], [0.05, 0.0, 0.1])
         return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
+            "render_camera", pose=pose, width=1000, height=1000, fov=1, near=0.01, far=100, shader_pack="rt"
         )
 
     def _load_agent(self, options: Dict):

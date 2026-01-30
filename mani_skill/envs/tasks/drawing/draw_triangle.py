@@ -92,7 +92,7 @@ class DrawTriangleEnv(BaseEnv):
         return CameraConfig(
             "render_camera",
             pose=pose,
-            width=1280,
+            width=5000,
             height=960,
             fov=1.2,
             near=0.01,

@@ -68,7 +68,7 @@ class TransportBoxEnv(BaseEnv):
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at([1.0, 0.0, 1.6], [0, 0.0, 0.65])
         return [
-            CameraConfig("base_camera", pose=pose, width=128, height=128, fov=np.pi / 3)
+            CameraConfig("base_camera", pose=pose, width=500, height=500, fov=np.pi / 3)
         ]
 
     @property

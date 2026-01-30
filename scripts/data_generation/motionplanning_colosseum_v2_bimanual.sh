@@ -42,6 +42,9 @@ for ENV_ID in "${ENVS[@]}"; do
         --random-seed \
         --only-count-success \
         --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
+
+    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+    python scripts/extract_h5_images.py --h5-file ${TRAJ_PATH}
 done
 
 # Merge trajectories

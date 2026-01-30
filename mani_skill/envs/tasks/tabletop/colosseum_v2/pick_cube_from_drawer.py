@@ -74,7 +74,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
     def _default_human_render_camera_configs(self):
         pose = sapien_utils.look_at(eye=[0.5, 0.9, 0.6], target=[0.0, -0.2, 0.3])
         return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100
+            "render_camera", pose=pose, width=1000, height=1000, fov=1, near=0.01, far=100, shader_pack="rt"
         )
 
     @property
@@ -84,8 +84,8 @@ class PickCubeFromDrawerEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,

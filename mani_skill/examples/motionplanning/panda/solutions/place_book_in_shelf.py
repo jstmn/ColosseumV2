@@ -113,7 +113,6 @@ def solve(env: PlaceBookEnv, seed=None, debug=False, vis=False):
     #     p=[0, 0, 0],
     #     q=rotation_quat
     # ) * sapien.Pose([0, 0, -0.10])
-    print(env.shelf.pose.p)
     final_pose = sapien.Pose(p=[-0.053+env.shelf.pose.p[0,0]-0.293, -0.160+env.shelf.pose.p[0,1]+0.1, 0.2],q=grasp_pose.q)
     res = planner.move_to_pose_with_RRTStar(final_pose)
     if res == -1: return res

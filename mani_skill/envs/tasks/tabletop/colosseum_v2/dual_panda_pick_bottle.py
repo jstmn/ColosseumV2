@@ -44,8 +44,8 @@ class DualArmPickBottleEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=500,
+                height=500,
                 fov=np.pi / 3,
                 near=0.01,
                 far=10,
@@ -55,7 +55,7 @@ class DualArmPickBottleEnv(BaseEnv):
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
-        return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
+        return CameraConfig("render_camera", pose, 500, 500, 1, 0.01, 100, shader_pack="rt")
 
     
     def _load_scene(self, options: dict):

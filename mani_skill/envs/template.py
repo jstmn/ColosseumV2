@@ -114,7 +114,7 @@ class CustomEnv(BaseEnv):
         )  # sapien_utils.look_at is a utility to get the pose of a camera that looks at a target
 
         # to see what all the sensors capture in the environment for observations, run env.render_sensors() which returns an rgb array you can visualize
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return [CameraConfig("base_camera", pose, 500, 500, np.pi / 2, 0.01, 100)]
 
     @property
     def _default_human_render_camera_configs(self):
