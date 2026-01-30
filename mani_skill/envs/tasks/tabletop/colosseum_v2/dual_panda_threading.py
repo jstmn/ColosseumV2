@@ -13,7 +13,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix,
 from mani_skill.utils import common, sapien_utils
 import sapien.core as sapien
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("DualArmThreading-v1", max_episode_steps=1000)

@@ -17,7 +17,7 @@ from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 import gymnasium as gym
 
 

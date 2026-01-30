@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.agents.robots import Panda, Fetch
 import os
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("PickLightbulbPlaceSocket-v1", max_episode_steps=100000)

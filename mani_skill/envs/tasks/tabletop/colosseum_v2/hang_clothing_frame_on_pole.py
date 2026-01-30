@@ -17,7 +17,7 @@ from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
 class HangClothingFrameOnPoleEnv(BaseEnv):

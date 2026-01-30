@@ -12,45 +12,23 @@ from mani_skill.utils import common
 from mani_skill.utils.building import actors
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.distraction_set import DistractionSet
-
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_env_utils import get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, get_human_render_camera_config
 
 
 @register_env("StackCube-v2", max_episode_steps=50)
-class StackCubeV2Env(StackCubeEnv):
+class StackCubeV2Env(ColosseumV2Env):
     """
     Derived from StackCubeEnv, but with 3 cameras instead of 1. The dimensions of the cameras can be set as well.
     """
     def __init__(
         self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs
     ):
-        self._human_render_shader = kwargs.pop("human_render_shader", None)
-        # Distraction set
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-
         super().__init__(*args, robot_uids=robot_uids, robot_init_qpos_noise=robot_init_qpos_noise, **kwargs)
 
 
     def _load_scene(self, options: dict):
 
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-
-        # === Add randomized tables
-        self._table_scenes = []
-        add_visual_from_file = not self._distraction_set.table_color_enabled()
-        # add_visual_from_file = True
-        # add_visual_from_file = False
-        # Note: you can't add a texture to the table if you've set its color already.
-        for i in range(self.num_envs):
-            table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-            table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"env-{i}", add_visual_from_file=add_visual_from_file)
-            self._table_scenes.append(table_scene)
-        self.table_scene = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
-        self.add_to_state_dict_registry(self.table_scene)
-        # ===
-
 
         # Create cube actors
         cubeA_actors = []

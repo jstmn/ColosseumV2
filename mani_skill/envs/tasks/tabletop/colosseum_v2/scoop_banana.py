@@ -14,7 +14,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("ScoopBanana-v1", max_episode_steps=100)
@@ -215,67 +215,3 @@ class ScoopBananaEnv(BaseEnv):
             "ball_xy_close_flag": ball_xy_close_flag,
             # "is_ball_static": is_ball_static,
         }
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-
-        tcp_pos = self.agent.tcp.pose.p
-        cube_pos = self.ball.pose.p
-        tool_pos = self.dustpan.pose.p
-        robot_base_pos = self.agent.robot.get_links()[0].pose.p
-
-        # Stage 1: Reach and grasp tool
-        tool_grasp_pos = tool_pos + torch.tensor([0.02, 0, 0], device=self.device)
-        tcp_to_tool_dist = torch.linalg.norm(tcp_pos - tool_grasp_pos, dim=1)
-        reaching_reward = 2.0 * (1 - torch.tanh(5.0 * tcp_to_tool_dist))
-
-        # Add specific grasping reward
-        is_grasping = self.agent.is_grasping(self.dustpan, max_angle=20)
-        grasping_reward = 2.0 * is_grasping
-
-        # Stage 2: Position tool behind cube
-        ideal_hook_pos = cube_pos + torch.tensor(
-            [-(self.hook_length + self.ball_radius), -0.067, 0], device=self.device
-        )
-        tool_positioning_dist = torch.linalg.norm(tool_pos - ideal_hook_pos, dim=1)
-        positioning_reward = 1.5 * (1 - torch.tanh(3.0 * tool_positioning_dist))
-        tool_positioned = tool_positioning_dist < 0.05
-
-        # Stage 3: Pull cube to workspace
-        workspace_target = robot_base_pos + torch.tensor(
-            [0.05, 0, 0], device=self.device
-        )
-        cube_to_workspace_dist = torch.linalg.norm(cube_pos - workspace_target, dim=1)
-        initial_dist = torch.linalg.norm(
-            torch.tensor(
-                [self.arm_reach + 0.1, 0, self.cube_size / 2], device=self.device
-            )
-            - workspace_target,
-            dim=1,
-        )
-        pulling_progress = (initial_dist - cube_to_workspace_dist) / initial_dist
-        pulling_reward = 3.0 * pulling_progress * tool_positioned
-
-        # Combine rewards with staging and grasping dependency
-        reward = reaching_reward + grasping_reward
-        reward += positioning_reward * is_grasping
-        reward += pulling_reward * is_grasping
-
-        # Penalties
-        cube_pushed_away = cube_pos[:, 0] > (self.arm_reach + 0.15)
-        reward[cube_pushed_away] -= 2.0
-
-        # Success bonus
-        # if "success" in info:
-        #     reward[info["success"]] += 5.0
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        """
-        Normalizes the dense reward by the maximum possible reward (success bonus)
-        """
-        max_reward = 5.0  # Maximum possible reward from success bonus
-        dense_reward = self.compute_dense_reward(obs=obs, action=action, info=info)
-        return dense_reward / max_reward

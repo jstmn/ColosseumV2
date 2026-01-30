@@ -172,7 +172,7 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
 
 if __name__ == "__main__":
-    from mani_skill.envs.distraction_set import DistractionSet
+    from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
     import gymnasium as gym
 
     env = gym.make(

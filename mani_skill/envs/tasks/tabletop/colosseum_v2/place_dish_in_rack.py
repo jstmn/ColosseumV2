@@ -19,7 +19,7 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from sapien.physx import PhysxMaterial
 from mani_skill.agents.controllers import PDEEPoseControllerConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 logger = logging.getLogger(__name__)
 

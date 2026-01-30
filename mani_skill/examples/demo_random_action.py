@@ -3,7 +3,7 @@ import numpy as np
 import sapien
 import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 from mani_skill.utils import gym_utils
 from mani_skill.utils.wrappers import RecordEpisode
 

@@ -19,7 +19,7 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 # 1. Define the Empty Environment
 @register_env("DualArmPenCap-v1", max_episode_steps=1000)

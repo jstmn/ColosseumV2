@@ -5,12 +5,14 @@ from typing import Sequence, Union
 
 import numpy as np
 
-from mani_skill.envs.distraction_set import DistractionSet
 
 class CustomJsonEncoder(json.JSONEncoder):
     """Custom json encoder to support more types, like numpy and Path."""
 
+
     def default(self, obj):
+        # Hack: import here to avoid circular import
+        from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
         if isinstance(obj, np.integer):
             return int(obj)
         if isinstance(obj, np.floating):
