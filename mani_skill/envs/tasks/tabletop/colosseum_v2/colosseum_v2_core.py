@@ -41,13 +41,8 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.actor import Actor
 
 
-REALSENSE_DEPTH_FOV_VERTICAL_RAD = 58.0 * np.pi / 180
-REALSENSE_DEPTH_FOV_HORIZONTAL_RAD = 87.0 * np.pi / 180
+FLOOR_HEIGHT = -0.920
 
-DEFAULT_CAMERA_WIDTH = 256
-DEFAULT_CAMERA_HEIGHT = 256
-
-SHADER = "default"
 
 # def get_camera_configs(xy_offset: float, z_offset: float, target: tuple[float, float, float], camera_width: int = DEFAULT_CAMERA_WIDTH, camera_height: int = DEFAULT_CAMERA_HEIGHT):
 #     pose_center = sapien_utils.look_at(eye=[xy_offset, 0,  z_offset], target=target)
@@ -85,10 +80,24 @@ SHADER = "default"
 #             shader_pack=SHADER,
 #         )]
 
-def _set_color_or_texture(actor: Actor, color_cfg: dict, texture_cfg: dict, set_color: bool, set_texture: bool):
+def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
 
     if not set_color and not set_texture:
         return
+
+    # If using a single texture / color for the entire actor, decide the color/texture here.
+    if use_single_texture_or_texture:
+        if set_texture:
+            assert texture_cfg is not None, "texture_cfg is not set"
+            texture = _get_random_texture(texture_cfg["textures_directory"])
+        if set_color:
+            assert color_cfg is not None, "color_cfg is not set"
+            color = color_cfg["color_range"].sample_rgba()
+        if set_color and set_texture:
+            if np.random.random() < 0.5:
+                use_color = True
+            else:
+                use_color = False
 
     # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
     for obj in actor._objs:
@@ -97,34 +106,24 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict, texture_cfg: dict, set_
         for render_shape in render_body_component.render_shapes:
             for part in render_shape.parts:
                 # part.material: sapien.core.pysapien.RenderMaterial
-                if set_texture:
-                    texture = _get_random_texture(texture_cfg["textures_directory"])
-                if set_color:
-                    color = color_cfg["color_range"].sample_rgba()
+                if not use_single_texture_or_texture:
+                    if set_texture:
+                        assert texture_cfg is not None, "texture_cfg is not set"
+                        texture = _get_random_texture(texture_cfg["textures_directory"])
+                    if set_color:
+                        assert color_cfg is not None, "color_cfg is not set"
+                        color = color_cfg["color_range"].sample_rgba()
 
                 if set_color and not set_texture:
                     part.material.set_base_color(color)
                 elif not set_color and set_texture:
                     part.material.set_base_color_texture(texture)
                 elif set_color and set_texture:
-                    if np.random.random() < 0.5:
+                    if (use_single_texture_or_texture and use_color) or (not use_single_texture_or_texture and (np.random.random() < 0.5)):
                         part.material.set_base_color(color)
                     else:
                         part.material.set_base_color_texture(texture)
 
-
-def get_human_render_camera_config(eye: tuple[float, float, float], target: tuple[float, float, float], shader: str | None = None):
-    """ Configures the human render camera. Shader options:
-        - minimal: The fastest shader with minimal GPU memory usage. Note that the background will always be black (normally it is the color of the ambient light)
-        - default: A balance between speed and texture availability
-        - rt: A shader optimized for photo-realistic rendering via ray-tracing
-        - rt-med: Same as rt but runs faster with slightly lower quality
-        - rt-fast: Same as rt-med but runs faster with slightly lower quality
-        -> https://maniskill.readthedocs.io/en/latest/user_guide/concepts/sensors.html#shaders-and-textures
-    """
-    SHADER = "default" if shader is None else shader
-    pose = sapien_utils.look_at(eye=eye, target=target)
-    return CameraConfig("render_camera", pose=pose, width=1264, height=1264, fov=np.pi / 3, near=0.01, far=100, shader_pack=SHADER)
 
 
 
@@ -150,6 +149,9 @@ class ColosseumV2Env(BaseEnv):
         else:
             raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
 
+        # 
+        self._human_render_shader = kwargs.pop("human_render_shader", "default")
+
         # We will use self._table_scenes if the table color or texture is enabled, otherwise the single table_scene
         self._table_scenes: list[TableSceneBuilder] = []
         self._table_scene: TableSceneBuilder | None = None
@@ -157,6 +159,20 @@ class ColosseumV2Env(BaseEnv):
 
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
+
+    def _get_human_render_camera_config(self, eye: tuple[float, float, float], target: tuple[float, float, float]):
+        """ Configures the human render camera. Shader options:
+            - minimal: The fastest shader with minimal GPU memory usage. Note that the background will always be black (normally it is the color of the ambient light)
+            - default: A balance between speed and texture availability
+            - rt: A shader optimized for photo-realistic rendering via ray-tracing
+            - rt-med: Same as rt but runs faster with slightly lower quality
+            - rt-fast: Same as rt-med but runs faster with slightly lower quality
+            -> https://maniskill.readthedocs.io/en/latest/user_guide/concepts/sensors.html#shaders-and-textures
+        """
+        pose = sapien_utils.look_at(eye=eye, target=target)
+        return CameraConfig("render_camera", pose=pose, width=500, height=500, fov=np.pi / 3, near=0.01, far=100, shader_pack=self._human_render_shader)
+
 
 
     def _load_lighting(self, options: dict):
@@ -167,12 +183,14 @@ class ColosseumV2Env(BaseEnv):
                 sub_scene.add_directional_light(
                     direction=[-np.cos(theta_rand), -np.sin(theta_rand), -1],
                     position=[np.cos(theta_rand), np.sin(theta_rand), 1],
-                    color=[1, 1, 1],
+                    color=self._ds.light_color_cfg["color_range"].sample_rgba(include_alpha=False),
                     shadow=True,
                     shadow_scale=5,
                     shadow_map_size=4096,
                 )
                 # maniskill only allows for shadow from one directional light at a time for some reason
+        else:
+            super()._load_lighting(options)
 
     def update_camera_configs(self, cfgs: list[CameraConfig]) -> list[CameraConfig]:
         if not self._ds.camera_pose_enabled():
@@ -203,23 +221,32 @@ class ColosseumV2Env(BaseEnv):
         else:
             raise ValueError(f"Invalid object type: {object_type}")
 
-        builder = self.scene.create_actor_builder()
-        if color is not None:
-            custom_material = sapien.render.RenderMaterial()
-            custom_material.base_color = color  # Green [R, G, B, A]
-            custom_material.roughness = 0.8
-            custom_material.metallic = 0.0
-            builder.add_visual_from_file(filename=glb_file_path, scale=scale, material=custom_material)
-        else:
-            builder.add_visual_from_file(filename=glb_file_path, scale=scale)
+        actors = []
 
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
+        for i in range(self.num_envs):
+            name_i = f"{name}_env:{i}"
+
+            builder = self.scene.create_actor_builder()
+            if color is not None:
+                custom_material = sapien.render.RenderMaterial()
+                custom_material.base_color = color  # Green [R, G, B, A]
+                custom_material.roughness = 0.8
+                custom_material.metallic = 0.0
+                builder.add_visual_from_file(filename=glb_file_path, scale=scale, material=custom_material)
+            else:
+                builder.add_visual_from_file(filename=glb_file_path, scale=scale)
+
+            builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+            builder.set_initial_pose(pose)
+            if type=="dynamic":
+                actor = builder.build_dynamic(name_i)
+            else:
+                actor = builder.build_static(name_i)
+            actors.append(actor)
+
+        actor_merged = Actor.merge(actors, name=name)
+        self.add_to_state_dict_registry(actor_merged)
+        return actor_merged
 
 
     def load_scene_hook(self, manipulation_object: Optional[Actor], receiving_object: Actor | None = None):
@@ -238,8 +265,8 @@ class ColosseumV2Env(BaseEnv):
             color_range = self._ds.distractor_object_cfg["color_range"]
             radii = np.random.uniform(*radius_range, size=n_spheres)
 
-            self._ds._internal["distractor_object_cfg"]["internal__radii"] = radii
-            self._ds._internal["distractor_object_cfg"]["internal__spheres"] = [
+            self._ds._internal["distractor_object_cfg"]["sphere_radii"] = radii
+            self._ds._internal["distractor_object_cfg"]["sphere_actors"] = [
                 actors.build_sphere(
                     self.scene,
                     initial_pose=sapien.Pose(),
@@ -249,6 +276,7 @@ class ColosseumV2Env(BaseEnv):
                 )
                 for i in range(n_spheres)
             ]
+            # TODO: Add YCB objects
 
         # Create the table and optionally set its color and/or texture
         if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
@@ -256,7 +284,7 @@ class ColosseumV2Env(BaseEnv):
             add_visual_from_file = not self._ds.table_color_enabled()
             for i in range(self.num_envs):
                 table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-                table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"env-{i}", add_visual_from_file=add_visual_from_file)
+                table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"table_env:{i}", add_visual_from_file=add_visual_from_file)
                 self._table_scenes.append(table_scene)
 
             table_actors = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
@@ -280,6 +308,45 @@ class ColosseumV2Env(BaseEnv):
         if receiving_object is not None:
             _set_color_or_texture(receiving_object, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
 
+        if self._ds.background_texture_enabled() or self._ds.background_color_enabled():
+
+            # Build a single static "compound" wall actor (with 4 box segments) so we only
+            # have one wall actor to manage/texture/etc. The actor itself is placed at the
+            # origin; each segment uses a local pose.
+            builder_wall = self.scene.create_actor_builder()
+            dist_from_world = 1.5
+            height = 2
+            width = 0.1
+            length = dist_from_world*2
+            z = FLOOR_HEIGHT + (height / 2)
+            material = sapien.render.RenderMaterial()
+            material.roughness = 0.5
+            material.metallic = 0.5 # < these don't seem to do anything
+
+            # Left
+            builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
+            builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
+            # Right
+            builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
+            builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
+            # Back
+            builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
+            builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
+            # Front
+            builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
+            builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
+
+            # Add
+            builder_wall.set_initial_pose(sapien.Pose(p=[0.0, 0.0, 0.0]))
+            wall = builder_wall.build_static(name="walls")
+            _set_color_or_texture(
+                actor=wall,
+                color_cfg=self._ds.background_color_cfg,
+                texture_cfg=self._ds.background_texture_cfg,
+                set_color=self._ds.background_color_enabled(),
+                set_texture=self._ds.background_texture_enabled(),
+                use_single_texture_or_texture=True,
+            )
 
     def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None):
         if mo_pose is not None:
@@ -301,12 +368,12 @@ class ColosseumV2Env(BaseEnv):
 
             x_lims = self._ds.distractor_object_cfg["x_lims"]
             y_lims = self._ds.distractor_object_cfg["y_lims"]
-            radii = self._ds._internal["distractor_object_cfg"]["internal__radii"]
+            radii = self._ds._internal["distractor_object_cfg"]["sphere_radii"]
             x_range = x_lims[1] - x_lims[0]
             y_range = y_lims[1] - y_lims[0]
 
             # What happens if you set the poses such that the spheres collide with one another?
-            for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["internal__spheres"]):
+            for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["sphere_actors"]):
                 xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
                 xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]

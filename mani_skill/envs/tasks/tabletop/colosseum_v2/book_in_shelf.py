@@ -1,22 +1,20 @@
-from typing import Any, Dict, Union
+import os
+from typing import Dict, Union
+
 import numpy as np
 import sapien
 import torch
-import trimesh
-from mani_skill import PACKAGE_ASSET_DIR, PACKAGE_DIR
+import gymnasium as gym
+
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from math import fabs
-from mani_skill.utils.geometry import rotation_conversions
-import os
-import gymnasium as gym
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+
 
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
 class PlaceBookEnv(ColosseumV2Env):
@@ -84,9 +82,7 @@ class PlaceBookEnv(ColosseumV2Env):
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.089
             region = [[0.03, -0.25],[0.09, 0]] 
-            sampler = randomization.UniformPlacementSampler(
-                bounds=region, batch_size=b, device=self.device
-            )
+            sampler = randomization.UniformPlacementSampler(bounds=region, batch_size=b, device=self.device)
             radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
             bookA_xy = sampler.sample(radius, 100)
 

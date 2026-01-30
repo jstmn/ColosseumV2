@@ -7,23 +7,21 @@ from mani_skill import PACKAGE_ASSET_DIR
 
 @dataclass
 class ColorRange:
-    low: tuple[float, float, float]
-    high: tuple[float, float, float]
+    low: tuple[float, float, float , float] | tuple[float, float, float]
+    high: tuple[float, float, float, float]| tuple[float, float, float]
 
     def __post_init__(self):
-        assert len(self.low) == 3, "low must be a tuple of three values"
-        assert len(self.high) == 3, "high must be a tuple of three values"
-        assert self.low[0] <= self.high[0], "low[0] must be less than high[0]"
-        assert self.low[1] <= self.high[1], "low[1] must be less than high[1]"
-        assert self.low[2] <= self.high[2], "low[2] must be less than high[2]"
-
+        assert isinstance(self.low, tuple) and isinstance(self.high, tuple), "low and high must be tuples"
+        assert len(self.low) == len(self.high), "low and high must have the same length"
+        assert len(self.low) == 3 or len(self.low) == 4, "low and high must have 3 or 4 values"
+        assert all(self.low[i] <= self.high[i] for i in range(len(self.low))), "low must be less than high for all values"
 
     def sample_rgba(self, include_alpha: bool = True):
         rgb = np.random.uniform(self.low, self.high).tolist()
         if include_alpha:
-            return rgb + [1]
-        else:
             return rgb
+        else:
+            return rgb[:3]
 
     def to_dict(self):
         return dict(
@@ -62,12 +60,11 @@ class DistractionSet:
     table_texture_cfg: dict = field(default_factory=dict)
     distractor_object_cfg: dict = field(default_factory=dict)
     background_texture_cfg: dict = field(default_factory=dict)
+    background_color_cfg: dict = field(default_factory=dict)
     camera_pose_cfg: dict = field(default_factory=dict)
+    MO_mass_cfg: dict = field(default_factory=dict)
 
-    unimplemented = {
-        "background_texture"
-        "object_mass"
-    }
+    unimplemented = {}
 
     def get_partial_copy(self, keys: list[str]) -> "DistractionSet":
         return DistractionSet(**{k: v for k, v in self.__dict__.items() if k in keys})
@@ -105,8 +102,14 @@ class DistractionSet:
     def background_texture_enabled(self) -> bool:
         return len(self.background_texture_cfg) > 0
 
+    def background_color_enabled(self) -> bool:
+        return len(self.background_color_cfg) > 0
+
     def camera_pose_enabled(self) -> bool:
         return len(self.camera_pose_cfg) > 0
+
+    def MO_mass_enabled(self) -> bool:
+        return len(self.MO_mass_cfg) > 0
 
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
@@ -135,7 +138,9 @@ class DistractionSet:
             "table_texture_cfg",
             "distractor_object_cfg",
             "background_texture_cfg",
+            "background_color_cfg",
             "camera_pose_cfg",
+            "MO_mass_cfg",
         ]:
             self._internal[key] = {}
 
@@ -177,24 +182,24 @@ all_distractor_set = DistractionSet(
     distractor_object_cfg={
         "n_spheres": 1,
         "radius_range": (0.01, 0.02),
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
         "x_lims": (-0.1, 0.1),
         "y_lims": (-0.1, 0.1),
     },
     MO_color_cfg ={
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
     },
     MO_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
     },
     RO_color_cfg ={
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
     },
     RO_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
     },
     table_color_cfg = {
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
     },
     table_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
@@ -203,11 +208,20 @@ all_distractor_set = DistractionSet(
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),        # 2.5 cm
     },
-    light_color_cfg = {
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
-    },
+    # light_color_cfg = {
+    #     "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+    # },
     MO_size_cfg = {"scale_range": (0.5, 0.75)},
     RO_size_cfg = {"scale_range": (0.5, 0.75)},
+    background_texture_cfg = {
+        "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
+    },
+    background_color_cfg = {
+        "color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),
+    },
+    MO_mass_cfg = {
+        "mass_scale_range": (0.1, 0.25),
+    },
 )
 
 DISTRACTION_SETS = {

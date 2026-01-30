@@ -20,7 +20,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import get_human_render_camera_config, REALSENSE_DEPTH_FOV_VERTICAL_RAD, SHADER, DEFAULT_CAMERA_WIDTH, DEFAULT_CAMERA_HEIGHT
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
@@ -33,7 +33,7 @@ CABINET_COLLISION_BIT = 29
     asset_download_ids=["partnet_mobility_cabinet"],
     max_episode_steps=100,
 )
-class OpenDrawerEnv(BaseEnv):
+class OpenDrawerEnv(ColosseumV2Env):
     """
     **Task Description:**
     Use the Panda open the target drawer out.
@@ -97,7 +97,7 @@ class OpenDrawerEnv(BaseEnv):
 
     @property
     def _default_human_render_camera_configs(self):
-        return get_human_render_camera_config(eye=(-0.2, 0.5, 1.1), target=(-0.1, 0, 0.5), shader=self._human_render_shader)
+        return self._get_human_render_camera_config(eye=(-0.2, 0.5, 1.1), target=(-0.1, 0, 0.5))
 
     # @property
     # def _default_sensor_configs(self):
