@@ -76,24 +76,29 @@ class DualArmDrawerOpenEnv(BaseEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            xyz = torch.zeros((b, 3))
-            xyz[..., :2] = -torch.rand((b, 2)) * 0.2 + 0.1
+            xyz = torch.zeros((b, 3), device=self.device)
+            xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 + 0.1
             xyz[..., 0] += 0.2
-            xyz[..., 2] = 0.456+0.8
-            theta_by_2 = torch.rand(b)*np.pi/16 - np.pi/32
-            for i in range(b):
-                # Reset cabinet pose
-                init_pose = Pose.create_from_pq(
-                    p=xyz[i:i+1], 
-                    q=[np.cos(theta_by_2), 0, 0, np.sin(theta_by_2)])
-                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
-                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
-                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
+            xyz[..., 2] = 0.456 + 0.8
+            theta_by_2 = torch.rand(b, device=self.device) * np.pi / 16 - np.pi / 32
+            dof_tensor = self.open_cabinet.dof
+            if isinstance(dof_tensor, torch.Tensor):
+                dof = int(dof_tensor.flatten()[0].cpu().item())
+            else:
+                dof = int(dof_tensor)
+                
+            # Vectorized pose setting
+            cos_vals = torch.cos(theta_by_2)
+            sin_vals = torch.sin(theta_by_2)
+            qs = torch.zeros((b, 4), device=self.device)
+            qs[:, 0] = cos_vals
+            qs[:, 3] = sin_vals
+            cabinet_pose = Pose.create_from_pq(p=xyz, q=qs)
+            self.open_cabinet.set_pose(cabinet_pose)
 
-                self.open_cabinet.set_pose(init_pose_sapien)
             # Close the drawer (reset joint positions to 0)
-            self.open_cabinet.set_qpos(np.zeros(self.open_cabinet.dof))
-            self.open_cabinet.set_qvel(np.zeros(self.open_cabinet.dof))
+            self.open_cabinet.set_qpos(torch.zeros((b, dof), device=self.device))
+            self.open_cabinet.set_qvel(torch.zeros((b, dof), device=self.device))
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -116,8 +121,9 @@ class DualArmDrawerOpenEnv(BaseEnv):
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
-            # pose.p is [x,y,z], pose.q is [w,x,y,z]
-            return np.hstack([pose.p, pose.q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose

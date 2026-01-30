@@ -62,7 +62,6 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     res = None
     approach_pose = sapien.Pose(p=grasp_pose_init.p + np.array([-0.025, 0.0, 0.0]), q=grasp_pose_init.q)
     res = planner.move_to_pose_with_screw(approach_pose)
-    print(f"reached approach pose: {approach_pose}")
     if res == -1:
         return res
 
@@ -81,17 +80,10 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
     arrow_x_axis = arrow_x_axis / np.linalg.norm(arrow_x_axis)
     arrow_init_x_axis = deepcopy(arrow_x_axis)
     count = 0
-    while(np.dot(arrow_x_axis, arrow_init_x_axis) > -0.95): # while angle < 170 degrees
+    while(np.dot(arrow_x_axis, arrow_init_x_axis) > -0.9): # while angle < 170 degrees
         count += 1
         if count > 20:
             return -1
-        # z_rot = env.quat_to_z_euler(env.arrow.pose.q)
-        # reach_pose_1 = reach_pose_1 * sapien.Pose([0, 0.01, 0]) # 15 cm above grasp pose
-        # reach_pose_1.set_q(euler2quat(np.pi,0,z_rot)) # set orientation to arrow orientation
-        # print(torch.tensor(reach_pose_1.q).reshape(1,4)[:, -1], torch.tensor(env.arrow.pose.q)[:, -1])
-        # res = planner.move_to_pose_with_RRTConnect(reach_pose_1)
-        # if res == -1: return res
-
         # Get arrow's current transformation matrix
         arrow_transform = env.arrow.pose.to_transformation_matrix()[0]
         arrow_x_axis = arrow_transform[:3, 0]  # First column is X axis
@@ -116,55 +108,6 @@ def solve(env: RotateArrowEnv, seed=None, debug=False, vis=False):
         reach_pose_1 = reach_pose_1 * sapien.Pose([0.003, 0.03, 0])
         res = planner.move_to_pose_with_screw(reach_pose_1)
         if res == -1: return res
-    # -------------------------------------------------------------------------- #
-    # Grasp
-    # -------------------------------------------------------------------------- #
-    # planner.close_gripper()
-
-    # -------------------------------------------------------------------------- #
-    # Lift tool to safe height
-    # -------------------------------------------------------------------------- #
-    # lift_height = 0.35  
-    # lift_pose = sapien.Pose(grasp_pose.p + np.array([0, 0, lift_height]))
-    # lift_pose.set_q(grasp_pose.q)  # Maintain grasp orientation
-    # res = planner.move_to_pose_with_screw(lift_pose)
-    # if res == -1: return res
-
-    # ball_pos = env.ball.pose.sp.p
-    # approach_offset = sapien.Pose(
-    #     [-(env.hook_length + env.cube_half_size + 0.08),  
-    #     -0.0,  
-    #     lift_height - 0.05]  
-    # )
-    # approach_pose = sapien.Pose(cube_pos) * approach_offset
-    # approach_pose.set_q(grasp_pose.q)
-    
-    # res = planner.move_to_pose_with_screw(approach_pose)
-    # if res == -1: return res
-
-    # # -------------------------------------------------------------------------- #
-    # # Lower tool behind cube
-    # # -------------------------------------------------------------------------- #
-    # behind_offset = sapien.Pose(
-    #     [-(env.hook_length + env.cube_half_size),  
-    #     -0.067,  
-    #     0] 
-    # )
-    # hook_pose = sapien.Pose(cube_pos) * behind_offset
-    # hook_pose.set_q(grasp_pose.q)
-    
-    # res = planner.move_to_pose_with_screw(hook_pose)
-    # if res == -1: return res
-
-    # # -------------------------------------------------------------------------- #
-    # # Pull cube
-    # # -------------------------------------------------------------------------- #
-    # pull_offset = sapien.Pose([-0.35, 0, 0])
-    # target_pose = hook_pose * pull_offset
-    # res = planner.move_to_pose_with_screw(target_pose)
-    # if res == -1: return res
-    # print("\nLift complete. Holding position for 5 seconds...")
-    # time.sleep(5)
     planner.close()
     return res
 

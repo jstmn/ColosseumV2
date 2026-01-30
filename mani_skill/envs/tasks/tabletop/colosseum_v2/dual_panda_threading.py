@@ -9,6 +9,7 @@ import torch
 from mani_skill.utils.building.actors.needle import build_needle
 from mani_skill.utils.building.actors.ring_tripod import build_ring_tripod
 from mani_skill.sensors.camera import CameraConfig
+from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix, quaternion_apply
 from mani_skill.utils import common, sapien_utils
 import sapien.core as sapien
 from mani_skill.utils.structs.pose import Pose
@@ -86,106 +87,74 @@ class DualPandaThreadingEnv(BaseEnv):
         """Reset actor poses for each episode."""
         with torch.device(self.device):
             b = len(env_idx)
-            xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.2
-            xyz[..., 0] = xyz[..., 0]
-            xyz[..., 1] = xyz[..., 1] - 0.1
-            xyz[..., 2] = 0.9
-            theta_by_2 = (torch.rand(b))*np.pi/12  # -pi/2 to pi/2
-            for i in range(b):
-                init_pose = Pose.create_from_pq(p=xyz[i:i+1],q=[1,0,0,0])
-                # Convert tensors to numpy float32 arrays
-                p_np = init_pose.p.squeeze(0).cpu().numpy().astype(np.float32)
-                q_np = init_pose.q.squeeze(0).cpu().numpy().astype(np.float32)
-                init_pose_sapien = sapien.Pose(p=p_np, q=q_np)
-                rotation_pose = sapien.Pose(p=[0,0,0],q=[float(np.cos(theta_by_2[i])),0,0,float(np.sin(theta_by_2[i]))])
-                init_pose_sapien = rotation_pose * init_pose_sapien
-                self.ring_tripod.set_pose(init_pose_sapien)
-                
-            xyz[..., :2] = torch.rand((b, 2)) * 0.3 - 0.4
-            xyz[..., 1] += 0.1
-            xyz[..., 2]=0.85
+            ring_xyz = torch.zeros((b, 3), device=self.device)
+            ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
+            ring_xyz[..., 1] -= 0.1
+            ring_xyz[..., 2] = 0.9
+            theta_by_2 = torch.rand(b, device=self.device) * np.pi / 12
+            cos_vals = torch.cos(theta_by_2)
+            sin_vals = torch.sin(theta_by_2)
+            rot_q = torch.zeros((b, 4), device=self.device)
+            rot_q[:, 0] = cos_vals
+            rot_q[:, 3] = sin_vals
+            self.ring_tripod.set_pose(Pose.create_from_pq(p=ring_xyz, q=rot_q))
             
-            self.needle.set_pose(sapien.Pose(p=list(xyz[0])))
+            needle_xyz = torch.zeros((b, 3), device=self.device)
+            needle_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.4
+            needle_xyz[..., 1] += 0.1
+            needle_xyz[..., 2] = 0.85
+            self.needle.set_pose(Pose.create_from_pq(p=needle_xyz))
+
         self._initialize_agent()
         
     def evaluate(self):
         """
         Evaluate if the needle is successfully threaded through the ring.
-        Returns a dictionary with individual checks and overall success status.
-        Similar to the dual_panda_drawer_place evaluate function.
+        This function is vectorized to support multiple parallel environments.
         """
         # Get positions and orientations
         needle_pose = self.needle.pose
-        ring_pose = self.ring_tripod.pose # (1.0626)
-        ring_pose = ring_pose * sapien.Pose(p=[0,0, 0.165])
+        # The tripod actor's origin is at the base, the ring is at the top.
+        # The offset of 0.165 is a magic number to get to the ring's center.
+        ring_center_pose = self.ring_tripod.pose * sapien.Pose(p=[0, 0, 0.165])
+
         # Needle parameters (from build_needle call)
         needle_length = 0.1
-        eye_distance_from_end = 0.02
-        eye_radius = 0.01
         ring_radius = 0.03
-        
-        # Convert to torch tensors
-        needle_pos = torch.as_tensor(needle_pose.p, dtype=torch.float32, device=self.device)
-        ring_pos = torch.as_tensor(ring_pose.p, dtype=torch.float32, device=self.device)
-        needle_quat = torch.as_tensor(needle_pose.q, dtype=torch.float32, device=self.device)
-        ring_quat = torch.as_tensor(ring_pose.q, dtype=torch.float32, device=self.device)
-        
-        # Compute needle eye position in world frame
-        needle_direction = self._get_needle_direction_torch(needle_quat[0])
-        needle_tip = needle_pose * sapien.Pose(p=[needle_length,0,0])
-        needle_tip = needle_tip.p
-        needle_eye = needle_tip - needle_direction * eye_distance_from_end
-        
-        # Compute ring center and normal
-        ring_center = ring_pos
-        ring_normal = self._get_ring_normal_torch(ring_quat[0])
-        
+
+        # --- Get Needle Eye Position (Vectorized) ---
+        # Assuming the needle actor's length is along its local Z-axis and it's centered at its origin.
+        # The tip is at +Z = length/2.
+        needle_rot_mat = quaternion_to_matrix(needle_pose.q)
+        local_z_axis = torch.tensor([0, 0, 1.0], device=self.device)
+        needle_direction = needle_rot_mat @ local_z_axis
+
+        # Position of the needle tip in world frame
+        tip_local_pos = torch.tensor([needle_length, 0, 0], device=self.device)
+        needle_tip_pos = needle_pose.p + quaternion_apply(needle_pose.q, tip_local_pos)
+
+        # --- Get Ring Plane and Center (Vectorized) ---
+        ring_center = ring_center_pose.p
+        # Assuming the ring's opening (normal) is along the tripod's local X-axis.
+        ring_rot_mat = quaternion_to_matrix(ring_center_pose.q)
+        local_x_axis = torch.tensor([1.0, 0, 0], device=self.device)
+        ring_normal = ring_rot_mat @ local_x_axis
+
+        # --- Success Criteria (Vectorized) ---
         # Check if needle eye is near the ring plane
-        vec_to_ring = needle_tip - ring_center
-        # Use element-wise multiplication and sum for robust dot product
-        distance_to_plane = torch.abs((vec_to_ring * ring_normal).sum())
-        
+        vec_to_ring_center = needle_tip_pos - ring_center
+        distance_to_plane = torch.abs(torch.einsum('bi,bi->b', vec_to_ring_center, ring_normal))
+
         # Check if needle eye is within ring bounds
-        intersection_on_plane = needle_tip - distance_to_plane * ring_normal
-        # projection_on_plane = needle_eye + distance_to_plane * ring_normal
-        distance_to_ring_center = torch.norm(intersection_on_plane - ring_center)
-        
-        # Success criteria:
-        # 1. Needle eye is close to the ring plane (within tolerance)
-        # 2. Needle eye projection is within the ring radius (with some margin)
+        projection_on_plane = needle_tip_pos - distance_to_plane.unsqueeze(1) * ring_normal
+        distance_to_ring_center = torch.linalg.norm(projection_on_plane - ring_center, dim=1)
+
         plane_tolerance = 0.05  # 5cm tolerance
         ring_margin = 0.001  # 0.1cm margin inside the ring
-        
         is_near_plane = distance_to_plane < plane_tolerance
         is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
         success = is_near_plane * is_within_ring
         return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
-    
-    def _get_needle_direction_torch(self, quat):
-        """Extract needle forward direction from quaternion tensor [w, x, y, z]."""
-        rotation_matrix = self._quat_to_rotation_matrix_torch(quat)
-        # Needle points in +Z direction (forward)
-        z_direction = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32, device=self.device)
-        needle_direction = rotation_matrix @ z_direction
-        return needle_direction
-    
-    def _get_ring_normal_torch(self, quat):
-        """Extract ring normal direction from quaternion tensor [w, x, y, z]."""
-        rotation_matrix = self._quat_to_rotation_matrix_torch(quat)
-        # Ring normal is along the local +X axis direction of the tripod
-        x_direction = torch.tensor([1.0, 0.0, 0.0], dtype=torch.float32, device=self.device)
-        ring_normal = rotation_matrix @ x_direction
-        return ring_normal
-    
-    def _quat_to_rotation_matrix_torch(self, quat):
-        """Convert quaternion tensor [w, x, y, z] to 3x3 rotation matrix tensor."""
-        w, x, y, z = quat[0], quat[1], quat[2], quat[3]
-        return torch.tensor([
-            [1 - 2*(y**2 + z**2), 2*(x*y - w*z), 2*(x*z + w*y)],
-            [2*(x*y + w*z), 1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
-            [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x**2 + y**2)]
-        ], dtype=torch.float32, device=self.device)
 
     def _initialize_agent(self):
         """Reset the dual panda arms to a neutral position."""
@@ -197,7 +166,9 @@ class DualPandaThreadingEnv(BaseEnv):
         obs = dict()
         
         def pose_to_vec(pose):
-            return np.hstack([pose.p, pose.q])
+            # p and q are already tensors on the correct device (GPU)
+            # We just need to concatenate them using torch instead of numpy
+            return torch.cat([pose.p, pose.q], dim=-1)
         
         # TCP poses for both arms
         obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)

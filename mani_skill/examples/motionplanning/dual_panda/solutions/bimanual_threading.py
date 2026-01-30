@@ -85,6 +85,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         closing, center = grasp_info["closing"], grasp_info["center"]
         grasp_1_pose = env.agent.build_grasp_pose(approaching, closing, env.needle.pose.sp.p)
         grasp_1_pose = grasp_1_pose*sapien.Pose(p=[0.03,0,0.04])
+
         result = planner.move_to_pose_with_screw(
             grasp_1_pose,  # left
             arm_index=1
@@ -143,7 +144,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
         
         if result==-1:
             return result
-        
+
         result = planner.move_to_pose_with_screw(
             lift_2_pose,
             arm_index=2
