@@ -47,3 +47,4 @@ htmlcov/
 venv/
 notes
 runs/
+checkpoints/

@@ -540,11 +540,11 @@ class RecordEpisode(gym.Wrapper):
                 and self._video_steps >= self.max_steps_per_video
             ):
                 # @jstmn change
-                cprint((
-                    "Note: skipping flush_video() at the end of this episode. You must manually call flush_video() "
-                    "on your env object. This is so that a 'name' value can be passed to flush_video()"
-                ), "yellow")
-                # self.flush_video()
+                # cprint((
+                #     "Note: skipping flush_video() at the end of this episode. You must manually call flush_video() "
+                #     "on your env object. This is so that a 'name' value can be passed to flush_video()"
+                # ), "yellow")
+                self.flush_video()
         self._elapsed_record_steps += 1
         return obs, rew, terminated, truncated, info
 
