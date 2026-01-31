@@ -7,7 +7,7 @@ from functools import partial
 import numpy as np
 import torch
 from act.evaluate import evaluate
-
+from pandas import read_csv, DataFrame
 
 from act.make_env import make_eval_envs
 from diffusers.training_utils import EMAModel
@@ -20,7 +20,6 @@ from mani_skill.envs.tasks.tabletop import *
 
 
 """
-
 python examples/baselines/act/eval_rgbd.py \
     --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
     --distraction-set "none" \
@@ -33,6 +32,99 @@ python examples/baselines/act/eval_rgbd.py \
     --num-eval-envs 50 \
     --max-episode-steps 200
 """
+
+ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (
+    "RaiseCube-v1",
+    "PickSodaFromCabinet-v1",
+    "PickDishFromRack-v1",
+    "StackCube-v1",
+    "PlaceBookInShelf-v1",
+    "PlaceDishInRack-v1",
+    "LiftPegUpright-v1",
+    "RotateArrow-v1",
+    "PegInsertionSide-v2",
+    "PlugCharger-v1",
+    "HammerNail-v1",
+    "ScoopBanana-v1",
+    "OpenDrawer-v1",
+    "OpenCabinet-v1",
+    "PlaceCubeInDrawer-v1",
+    "CookItemInPan-v1",
+)
+
+ALL_COLOSSEUM_V2_BIMANUAL_TASKS = (
+    "DualArmPickCube-v1",
+    "DualArmPickBottle-v1",
+    "DualArmLiftPot-v1",
+    "DualArmLiftTray-v1",
+    "DualArmPushBox-v1",
+    "DualArmPourPot-v1",
+    "DualArmThreading-v1",
+    "DualArmPenCap-v1",
+    "DualArmDrawerPlace-v1",
+    "DualArmDrawerOpen-v1",
+    "DualArmStackCube-v1",
+    "DualArmStack3Cube-v1",
+)
+
+
+def update_args_from_results(args: Args):
+    assert args.results_path is not None
+    expected_columns = [
+        "checkpoint_path","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
+    ]
+    results = read_csv(args.results_path)
+    assert results.columns.tolist() == expected_columns
+
+    if "bimanual" in args.results_path:
+        tasks = ALL_COLOSSEUM_V2_BIMANUAL_TASKS
+    elif "single_arm" in args.results_path:
+        tasks = ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS
+    else:
+        raise Exception(f"Unclear whether {args.results_path} is for bimanual or single arm tasks")
+
+    for task in tasks:
+        for distraction_set in DISTRACTION_SETS.keys():
+            result_found = results[
+                (results["env_id"] == task)
+                & (results["distraction_set"].str.lower() == distraction_set.lower())
+            ]
+            if len(result_found) > 0:
+                print(f"Found existing result for task {task} and distraction set {distraction_set}")
+                continue
+            print(f"Starting evaluation for {task=} and {distraction_set=}")
+            args.env_id = task
+            args.distraction_set = distraction_set
+
+            # row = [
+            #     args.checkpoint_path,
+            #     distraction_set.lower(),
+            #     task,
+            #     args.control_mode,
+            #     args.include_depth,
+            #     args.num_eval_episodes,
+            #     args.max_episode_steps,
+            #     "FAKEDATA",
+            #     np.random.randint(0, 100),
+            #     f"{np.random.randint(0, 100):.2f}",
+            # ]
+            row = [
+                args.checkpoint_path,
+                distraction_set.lower(),
+                task,
+                args.control_mode,
+                args.include_depth,
+                args.num_eval_episodes,
+                args.max_episode_steps,
+                "placeholder",
+                -1,
+                -1,
+            ]
+            results.loc[len(results)] = row
+            results.to_csv(args.results_path, index=False)
+            return args
+
+    raise Exception("No result found for any task and distraction set")
 
 
 if __name__ == "__main__":
@@ -50,6 +142,10 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() and "cuda" in args.sim_backend else "cpu")
 
+    if args.results_path is not None:
+        args = update_args_from_results(args)
+
+    exit()
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
@@ -92,6 +188,23 @@ if __name__ == "__main__":
     for episode_batch in eval_metrics["success_once"]:
         n_episodes += len(episode_batch)
         n_success += episode_batch.sum()
-    print(f"Success rate: {100*(n_success / n_episodes):.2f}% \t ({n_success}/{n_episodes})")
+    success_percentage = 100*(n_success / n_episodes)
+    print(f"Success rate: {success_percentage:.2f}% \t ({n_success}/{n_episodes})")
     envs.close()
 
+    if args.results_path is not None:
+        results = read_csv(args.results_path)
+        new_row = [
+            args.checkpoint_path,
+            args.distraction_set.lower(),
+            args.env_id,
+            args.control_mode,
+            args.include_depth,
+            args.num_eval_episodes,
+            args.max_episode_steps,
+            "results",
+            n_success,
+            f"{success_percentage:.2f}",
+        ]
+        results.to_csv(args.results_path, index=False)
+        print(f"Saved results to {args.results_path}")

@@ -263,5 +263,10 @@ DISTRACTION_SETS = {
     "table_color".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
     "camera_pose".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
+    "light_color".upper(): all_distractor_set.get_partial_copy(["light_color_cfg"]),
+    "MO_size".upper(): all_distractor_set.get_partial_copy(["MO_size_cfg"]),
+    "RO_size".upper(): all_distractor_set.get_partial_copy(["RO_size_cfg"]),
+    "background_texture".upper(): all_distractor_set.get_partial_copy(["background_texture_cfg"]),
+    "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
     "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
 }

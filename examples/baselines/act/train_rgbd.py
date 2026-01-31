@@ -127,6 +127,8 @@ class Args:
 
     checkpoint_path: str | None = None
     """the path to the checkpoint to load"""
+    results_path: str | None = None
+    """the path to save results to"""
 
 
 class FlattenRGBDObservationWrapper(gym.ObservationWrapper):

@@ -48,3 +48,5 @@ venv/
 notes
 runs/
 checkpoints/
+
+logs/
