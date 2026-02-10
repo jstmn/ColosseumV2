@@ -57,7 +57,7 @@ class PlaceBookEnv(ColosseumV2Env):
     def _load_scene(self, options: dict):
 
         self.shelf = self.load_glb_as_actor(
-            glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
+            glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
             pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
             name="custom_glb_shelf",
             type_="kinematic",
@@ -65,7 +65,7 @@ class PlaceBookEnv(ColosseumV2Env):
         )
 
         self.book_A = self.load_glb_as_actor(
-            glb_file_path=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
+            glb_filepath=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
             pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             name="book_A",
             type_="dynamic",

@@ -117,11 +117,11 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
             type="static")
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
+    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+        builder.add_visual_from_file(glb_filepath, scale=scale)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)

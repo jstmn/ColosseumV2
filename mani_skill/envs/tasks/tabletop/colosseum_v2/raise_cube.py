@@ -75,7 +75,7 @@ class RaiseCubeEnv(ColosseumV2Env):
             )
             cube_builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
             return cube_builder
-        self.cube = self._load_from_builder(get_cube_builder, name="cube", type_="dynamic")
+        self.cube = self.load_from_builder(get_cube_builder, name="cube", type_="dynamic")
         self.load_scene_hook(manipulation_object=self.cube)
 
     @property

@@ -112,7 +112,7 @@ class ScoopBananaEnv(BaseEnv):
 
         self.dustpan = self.load_glb_as_actor(
             self.scene,
-            glb_file_path=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),
+            glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),
             pose=sapien.Pose(p=[0, 0, 0.015]),
             name="dustpan",
             type="dynamic"
@@ -128,11 +128,11 @@ class ScoopBananaEnv(BaseEnv):
         )
 
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):
+    def load_glb_as_actor(scene, glb_filepath, pose, name, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
+        builder.add_visual_from_file(glb_filepath)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)

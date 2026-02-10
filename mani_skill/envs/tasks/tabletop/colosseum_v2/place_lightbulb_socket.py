@@ -53,11 +53,11 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
     
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, body_type="dynamic"):
+    def load_glb_as_actor(scene, glb_filepath, pose, name, body_type="dynamic"):
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path)
+        builder.add_visual_from_file(glb_filepath)
         builder.add_multiple_convex_collisions_from_file(
-            glb_file_path, 
+            glb_filepath, 
             decomposition="coacd"
         )
         builder.initial_pose = pose

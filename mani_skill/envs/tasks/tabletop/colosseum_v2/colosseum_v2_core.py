@@ -15,6 +15,8 @@ from mani_skill.utils.structs.pose import Pose
 import os
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 from mani_skill.utils.building.actor_builder import ActorBuilder
+from mani_skill.envs.scene import ManiSkillScene
+from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 
 
 import numpy as np
@@ -32,41 +34,6 @@ from mani_skill.utils.structs.actor import Actor
 FLOOR_HEIGHT = -0.920
 
 
-# def get_camera_configs(xy_offset: float, z_offset: float, target: tuple[float, float, float], camera_width: int = DEFAULT_CAMERA_WIDTH, camera_height: int = DEFAULT_CAMERA_HEIGHT):
-#     pose_center = sapien_utils.look_at(eye=[xy_offset, 0,  z_offset], target=target)
-#     pose_left = sapien_utils.look_at(eye=[0.0, -xy_offset, z_offset], target=target)
-#     pose_right = sapien_utils.look_at(eye=[0.0, xy_offset, z_offset], target=target)
-#     return [
-#         CameraConfig(
-#             uid="camera_center",
-#             pose=pose_center,
-#             width=camera_width,
-#             height=camera_height,
-#             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-#             near=0.01,
-#             far=100,
-#             shader_pack=SHADER,
-#         ),
-#         CameraConfig(
-#             uid="camera_left",
-#             pose=pose_left,
-#             width=camera_width,
-#             height=camera_height,
-#             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-#             near=0.01,
-#             far=100,
-#             shader_pack=SHADER,
-#         ),
-#         CameraConfig(
-#             uid="camera_right",
-#             pose=pose_right,
-#             width=camera_width,
-#             height=camera_height,
-#             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-#             near=0.01,
-#             far=100,
-#             shader_pack=SHADER,
-#         )]
 
 def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
 
@@ -87,8 +54,15 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
             else:
                 use_color = False
 
+    objs = []
+    if isinstance(actor, OpenCabinet):
+        for shelf in actor.shelves:
+            objs.append(shelf._objs)
+    else:
+        objs = actor._objs
+
     # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
-    for obj in actor._objs:
+    for obj in objs:
         # modify the i-th object which is in parallel environment i
         render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
         for render_shape in render_body_component.render_shapes:
@@ -196,7 +170,7 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
-    def _load_from_builder(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str) -> Actor:
+    def load_from_builder(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str) -> Actor:
         """ It's expected that the builder has had the following set:
             - add_box_collision
             - add_box_visual
@@ -214,7 +188,7 @@ class ColosseumV2Env(BaseEnv):
             )
             builder.initial_pose = sapien.Pose(p=[0, 0, 0.05])
 
-            self._load_from_builder(builder, name="cube", type_="dynamic")
+            self.load_from_builder(builder, name="cube", type_="dynamic")
         """
 
         actors = []
@@ -238,19 +212,30 @@ class ColosseumV2Env(BaseEnv):
 
 
 
-    def load_glb_as_actor(self, glb_file_path: str, pose: sapien.Pose, name: str, type_: str, object_type: str, color: list | None = None):
+    def load_glb_as_actor(self, glb_filepath: str, pose: sapien.Pose, name: str, type_: str, object_type: str, color: list | None = None, default_scale: tuple[float, float, float] | None = None):
         """Load GLB file as a static actor in the scene"""
         assert object_type in ["MO", "RO"]
 
+        if default_scale is None:
+            scale = (1.0, 1.0, 1.0)
+        else:
+            scale = default_scale
+
         if self._ds.MO_size_enabled() and object_type == "MO":
-            scale_range = self._ds.MO_size_cfg["scale_range"]
-            scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
+            scale_multiplier = self._ds.MO_size_cfg["scale_range"]
+            scale = (
+                np.random.uniform(*scale_multiplier) * scale[0],
+                np.random.uniform(*scale_multiplier) * scale[1],
+                np.random.uniform(*scale_multiplier) * scale[2],
+            )
 
         elif self._ds.RO_size_enabled() and object_type == "RO":
-            scale_range = self._ds.RO_size_cfg["scale_range"]
-            scale = (np.random.uniform(*scale_range), np.random.uniform(*scale_range), np.random.uniform(*scale_range))
-        else:
-            scale = (1, 1, 1)
+            scale_multiplier = self._ds.RO_size_cfg["scale_range"]
+            scale = (
+                np.random.uniform(*scale_multiplier) * scale[0],
+                np.random.uniform(*scale_multiplier) * scale[1],
+                np.random.uniform(*scale_multiplier) * scale[2],
+            )
 
         actors = []
 
@@ -263,11 +248,11 @@ class ColosseumV2Env(BaseEnv):
                 custom_material.base_color = color  # Green [R, G, B, A]
                 custom_material.roughness = 0.8
                 custom_material.metallic = 0.0
-                builder.add_visual_from_file(filename=glb_file_path, scale=scale, material=custom_material)
+                builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=custom_material)
             else:
-                builder.add_visual_from_file(filename=glb_file_path, scale=scale)
+                builder.add_visual_from_file(filename=glb_filepath, scale=scale)
 
-            builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
             builder.set_initial_pose(pose)
             builder.set_scene_idxs([i])
             if type_ == "dynamic":
@@ -324,7 +309,7 @@ class ColosseumV2Env(BaseEnv):
                     builder.set_initial_pose(sapien.Pose())
                     return builder
 
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(self._load_from_builder(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic"))
+                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(self.load_from_builder(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic"))
 
 
         # Create the table and optionally set its color and/or texture

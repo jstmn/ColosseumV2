@@ -86,15 +86,15 @@ class RotateArrowEnv(BaseEnv):
 
 
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, type="static"):
+    def load_glb_as_actor(scene, glb_filepath, pose, name, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])
         custom_material = sapien.render.RenderMaterial()
         custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
-            #     builder.add_visual_from_file(glb_file_path)
-        builder.add_visual_from_file(glb_file_path, material=custom_material)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
+            #     builder.add_visual_from_file(glb_filepath)
+        builder.add_visual_from_file(glb_filepath, material=custom_material)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
         
         builder.set_initial_pose(pose)
         if type=="dynamic":

@@ -76,6 +76,7 @@ def build_cube(
     add_collision: bool = True,
     scene_idxs: Optional[Array] = None,
     initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+    return_builder: bool = False,
 ):
     builder = scene.create_actor_builder()
     if add_collision:
@@ -88,7 +89,16 @@ def build_cube(
             base_color=color,
         ),
     )
+    if return_builder:
+        builder.name = name
+        builder.physx_body_type = body_type
+        builder.scene_idxs = scene_idxs
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
+        return builder
+    
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
+
 
 
 def build_box(
@@ -100,6 +110,7 @@ def build_box(
     add_collision: bool = True,
     scene_idxs: Optional[Array] = None,
     initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+    return_builder: bool = False,
 ):
     builder = scene.create_actor_builder()
     if add_collision:
@@ -112,6 +123,13 @@ def build_box(
             base_color=color,
         ),
     )
+    if return_builder:
+        builder.name = name
+        builder.physx_body_type = body_type
+        builder.scene_idxs = scene_idxs
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
+        return builder
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
 
@@ -125,6 +143,7 @@ def build_cylinder(
     add_collision: bool = True,
     scene_idxs: Optional[Array] = None,
     initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+    return_builder: bool = False,
 ):
     builder = scene.create_actor_builder()
     if add_collision:
@@ -139,6 +158,13 @@ def build_cylinder(
             base_color=color,
         ),
     )
+    if return_builder:
+        builder.name = name
+        builder.physx_body_type = body_type
+        builder.scene_idxs = scene_idxs
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
+        return builder
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
 
@@ -151,6 +177,7 @@ def build_sphere(
     add_collision: bool = True,
     scene_idxs: Optional[Array] = None,
     initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+    return_builder: bool = False,
 ):
     builder = scene.create_actor_builder()
     if add_collision:
@@ -163,6 +190,13 @@ def build_sphere(
             base_color=color,
         ),
     )
+    if return_builder:
+        builder.name = name
+        builder.physx_body_type = body_type
+        builder.scene_idxs = scene_idxs
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
+        return builder
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
 def build_box_target(

@@ -65,7 +65,7 @@ class DualArmLiftPotEnv(BaseEnv):
                                         type="dynamic", color=np.array((129/255, 133/255, 137/255, 1)))
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static", color=None):
+    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static", color=None):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         if color is not None:
@@ -73,10 +73,10 @@ class DualArmLiftPotEnv(BaseEnv):
             custom_material.base_color = color  # Green [R, G, B, A]
             custom_material.roughness = 0.0
             custom_material.metallic = 0.8
-            builder.add_visual_from_file(glb_file_path, scale=scale, material=custom_material)
+            builder.add_visual_from_file(glb_filepath, scale=scale, material=custom_material)
         else:
-            builder.add_visual_from_file(glb_file_path, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+            builder.add_visual_from_file(glb_filepath, scale=scale)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)

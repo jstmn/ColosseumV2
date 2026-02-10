@@ -272,9 +272,9 @@ class CookItemInPanEnv(ColosseumV2Env):
             return builder
 
 
-        self.stove = self._load_from_builder(_get_stove_builder, name="stove", type_="kinematic")
-        self.pan = self._load_from_builder(_get_pan_builder, name="pan", type_="dynamic")
-        self.food = self._load_from_builder(_get_food_builder, name="food", type_="dynamic")
+        self.stove = self.load_from_builder(_get_stove_builder, name="stove", type_="kinematic")
+        self.pan = self.load_from_builder(_get_pan_builder, name="pan", type_="dynamic")
+        self.food = self.load_from_builder(_get_food_builder, name="food", type_="dynamic")
         # self.stove = self._build_stove()
         # self.pan = self._build_pan()
         # self.food = self._build_ycb_actor(self.food_model_id, "food")
