@@ -76,8 +76,8 @@ class OpenDrawerEnv(BaseEnv):
         robot_init_qpos_noise=0.02,
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
+        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
+        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self._human_render_shader = kwargs.pop("human_render_shader", None)
         self.robot_init_qpos_noise = robot_init_qpos_noise
         # TRAIN_JSON.keys(): ['1000' '1004' '1005' '1013' '1016' '1021' '1024' '1027' '1032' '1033'
@@ -187,57 +187,92 @@ class OpenDrawerEnv(BaseEnv):
         # partnet-mobility is a dataset source and the ids are the ones we sampled
         # we provide tools to easily create the articulation builder like so by querying
         # the dataset source and unique ID
-        cabinet_builder = articulations.get_articulation_builder(
-            self.scene, f"partnet-mobility:{self._model_id}"
-        )
-        # cabinet_builder.set_scene_idxs(scene_idxs=[0])
-        cabinet_builder.initial_pose = sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0])
-        cabinet = cabinet_builder.build(name=f"cabinet-{self._model_id}")
-        self.remove_from_state_dict_registry(cabinet)
-        # this disables self collisions by setting the group 2 bit at CABINET_COLLISION_BIT all the same
-        # that bit is also used to disable collision with the ground plane
-        for link in cabinet.links:
-            link.set_collision_group_bit(
-                group=2, bit_idx=CABINET_COLLISION_BIT, bit=1
+        for i in range(self.num_envs):
+            cabinet_builder = articulations.get_articulation_builder(
+                self.scene, f"partnet-mobility:{self._model_id}"
             )
-        self._cabinets.append(cabinet)
-        handle_links.append([])
-        handle_links_meshes.append([])
+            cabinet_builder.set_scene_idxs(scene_idxs=[i])  # ⭐ env마다 1개씩 배치
+            cabinet_builder.initial_pose = sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0])
 
-        # TODO (stao): At the moment code for selecting semantic parts of articulations
-        # is not very simple. Will be improved in the future as we add in features that
-        # support part and mesh-wise annotations in a standard querable format
-        for link, joint in zip(cabinet.links, cabinet.joints):
-            if joint.type[0] in joint_types:
-                handle_links[-1].append(link)
-                # save the first mesh in the link object that correspond with a handle
-                handle_links_meshes[-1].append(
-                    link.generate_mesh(
-                        filter=lambda _, render_shape: "handle"
-                        in render_shape.name,
-                        mesh_name="handle",
-                    )[0]
-                )
+            cabinet = cabinet_builder.build(name=f"cabinet-{self._model_id}-{i}")
+            self.remove_from_state_dict_registry(cabinet)
+
+            for link in cabinet.links:
+                link.set_collision_group_bit(group=2, bit_idx=CABINET_COLLISION_BIT, bit=1)
+
+            self._cabinets.append(cabinet)
+            handle_links.append([])
+            handle_links_meshes.append([])
+
+            for link, joint in zip(cabinet.links, cabinet.joints):
+                if joint.type[0] in joint_types:
+                    handle_links[-1].append(link)
+                    handle_links_meshes[-1].append(
+                        link.generate_mesh(
+                            filter=lambda _, render_shape: "handle" in render_shape.name,
+                            mesh_name="handle",
+                        )[0]
+                    )
 
         # we can merge different articulations/links with different degrees of freedoms into a single view/object
         # allowing you to manage all of them under one object and retrieve data like qpos, pose, etc. all together
         # and with high performance. Note that some properties such as qpos and qlimits are now padded.
         self.cabinet = Articulation.merge(self._cabinets, name="cabinet")
         self.add_to_state_dict_registry(self.cabinet)
-        self.handle_link = Link.merge(
-            [links[link_ids[i] % len(links)] for i, links in enumerate(handle_links)],
-            name="handle_link",
-        )
+
+
+        # self.handle_link = Link.merge(
+        #     [links[link_ids[i] % len(links)] for i, links in enumerate(handle_links)],
+        #     name="handle_link",
+        # )
+
+        selected_links = []
+        bad_envs = []
+        for i, links in enumerate(handle_links):
+            if len(links) == 0:
+                bad_envs.append(i)
+            else:
+                selected_links.append(links[0])  # 항상 첫 번째 handle 사용
+
+        if len(bad_envs) > 0:
+            raise RuntimeError(
+                f"[OpenDrawerEnv] No prismatic handle link found for envs={bad_envs}. "
+                f"model_id={self._model_id}. joint_types={joint_types}. "
+                f"(handle_links[i] was empty)"
+            )
+
+        self.handle_link = Link.merge(selected_links, name="handle_link")
+
+
+
+
         # store the position of the handle mesh itself relative to the link it is apart of
-        self.handle_link_pos = common.to_tensor(
-            np.array(
-                [
-                    meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
-                    for i, meshes in enumerate(handle_links_meshes)
-                ]
-            ),
-            device=self.device,
-        )
+        # self.handle_link_pos = common.to_tensor(
+        #     np.array(
+        #         [
+        #             meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
+        #             for i, meshes in enumerate(handle_links_meshes)
+        #         ]
+        #     ),
+        #     device=self.device,
+        # )
+
+        selected_pos = []
+        bad_envs = []
+        for i, meshes in enumerate(handle_links_meshes):
+            if len(meshes) == 0:
+                bad_envs.append(i)
+            else:
+                selected_pos.append(meshes[0].bounding_box.center_mass)
+
+        if len(bad_envs) > 0:
+            raise RuntimeError(
+                f"[OpenDrawerEnv] No handle mesh found for envs={bad_envs}. "
+                f"model_id={self._model_id}."
+            )
+
+        self.handle_link_pos = common.to_tensor(np.array(selected_pos), device=self.device)
+
 
         self.handle_link_goal = actors.build_sphere(
             self.scene,
@@ -285,8 +320,8 @@ class OpenDrawerEnv(BaseEnv):
             xy = torch.zeros((b, 3))
             cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
             cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
-            xy[:, 0] = torch.rand(b) * cabinet_x_range + self.CABINET_X_LIMS[0]
-            xy[:, 1] = torch.rand(b) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            xy[:, 0] = torch.rand(b, device=self.device) * cabinet_x_range + self.CABINET_X_LIMS[0]
+            xy[:, 1] = torch.rand(b, device=self.device) * cabinet_y_range + self.CABINET_Y_LIMS[0]
 
             # Quaternion for Z rotation: [cos(θ/2), 0, 0, sin(θ/2)] in wxyz format
             random_yaw_angle = torch.rand(b, device=self.device) * (self.CABINET_YAW_LIMS[1] - self.CABINET_YAW_LIMS[0]) + self.CABINET_YAW_LIMS[0]

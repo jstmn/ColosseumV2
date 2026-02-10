@@ -6,14 +6,8 @@ import torch
 import tqdm
 from mani_skill.utils import common
 
-def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name):
-    stats = eval_kwargs["stats"]
-    num_queries = eval_kwargs["num_queries"]
-    temporal_agg = eval_kwargs["temporal_agg"]
-    max_timesteps = eval_kwargs["max_timesteps"]
-    device = eval_kwargs["device"]
-    sim_backend = eval_kwargs["sim_backend"]
-    
+def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name=None):
+    stats, num_queries, temporal_agg, max_timesteps, device, sim_backend = eval_kwargs.values()
 
     use_visual_obs = isinstance(eval_envs.single_observation_space.sample(), dict)
     delta_control = not stats
@@ -21,8 +15,8 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name)
         if sim_backend == "physx_cpu":
             pre_process = lambda s_obs: (s_obs - stats['state_mean'].cpu().numpy()) / stats['state_std'].cpu().numpy()
         else:
-            pre_process = lambda s_obs: (s_obs - stats['state_mean']) / stats['state_std']
-        post_process = lambda a: a * stats['action_std'] + stats['action_mean']
+            pre_process = lambda s_obs: (s_obs - stats['state_mean'].to(device)) / stats['state_std'].to(device)
+        post_process = lambda a: a * stats['action_std'].to(device) + stats['action_mean'].to(device)
 
     # create action table for temporal ensembling
     action_dim = eval_envs.action_space.shape[-1]
@@ -53,20 +47,14 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name)
             if use_visual_obs:
                 obs['state'] = pre_process(obs['state']) if not delta_control else obs['state']  # (num_envs, obs_dim)
                 obs = {k: common.to_tensor(v, device) for k, v in obs.items()}
-
-                # rgb_min = obs['rgb'].min().item()
-                # rgb_max = obs['rgb'].max().item()
-                # print(f"[DEBUG] Eval RGB Range: {rgb_min:.4f} ~ {rgb_max:.4f}") #[DEBUG] Eval RGB Range: 0.0000 ~ 255.0000
-
             else:
                 obs = pre_process(obs) if not delta_control else obs  # (num_envs, obs_dim)
                 obs = common.to_tensor(obs, device)
 
             # query policy
             if ts % query_frequency == 0:
-                #action_seq = agent.get_action(obs)  # (num_envs, num_queries, action_dim)
                 action_seq = agent.get_action(obs, lang_instruction=eval_lang)
-                 
+                
             # we assume ignore_terminations=True. Otherwise, some envs could be done
             # earlier, so we would need to temporally ensemble at corresponding timestep
             # for each env.
@@ -90,6 +78,7 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name)
                 if ts % query_frequency == 0:
                     actions_to_take = action_seq
                 raw_action = actions_to_take[:, ts % query_frequency]
+
             action = post_process(raw_action) if not delta_control else raw_action  # (num_envs, act_dim)
             if sim_backend == "physx_cpu":
                 action = action.cpu().numpy()
@@ -117,7 +106,6 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name)
     agent.train()
     for k in eval_metrics.keys():
         eval_metrics[k] = np.stack(eval_metrics[k])
-
     #video log
     
     print(f"[DEBUG] Attempting to flush video with name: {save_name}")
