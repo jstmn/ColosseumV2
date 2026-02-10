@@ -10,7 +10,6 @@ from transforms3d.euler import euler2quat
 
 from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
@@ -19,10 +18,11 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+
 
 @register_env("CookItemInPan-v1", max_episode_steps=150, asset_download_ids=["ycb"])
-class CookItemInPanEnv(BaseEnv):
+class CookItemInPanEnv(ColosseumV2Env):
     """
     **Task Description:**
     Pick a pan, place it on the stove, then place a food item inside the pan.
@@ -52,9 +52,6 @@ class CookItemInPanEnv(BaseEnv):
         food_model_id="013_apple",
         **kwargs,
     ):
-        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        self.robot_init_qpos_noise = robot_init_qpos_noise
         # Use default asset paths if not provided
         if pan_glb_path is None:
             pan_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan/panev2.stl"
@@ -214,8 +211,6 @@ class CookItemInPanEnv(BaseEnv):
     def _build_ycb_actor(self, model_id: str, name: str) -> Actor:
         actors_list = []
         for i in range(self.num_envs):
-            builder = actors.get_actor_builder(self.scene, id=f"ycb:{model_id}")
-            builder.initial_pose = sapien.Pose()
             builder.set_scene_idxs([i])
             actor = builder.build(name=f"{name}_{i}")
             self.remove_from_state_dict_registry(actor)
@@ -224,30 +219,17 @@ class CookItemInPanEnv(BaseEnv):
         self.add_to_state_dict_registry(merged)
         return merged
 
-    def _build_pan(self) -> Actor:
-        pan_actors = []
-        for i in range(self.num_envs):
-            builder = self.scene.create_actor_builder()
-            scale = [self.pan_scale] * 3
-            builder.add_multiple_convex_collisions_from_file(
-                filename=self.pan_glb_path,
-                scale=scale,
-                decomposition="coacd",
-                density=300.0,
-            )
-            builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
-            builder.initial_pose = sapien.Pose()
-            builder.set_scene_idxs([i])
-            actor = builder.build(name=f"pan_{i}")
-            self.remove_from_state_dict_registry(actor)
-            pan_actors.append(actor)
-        merged = Actor.merge(pan_actors, name="pan")
-        self.add_to_state_dict_registry(merged)
-        return merged
+    def _load_scene(self, options: dict):
+        self.table_scene = TableSceneBuilder(
+            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
+        )
+        self.table_scene.build()
+        # Use underlying SAPIEN object to get table Z since GPU sim is not yet initialized
+        raw_table = self.table_scene.table._objs[0]
+        table_z = float(raw_table.pose.p[2])
+        self.table_surface_z = table_z + float(self.table_scene.table_height)
 
-    def _build_stove(self) -> Actor:
-        stoves = []
-        for i in range(self.num_envs):
+        def _get_stove_builder():
             builder = self.scene.create_actor_builder()
             scale = [self.stove_scale] * 3
             # Use convex collision for OBJ file
@@ -269,27 +251,34 @@ class CookItemInPanEnv(BaseEnv):
                     self.table_surface_z + self.stove_bottom_offset + self.stove_z_offset,
                 ]
             )
-            builder.set_scene_idxs([i])
-            actor = builder.build_static(name=f"stove_{i}")
-            self.remove_from_state_dict_registry(actor)
-            stoves.append(actor)
-        merged = Actor.merge(stoves, name="stove")
-        self.add_to_state_dict_registry(merged)
-        return merged
+            return builder
 
-    def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-        # Use underlying SAPIEN object to get table Z since GPU sim is not yet initialized
-        raw_table = self.table_scene.table._objs[0]
-        table_z = float(raw_table.pose.p[2])
-        self.table_surface_z = table_z + float(self.table_scene.table_height)
+        def _get_pan_builder():
+            builder = self.scene.create_actor_builder()
+            scale = [self.pan_scale] * 3
+            builder.add_multiple_convex_collisions_from_file(
+                filename=self.pan_glb_path,
+                scale=scale,
+                decomposition="coacd",
+                density=300.0,
+            )
+            builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
+            builder.initial_pose = sapien.Pose()
+            return builder
 
-        self.stove = self._build_stove()
-        self.pan = self._build_pan()
-        self.food = self._build_ycb_actor(self.food_model_id, "food")
+        def _get_food_builder():
+            builder = actors.get_actor_builder(self.scene, id=f"ycb:{self.food_model_id}")
+            builder.initial_pose = sapien.Pose()
+            return builder
+
+
+        self.stove = self._load_from_builder(_get_stove_builder, name="stove", type_="kinematic")
+        self.pan = self._load_from_builder(_get_pan_builder, name="pan", type_="dynamic")
+        self.food = self._load_from_builder(_get_food_builder, name="food", type_="dynamic")
+        # self.stove = self._build_stove()
+        # self.pan = self._build_pan()
+        # self.food = self._build_ycb_actor(self.food_model_id, "food")
+        self.load_scene_hook(manipulation_object=self.pan, receiving_object=self.stove)
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -327,6 +316,8 @@ class CookItemInPanEnv(BaseEnv):
             food_pos[:, :2] = food_xy
             food_pos[:, 2] = self.table_surface_z + self.food_bottom_offset
             self.food.set_pose(Pose.create_from_pq(p=food_pos))
+            
+            self.initialize_episode_hook(env_idx, mo_pose=self.pan.pose)
 
     def evaluate(self):
         pan_pose = self.pan.pose

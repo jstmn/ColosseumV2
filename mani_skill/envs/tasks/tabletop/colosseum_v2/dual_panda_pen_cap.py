@@ -6,14 +6,10 @@ pm = importlib.import_module("mani_skill.utils.building.articulations.partnet_mo
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
-from mani_skill.utils.building import articulations
 from mani_skill import PACKAGE_ASSET_DIR
 import torch
 from mani_skill.sensors.camera import CameraConfig

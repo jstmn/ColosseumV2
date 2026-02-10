@@ -72,9 +72,44 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=PlaceBookInShelf-v1
-# ENV_ID=RaiseCube-v1
-DISTRACTION_SET=MO_mass
+# Colosseum v2 single-arm tasks
+ENV_ID="RaiseCube-v1"
+ENV_ID="PickSodaFromCabinet-v1"
+ENV_ID="PickDishFromRack-v1"
+ENV_ID="StackCube-v1"
+ENV_ID="PlaceBookInShelf-v1"
+ENV_ID="PlaceDishInRack-v1"
+ENV_ID="LiftPegUpright-v1"
+ENV_ID="RotateArrow-v1"
+ENV_ID="PegInsertionSide-v2"
+ENV_ID="PlugCharger-v1"
+ENV_ID="HammerNail-v1"
+ENV_ID="ScoopBanana-v1"
+ENV_ID="OpenDrawer-v1"
+ENV_ID="OpenCabinet-v1"
+ENV_ID="PlaceCubeInDrawer-v1"
+ENV_ID="CookItemInPan-v1"
+
+# Colosseum v2 bimanual tasks
+ENV_ID="DualArmPickCube-v1"
+ENV_ID="DualArmPickBottle-v1"
+ENV_ID="DualArmLiftPot-v1"
+ENV_ID="DualArmLiftTray-v1"
+ENV_ID="DualArmPushBox-v1"
+ENV_ID="DualArmPourPot-v1"
+ENV_ID="DualArmThreading-v1"
+ENV_ID="DualArmPenCap-v1"
+ENV_ID="DualArmDrawerPlace-v1"
+ENV_ID="DualArmDrawerOpen-v1"
+ENV_ID="DualArmStackCube-v1"
+ENV_ID="DualArmStack3Cube-v1"
+
+
+
+
+
+ENV_ID="RaiseCube-v1"
+DISTRACTION_SET=all
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 
@@ -196,7 +231,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         else:
             success = res[-1]["success"].item()
             elapsed_steps = res[-1]["elapsed_steps"].item()
-            solution_episode_lengths.append(elapsed_steps)
+
         successes.append(success)
         if args.only_count_success and not success:
             seed += 1
@@ -205,14 +240,16 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
                 env.flush_video(save=False)
             continue
         else:
+            # Only save episode length if the solution was successful
+            solution_episode_lengths.append(elapsed_steps)
             env.flush_trajectory()
             if args.save_video:
                 env.flush_video(name=f"{new_traj_name}___n:{len(successes)}")
             pbar.update(1)
             pbar.set_postfix(
                 dict(
-                    success_rate=np.mean(successes),
-                    failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+                    success_pct=f"{np.mean(successes) * 100:.2f}%",
+                    failed_motion_plan_pct=f"{failed_motion_plans / (seed + 1) * 100:.2f}%",
                     avg_episode_length=np.mean(solution_episode_lengths),
                     max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
                     min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
@@ -223,6 +260,17 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             if passed == args.num_traj:
                 break
     env.close()
+
+    print()
+    print(f"Summary ({proc_id=}):")
+    print("  success_rate:           ", np.mean(successes),)
+    print("  failed_motion_plan_rate:", failed_motion_plans / (seed + 1))
+    print("  avg_episode_length:     ", np.mean(solution_episode_lengths))
+    print("  std_episode_length:     ", np.std(solution_episode_lengths))
+    print("  max_episode_length:     ", np.max(solution_episode_lengths) if solution_episode_lengths else -1)
+    print("  min_episode_length:     ", np.min(solution_episode_lengths) if solution_episode_lengths else -1)
+    print()
+
     return output_h5_path
 
 

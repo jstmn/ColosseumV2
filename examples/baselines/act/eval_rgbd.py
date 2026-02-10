@@ -96,18 +96,6 @@ def update_args_from_results(args: Args):
             args.env_id = task
             args.distraction_set = distraction_set
 
-            # row = [
-            #     args.checkpoint_path,
-            #     distraction_set.lower(),
-            #     task,
-            #     args.control_mode,
-            #     args.include_depth,
-            #     args.num_eval_episodes,
-            #     args.max_episode_steps,
-            #     "FAKEDATA",
-            #     np.random.randint(0, 100),
-            #     f"{np.random.randint(0, 100):.2f}",
-            # ]
             row = [
                 args.checkpoint_path,
                 distraction_set.lower(),
@@ -145,7 +133,6 @@ if __name__ == "__main__":
     if args.results_path is not None:
         args = update_args_from_results(args)
 
-    exit()
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
