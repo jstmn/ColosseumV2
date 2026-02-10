@@ -96,7 +96,6 @@ TARGET_KEY_TO_SOURCE_KEY = {
     # 'rewards': 'rewards',
     'actions': 'actions',
 }
-
 def load_content_from_h5_file(file, path=""):
     if isinstance(file, (File, Group)):
         out = {}
