@@ -248,7 +248,7 @@ all_distractor_set = DistractionSet(
         "color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),
     },
     MO_mass_cfg = {
-        "mass_scale_range": (1000, 1001),
+        "mass_scale_range": (2, 5),
     },
 )
 

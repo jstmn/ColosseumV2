@@ -96,7 +96,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             color=np.array([141, 117, 105, 255]) / 255,
             name="left",
             body_type="kinematic",
-            initial_pose=sapien.Pose(p=[0.252629, 0.195302, 0.309642]),
             return_builder=True,
         )
         right_builder_fn = lambda: actors.build_box(
@@ -105,7 +104,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             color=np.array([141, 117, 105, 255]) / 255,
             name="right",
             body_type="kinematic",
-            initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
             return_builder=True,
         )
         back_builder_fn = lambda: actors.build_box(
@@ -114,7 +112,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             color=np.array([141, 117, 105, 255]) / 255,
             name="back",
             body_type="kinematic",
-            initial_pose=sapien.Pose(p=[0.252629, -0.436221, 0.309642]),
             return_builder=True,
         )
         self.left = self.load_from_builder(left_builder_fn, name="left", type_="kinematic")
@@ -129,9 +126,7 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             object_type="MO",
             default_scale=(0.008,0.008,0.008),
         )
-
-        # self.load_scene_hook(manipulation_object=self.soda, receiving_object=self.open_cabinet)
-        self.load_scene_hook(manipulation_object=self.soda)
+        self.load_scene_hook(manipulation_object=self.soda, receiving_objects=[self.left, self.right, self.back])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -148,9 +143,9 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
 
             xyz[:, :2] = soda_xy
             self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.707, 0.707, 0, 0]).repeat(b,1)))
-            # self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
-            # self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
-            # self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
+            self.left.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, 0.177265, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
+            self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
 
 
             self.initialize_episode_hook(env_idx, mo_pose=xyz)

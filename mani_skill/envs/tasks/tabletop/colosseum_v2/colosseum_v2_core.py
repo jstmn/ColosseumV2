@@ -277,7 +277,7 @@ class ColosseumV2Env(BaseEnv):
         return actor_merged
 
 
-    def load_scene_hook(self, manipulation_object: Optional[Actor], receiving_object: Actor | None = None):
+    def load_scene_hook(self, manipulation_object: Optional[Actor], receiving_objects: list[Actor] | None = None):
         """
         This function is called when the scene is loaded.
         Args:
@@ -334,8 +334,9 @@ class ColosseumV2Env(BaseEnv):
             _set_color_or_texture(manipulation_object, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
 
         # Receiving object
-        if receiving_object is not None:
-            _set_color_or_texture(receiving_object, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
+        if receiving_objects is not None:
+            for ro in receiving_objects:
+                _set_color_or_texture(ro, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
 
         if self._ds.background_texture_enabled() or self._ds.background_color_enabled():
 

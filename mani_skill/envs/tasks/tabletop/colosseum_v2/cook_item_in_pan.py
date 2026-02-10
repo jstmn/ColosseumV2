@@ -278,7 +278,7 @@ class CookItemInPanEnv(ColosseumV2Env):
         # self.stove = self._build_stove()
         # self.pan = self._build_pan()
         # self.food = self._build_ycb_actor(self.food_model_id, "food")
-        self.load_scene_hook(manipulation_object=self.pan, receiving_object=self.stove)
+        self.load_scene_hook(manipulation_object=self.pan, receiving_objects=[self.stove])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):

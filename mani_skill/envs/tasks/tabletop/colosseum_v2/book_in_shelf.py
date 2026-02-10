@@ -71,7 +71,7 @@ class PlaceBookEnv(ColosseumV2Env):
             type_="dynamic",
             object_type="MO",
         )
-        self.load_scene_hook(manipulation_object=self.book_A, receiving_object=self.shelf)
+        self.load_scene_hook(manipulation_object=self.book_A, receiving_objects=[self.shelf])
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
