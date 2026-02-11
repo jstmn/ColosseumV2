@@ -53,7 +53,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
     
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, body_type="dynamic"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, body_type="dynamic"):
         builder = scene.create_actor_builder()
         builder.add_visual_from_file(glb_filepath)
         builder.add_multiple_convex_collisions_from_file(
@@ -77,7 +77,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
         
         lightbulb_path = "/mnt/user-data/uploads/Lightbulb.glb"
         if os.path.exists(lightbulb_path):
-            self.lightbulb = self.load_glb_as_actor(
+            self.lightbulb = self.add_glb_asset_to_scene(
                 self.scene,
                 lightbulb_path,
                 sapien.Pose(p=[0.2, 0, 0.1]),

@@ -97,19 +97,19 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # If environment uses multiple envs, repeat build for each environment index you care about.
         # Optionally keep a handle:
         # self.open_cabinet = built
-        self.clothing_frame = self.load_glb_as_actor(self.scene, 
+        self.clothing_frame = self.add_glb_asset_to_scene(self.scene, 
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
             sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
             name="soda_can",
             scale=[1,1,1],
             type="dynamic")
-        self.stand1 = self.load_glb_as_actor(self.scene,
+        self.stand1 = self.add_glb_asset_to_scene(self.scene,
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand1",
             scale=[0.01,0.004,0.005],
             type="static")
-        self.stand2 = self.load_glb_as_actor(self.scene,
+        self.stand2 = self.add_glb_asset_to_scene(self.scene,
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand2",
@@ -117,7 +117,7 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
             type="static")
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         builder.add_visual_from_file(glb_filepath, scale=scale)

@@ -57,26 +57,26 @@ class DualArmPourPotEnv(BaseEnv):
 
     
     def _load_scene(self, options: dict):
-        self.ball = self.load_glb_as_actor(self.scene,
+        self.ball = self.add_glb_asset_to_scene(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/tomato.glb"),
                                            sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
                                            name="tomato",
                                            scale=[1,1,1],
                                            type="dynamic")
-        self.pot = self.load_glb_as_actor(self.scene, 
+        self.pot = self.add_glb_asset_to_scene(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pour_pot/pot.glb"),
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         name="pot",
                                         scale=[1,1,1],
                                         type="dynamic", color=np.array((129/255, 133/255, 137/255, 1)))
-        self.tray = self.load_glb_as_actor(self.scene,
+        self.tray = self.add_glb_asset_to_scene(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
                                            sapien.Pose(),
                                            name="tray",
                                            scale=[0.4,0.4,0.4],
                                            type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static",color=None):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static",color=None):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         if color is not None:

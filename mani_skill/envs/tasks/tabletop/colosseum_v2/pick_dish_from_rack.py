@@ -9,28 +9,17 @@ from sapien.physx import PhysxMaterial
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from sapien.physx import PhysxRigidDynamicComponent
-try:  # Optional dependency for convex decomposition
-    import coacd  # noqa: F401
-
-    _HAS_COACD = True
-except ImportError:
-    _HAS_COACD = False
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 logger = logging.getLogger(__name__)
 
 
 @register_env("PickDishFromRack-v1", max_episode_steps=100)
-class PickDishFromRackEnv(BaseEnv):
+class PickDishFromRackEnv(ColosseumV2Env):
     """
     **Task Description:**
     Pick up the plate from the dish rack (where it starts vertically) and place it flat on the table.
@@ -84,13 +73,6 @@ class PickDishFromRackEnv(BaseEnv):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
-    @property
-    def _default_sim_config(self):
-        return SimConfig(
-            gpu_memory_config=GPUMemoryConfig(
-                found_lost_pairs_capacity=2**23, max_rigid_patch_count=2**17
-            )
-        )
 
     @property
     def _default_sensor_configs(self):
@@ -117,60 +99,34 @@ class PickDishFromRackEnv(BaseEnv):
     def _load_agent(self, options: Dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
 
-    def _get_obs_agent(self):
-        obs = super()._get_obs_agent()
-        for key in ("world__T__ee", "world__T__root"):
-            value = obs.get(key, None)
-            if isinstance(value, torch.Tensor) and value.ndim == 3:
-                obs[key] = value.reshape(value.shape[0], -1)
-        return obs
 
     def _load_scene(self, options: Dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-
         self.plate = self._build_plate()
         self.dish_rack = self._build_rack()
         self._plate_gravity_enabled = False
+        self.load_scene_hook(manipulation_object=self.plate, receiving_objects=[self.dish_rack])
 
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
-        builder = self.scene.create_actor_builder()
+        # builder = self.scene.create_actor_builder()
 
         physical_material = PhysxMaterial(
             static_friction=20.0,
             dynamic_friction=20.0,
             restitution=0.0,
         )
-
-        collision_scale = float(
-            self._plate_outer_radius / self._plate_mesh_source_radius
-        )
+        collision_scale = tuple[float, float, float]([self._plate_outer_radius / self._plate_mesh_source_radius] * 3)
+        density = self._plate_density
         mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
 
-        if _HAS_COACD:
-            builder.add_multiple_convex_collisions_from_file(
-                filename=str(self._plate_visual_mesh_path),
-                scale=[collision_scale, collision_scale, collision_scale],
-                pose=mesh_pose,
-                material=physical_material,
-                density=self._plate_density,
-                decomposition="coacd",
-            )
-        else:
-            logger.warning(
-                "coacd not installed; falling back to nonconvex collision for plate. "
-                "Run `pip install coacd` for better plate contacts."
-            )
-            builder.add_nonconvex_collision_from_file(
-                filename=str(self._plate_visual_mesh_path),
-                scale=[collision_scale, collision_scale, collision_scale],
-                pose=mesh_pose,
-                material=physical_material,
-                density=self._plate_density,
-            )
+        # builder.add_multiple_convex_collisions_from_file(
+        #     filename=str(self._plate_visual_mesh_path),
+        #     scale=[collision_scale, collision_scale, collision_scale],
+        #     pose=mesh_pose,
+        #     material=physical_material,
+        #     density=self._plate_density,
+        #     decomposition="coacd",
+        # )
 
         plate_visual_material = sapien.render.RenderMaterial(
             base_color=[1.0, 1.0, 1.0, 1.0],
@@ -179,15 +135,27 @@ class PickDishFromRackEnv(BaseEnv):
             metallic=0.0,
         )
 
-        builder.add_visual_from_file(
-            filename=str(self._plate_visual_mesh_path),
-            scale=[collision_scale, collision_scale, collision_scale],
-            pose=mesh_pose,
-            material=plate_visual_material,
-        )
+        # builder.add_visual_from_file(
+        #     filename=str(self._plate_visual_mesh_path),
+        #     scale=[collision_scale, collision_scale, collision_scale],
+        #     pose=mesh_pose,
+        #     material=plate_visual_material,
+        # )
 
-        builder.initial_pose = sapien.Pose()
-        return builder.build(name="plate")
+        # builder.initial_pose = sapien.Pose()
+        # return builder.build(name="plate")
+
+        return self.add_glb_asset_to_scene(
+            glb_filepath=str(self._plate_visual_mesh_path),
+            pose=mesh_pose,
+            name="plate",
+            type_="dynamic",
+            object_type="MO",
+            scale=collision_scale,
+            physical_material=physical_material,
+            density=density,
+            visual_material=plate_visual_material,
+        )
 
     def _build_rack(self):
         builder = self.scene.create_actor_builder()
@@ -229,6 +197,11 @@ class PickDishFromRackEnv(BaseEnv):
         )
         builder.initial_pose = sapien.Pose()
         return builder.build_kinematic(name="dish_rack")
+
+
+
+
+        
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
         device = self.device

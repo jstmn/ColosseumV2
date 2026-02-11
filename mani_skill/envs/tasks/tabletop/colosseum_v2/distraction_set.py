@@ -239,7 +239,7 @@ all_distractor_set = DistractionSet(
     #     "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     # },
     # ^ this works but makes it hard to see the color of the objects
-    MO_size_cfg = {"scale_range": (0.5, 0.75)},
+    MO_size_cfg = {"scale_range": (1.5, 2.75)},
     RO_size_cfg = {"scale_range": (0.5, 0.75)},
     background_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),

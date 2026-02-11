@@ -78,7 +78,7 @@ class RotateArrowEnv(BaseEnv):
         )
         self.table_scene.build()
         # All values obtained carefully from blender
-        self.arrow = self.load_glb_as_actor(self.scene, 
+        self.arrow = self.add_glb_asset_to_scene(self.scene, 
                                             os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"), 
                                             sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
                                             name="arrow",
@@ -86,7 +86,7 @@ class RotateArrowEnv(BaseEnv):
 
 
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])

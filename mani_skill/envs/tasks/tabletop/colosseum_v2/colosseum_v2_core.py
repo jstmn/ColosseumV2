@@ -1,6 +1,7 @@
 from typing import Optional, Callable
 import os
 
+from sapien.physx import PhysxMaterial
 import numpy as np
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
@@ -8,32 +9,20 @@ import numpy as np
 import sapien
 import torch
 from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-import os
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 from mani_skill.utils.building.actor_builder import ActorBuilder
-from mani_skill.envs.scene import ManiSkillScene
 from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
-
-
-import numpy as np
-import torch
-import sapien
-import numpy as np
+from mani_skill.utils.io_utils import load_json
 from sapien.render import RenderBodyComponent
 from transforms3d.euler import euler2quat
-
-from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.actor import Actor
+from mani_skill import ASSET_DIR
 
 
 FLOOR_HEIGHT = -0.920
-
-
 
 def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
 
@@ -170,14 +159,9 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
-    def load_from_builder(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str) -> Actor:
-        """ It's expected that the builder has had the following set:
-            - add_box_collision
-            - add_box_visual
-            - initial_pose
-
-
-        For example:
+    def add_asset_to_scene(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str, object_type: str) -> Actor:
+        """
+        def builder_fn():
             builder = self.scene.create_actor_builder()
             builder.add_box_collision(half_size=[0.05] * 3)
             builder.add_box_visual(
@@ -187,9 +171,11 @@ class ColosseumV2Env(BaseEnv):
                 ),
             )
             builder.initial_pose = sapien.Pose(p=[0, 0, 0.05])
+            return builder
 
-            self.load_from_builder(builder, name="cube", type_="dynamic")
+        self.add_asset_to_scene(get_builder_fn, name="cube", type_="dynamic")
         """
+        assert object_type in ["MO", "RO", "DISTRACTOR"]
 
         actors = []
         for i in range(self.num_envs):
@@ -204,6 +190,12 @@ class ColosseumV2Env(BaseEnv):
                 actor = builder.build_kinematic(name=name_i)
             else:
                 raise ValueError(f"Invalid type: {type_}")
+
+            if object_type == "MO" and self._ds.MO_mass_enabled():
+                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+                new_mass = (actor.get_mass() * mass_scale).item()
+                actor.set_mass(new_mass)
+
             self.remove_from_state_dict_registry(actor)
             actors.append(actor)
         actor = Actor.merge(actors, name=name)
@@ -211,15 +203,89 @@ class ColosseumV2Env(BaseEnv):
         return actor
 
 
+    def get_box_asset_builder(
+        self,
+        half_size: tuple[float, float, float],
+        color: list,
+        object_type: str,
+    ):
+        if self._ds.MO_size_enabled() and object_type == "MO":
+            scale_multiplier = self._ds.MO_size_cfg["scale_range"]
+            scale = np.random.uniform(*scale_multiplier)
+            half_size = (scale * half_size[0], scale * half_size[1], scale * half_size[2])
 
-    def load_glb_as_actor(self, glb_filepath: str, pose: sapien.Pose, name: str, type_: str, object_type: str, color: list | None = None, default_scale: tuple[float, float, float] | None = None):
+        elif self._ds.RO_size_enabled() and object_type == "RO":
+            scale_multiplier = self._ds.RO_size_cfg["scale_range"]
+            scale = np.random.uniform(*scale_multiplier)
+            half_size = (scale * half_size[0], scale * half_size[1], scale * half_size[2])
+
+        builder = self.scene.create_actor_builder()
+        builder.add_box_collision(half_size=half_size)
+        builder.add_box_visual(
+            half_size=half_size,
+            material=sapien.render.RenderMaterial(
+                base_color=color,
+            ),
+        )
+        # cube_builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
+        return builder
+
+
+    # Borrowed from mani_skill/utils/building/actors/ycb.py:get_ycb_builder(...)
+    def get_ycb_asset_builder(
+        self,
+        ycb_id: str,
+        object_type: str,
+    ):
+        builder = self.scene.create_actor_builder()
+
+        model_db = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
+        metadata = model_db[ycb_id]
+        density = metadata.get("density", 1000)
+        model_scales = metadata.get("scales", [1.0])
+        model_scale = model_scales[0]
+        scale = (model_scale, model_scale, model_scale)
+
+        # Optionally increase / decrease the scale
+        if self._ds.MO_size_enabled() and object_type == "MO":
+            scale_multiplier = np.random.uniform(*self._ds.MO_size_cfg["scale_range"])
+            scale = (scale_multiplier * model_scale, scale_multiplier * model_scale, scale_multiplier * model_scale)
+
+        elif self._ds.RO_size_enabled() and object_type == "RO":
+            scale_multiplier = np.random.uniform(*self._ds.RO_size_cfg["scale_range"])
+            scale = (scale_multiplier * model_scale, scale_multiplier * model_scale, scale_multiplier * model_scale)
+
+        physical_material = None
+        model_dir = ASSET_DIR / "assets/mani_skill2_ycb/models" / ycb_id
+        collision_file = str(model_dir / "collision.ply")
+        builder.add_multiple_convex_collisions_from_file(
+            filename=collision_file,
+            scale=scale,
+            material=physical_material,
+            density=density,
+        )
+        visual_file = str(model_dir / "textured.obj")
+        builder.add_visual_from_file(filename=visual_file, scale=scale)
+        return builder
+
+    def get_glb_asset_builder(
+        self, 
+        glb_filepath: str, 
+        object_type: str, 
+        color: list | None = None, 
+        scale: tuple[float, float, float] | None = None, 
+        density: float | None = None,
+        physical_material: PhysxMaterial | None = None,
+        visual_material: sapien.render.RenderMaterial | None = None,
+        pose: sapien.Pose | None = None,
+    ):
         """Load GLB file as a static actor in the scene"""
         assert object_type in ["MO", "RO"]
 
-        if default_scale is None:
+        if scale is None:
             scale = (1.0, 1.0, 1.0)
         else:
-            scale = default_scale
+            scale = scale
 
         if self._ds.MO_size_enabled() and object_type == "MO":
             scale_multiplier = self._ds.MO_size_cfg["scale_range"]
@@ -236,54 +302,62 @@ class ColosseumV2Env(BaseEnv):
                 np.random.uniform(*scale_multiplier) * scale[1],
                 np.random.uniform(*scale_multiplier) * scale[2],
             )
-
-        actors = []
-
-        for i in range(self.num_envs):
-            name_i = f"{name}_env:{i}"
-
-            builder = self.scene.create_actor_builder()
-            if color is not None:
-                custom_material = sapien.render.RenderMaterial()
-                custom_material.base_color = color  # Green [R, G, B, A]
-                custom_material.roughness = 0.8
-                custom_material.metallic = 0.0
-                builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=custom_material)
-            else:
-                builder.add_visual_from_file(filename=glb_filepath, scale=scale)
-
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
+        builder = self.scene.create_actor_builder()
+        if pose is not None:
             builder.set_initial_pose(pose)
-            builder.set_scene_idxs([i])
-            if type_ == "dynamic":
-                actor = builder.build_dynamic(name_i)
-            elif type_ == "static":
-                actor = builder.build_static(name_i)
-            elif type_ == "kinematic":
-                actor = builder.build_kinematic(name_i)
-            else:
-                raise ValueError(f"Invalid type: {type_}")
-            self.remove_from_state_dict_registry(actor)
 
-            if object_type == "MO" and self._ds.MO_mass_enabled():
-                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
-                new_mass = (actor.get_mass() * mass_scale).item()
-                actor.set_mass(new_mass)
+        # Visual
+        if color is not None:
+            assert visual_material is None, "color and visual_material cannot be set at the same time"
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color = color  # Green [R, G, B, A]
+            custom_material.roughness = 0.8
+            custom_material.metallic = 0.0
+            builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=custom_material)
+        elif visual_material is not None:
+            assert color is None, "color and visual_material cannot be set at the same time"
+            builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=visual_material)
+        else:
+            builder.add_visual_from_file(filename=glb_filepath, scale=scale)
 
-            actors.append(actor)
+        # Collision
+        if (density is None) and (physical_material is None):
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
+        elif (density is None) and (physical_material is not None):
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material)
+        elif (density is not None) and (physical_material is None):
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, density=density)
+        elif (density is not None) and (physical_material is not None):
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, density=density)
+        else:
+            raise ValueError(f"Unhandled combination of density and physical_material: {density} and {physical_material}")
 
-        actor_merged = Actor.merge(actors, name=name)
-        self.add_to_state_dict_registry(actor_merged)
-        return actor_merged
+        return builder
+
+    def _add_table_to_scene(self):
+        # Create the table and optionally set its color and/or texture
+        if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
+            # Note: you can't add a texture to the table if you've set its color already.
+            add_visual_from_file = not self._ds.table_color_enabled()
+            for i in range(self.num_envs):
+                table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
+                table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"table_env:{i}", add_visual_from_file=add_visual_from_file)
+                self._table_scenes.append(table_scene)
+
+            table_actors = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
+            self.add_to_state_dict_registry(table_actors)
+            _set_color_or_texture(table_actors, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
+        else:
+            self._table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
+            self._table_scene.build()
 
 
-    def load_scene_hook(self, manipulation_object: Optional[Actor], receiving_objects: list[Actor] | None = None):
+    def load_scene_hook(self, manipulation_objects: list[Actor], receiving_objects: list[Actor] | None = None, add_table_to_scene: bool = True):
         """
         This function is called when the scene is loaded.
         Args:
-            scene (ManiSkillScene): The scene to modify.
-            manipulation_object (Optional[Actor]): The manipulation object to modify. Note that this is a wrapper around
-                                                    a sapien.Entity.
+            manipulation_objects (list[Actor]): The manipulation objects to modify.
+            receiving_objects (list[Actor]): The receiving objects to modify.
         """
 
         # New distractor spheres
@@ -309,29 +383,16 @@ class ColosseumV2Env(BaseEnv):
                     builder.set_initial_pose(sapien.Pose())
                     return builder
 
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(self.load_from_builder(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic"))
+                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(
+                    self.add_asset_to_scene(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic", object_type="DISTRACTOR")
+                )
 
-
-        # Create the table and optionally set its color and/or texture
-        if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
-            # Note: you can't add a texture to the table if you've set its color already.
-            add_visual_from_file = not self._ds.table_color_enabled()
-            for i in range(self.num_envs):
-                table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-                table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"table_env:{i}", add_visual_from_file=add_visual_from_file)
-                self._table_scenes.append(table_scene)
-
-            table_actors = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
-            self.add_to_state_dict_registry(table_actors)
-            _set_color_or_texture(table_actors, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
-        else:
-            self._table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-            self._table_scene.build()
-
+        if add_table_to_scene:
+            self._add_table_to_scene()
 
         # Manipulation object
-        if manipulation_object is not None:
-            _set_color_or_texture(manipulation_object, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
+        for mo in manipulation_objects:
+            _set_color_or_texture(mo, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
 
         # Receiving object
         if receiving_objects is not None:

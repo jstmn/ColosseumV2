@@ -58,7 +58,7 @@ class DualArmLiftTrayEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
-        self.tray = self.load_glb_as_actor(self.scene,
+        self.tray = self.add_glb_asset_to_scene(self.scene,
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
                                            sapien.Pose(),
                                            name="tray",
@@ -66,7 +66,7 @@ class DualArmLiftTrayEnv(BaseEnv):
                                            type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static", color=None):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static", color=None):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         if color is not None:

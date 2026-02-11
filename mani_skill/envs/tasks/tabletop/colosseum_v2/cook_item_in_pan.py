@@ -220,70 +220,77 @@ class CookItemInPanEnv(ColosseumV2Env):
         return merged
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-        # Use underlying SAPIEN object to get table Z since GPU sim is not yet initialized
-        raw_table = self.table_scene.table._objs[0]
+        self._add_table_to_scene()
+        raw_table = self._table_scene.table._objs[0]
         table_z = float(raw_table.pose.p[2])
-        self.table_surface_z = table_z + float(self.table_scene.table_height)
+        self.table_surface_z = table_z + float(self._table_scene.table_height)
 
         def _get_stove_builder():
-            builder = self.scene.create_actor_builder()
-            scale = [self.stove_scale] * 3
-            # Use convex collision for OBJ file
-            builder.add_convex_collision_from_file(
-                filename=self.stove_glb_path,
-                scale=scale,
-                pose=self.stove_mesh_pose,
-                density=300.0,
-            )
-            builder.add_visual_from_file(
-                filename=self.stove_glb_path,
-                scale=scale,
-                pose=self.stove_mesh_pose,
-            )
-            builder.initial_pose = sapien.Pose(
+            # builder = self.scene.create_actor_builder()
+            scale = (self.stove_scale, self.stove_scale, self.stove_scale)
+            # # Use convex collision for OBJ file
+            # builder.add_convex_collision_from_file(
+            #     filename=self.stove_glb_path,
+            #     scale=scale,
+            #     pose=self.stove_mesh_pose,
+            #     density=300.0,
+            # )
+            # builder.add_visual_from_file(
+            #     filename=self.stove_glb_path,
+            #     scale=scale,
+            #     pose=self.stove_mesh_pose,
+            # )
+            initial_pose = sapien.Pose(
                 p=[
                     float(self.stove_center_xy[0]),
                     float(self.stove_center_xy[1]),
                     self.table_surface_z + self.stove_bottom_offset + self.stove_z_offset,
                 ]
             )
-            return builder
+            return self.get_glb_asset_builder(
+                glb_filepath=self.stove_glb_path,
+                object_type="RO",
+                density=300.0,
+                scale=scale,
+                pose=initial_pose,
+            )
 
         def _get_pan_builder():
-            builder = self.scene.create_actor_builder()
-            scale = [self.pan_scale] * 3
-            builder.add_multiple_convex_collisions_from_file(
-                filename=self.pan_glb_path,
-                scale=scale,
-                decomposition="coacd",
+            scale = (self.pan_scale, self.pan_scale, self.pan_scale)
+            # builder = self.scene.create_actor_builder()
+            # builder.add_multiple_convex_collisions_from_file(
+            #     filename=self.pan_glb_path,
+            #     scale=scale,
+            #     decomposition="coacd",
+            #     density=300.0,
+            # )
+            # builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
+            # builder.initial_pose = sapien.Pose()
+            # return builder
+            return self.get_glb_asset_builder(
+                glb_filepath=self.pan_glb_path,
+                object_type="MO",
                 density=300.0,
+                scale=scale,
             )
-            builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
-            builder.initial_pose = sapien.Pose()
-            return builder
 
         def _get_food_builder():
-            builder = actors.get_actor_builder(self.scene, id=f"ycb:{self.food_model_id}")
-            builder.initial_pose = sapien.Pose()
-            return builder
+            return self.get_ycb_asset_builder(
+                ycb_id=self.food_model_id,
+                object_type="MO",
+            )
 
-
-        self.stove = self.load_from_builder(_get_stove_builder, name="stove", type_="kinematic")
-        self.pan = self.load_from_builder(_get_pan_builder, name="pan", type_="dynamic")
-        self.food = self.load_from_builder(_get_food_builder, name="food", type_="dynamic")
-        # self.stove = self._build_stove()
-        # self.pan = self._build_pan()
-        # self.food = self._build_ycb_actor(self.food_model_id, "food")
-        self.load_scene_hook(manipulation_object=self.pan, receiving_objects=[self.stove])
+        self.stove = self.add_asset_to_scene(_get_stove_builder, name="stove", type_="kinematic",  object_type="RO")
+        self.pan = self.add_asset_to_scene(_get_pan_builder, name="pan", type_="dynamic",  object_type="MO")
+        self.food = self.add_asset_to_scene(_get_food_builder, name="food", type_="dynamic",  object_type="MO")
+        # self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove], add_table_to_scene=False)
+        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[], add_table_to_scene=False)
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
+            # self.table_scene.initialize(env_idx)
 
             # Initialize robot at pregrasp pose (above pan rim, ready to grasp)
             pregrasp_qpos = np.array([
@@ -357,18 +364,6 @@ class CookItemInPanEnv(ColosseumV2Env):
             & ~is_pan_grasped
             & ~is_food_grasped
         )
-
-        # Live status update (overwrite same line)
-        # status = (
-        #     f"\r[Status] pan_on_stove:{is_pan_on_stove[0].item()} | "
-        #     f"food_in_pan:{is_food_in_pan[0].item()} | "
-        #     f"pan_static:{is_pan_static[0].item()} | "
-        #     f"food_static:{is_food_static[0].item()} | "
-        #     f"pan_grasped:{is_pan_grasped[0].item()} | "
-        #     f"food_grasped:{is_food_grasped[0].item()} | "
-        #     f"SUCCESS:{success[0].item()}    "
-        # )
-        # print(status, end="", flush=True)
 
         return {
             "success": success,

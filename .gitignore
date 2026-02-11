@@ -50,3 +50,5 @@ runs/
 checkpoints/
 
 logs/
+
+*.ply

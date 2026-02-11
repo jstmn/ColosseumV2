@@ -64,19 +64,12 @@ class RaiseCubeEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
 
+        cube_color = np.array([12, 42, 160, 255]) / 255
         def get_cube_builder():
-            cube_builder = self.scene.create_actor_builder()
-            cube_builder.add_box_collision(half_size=[self.cube_half_size] * 3)
-            cube_builder.add_box_visual(
-                half_size=[self.cube_half_size] * 3,
-                material=sapien.render.RenderMaterial(
-                    base_color=np.array([12, 42, 160, 255]) / 255,
-                ),
-            )
-            cube_builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
-            return cube_builder
-        self.cube = self.load_from_builder(get_cube_builder, name="cube", type_="dynamic")
-        self.load_scene_hook(manipulation_object=self.cube)
+            return self.get_box_asset_builder(half_size=[self.cube_half_size] * 3, color=cube_color, object_type="MO")
+
+        self.cube = self.add_asset_to_scene(get_cube_builder, name="cube", type_="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.cube])
 
     @property
     def _default_human_render_camera_configs(self):

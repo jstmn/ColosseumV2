@@ -56,22 +56,21 @@ class PlaceBookEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
 
-        self.shelf = self.load_glb_as_actor(
-            glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
-            pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
-            name="custom_glb_shelf",
-            type_="kinematic",
-            object_type="RO",
-        )
+        def get_shelf_builder():
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
+                object_type="RO",
+            )
 
-        self.book_A = self.load_glb_as_actor(
-            glb_filepath=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
-            pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-            name="book_A",
-            type_="dynamic",
-            object_type="MO",
-        )
-        self.load_scene_hook(manipulation_object=self.book_A, receiving_objects=[self.shelf])
+        def get_book_builder():
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
+                object_type="MO",
+            )
+        
+        self.shelf = self.add_asset_to_scene(get_shelf_builder, name="shelf", type_="kinematic", object_type="RO")
+        self.book_A = self.add_asset_to_scene(get_book_builder, name="book_A", type_="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.book_A], receiving_objects=[self.shelf])
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

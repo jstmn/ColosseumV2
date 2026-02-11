@@ -53,14 +53,14 @@ class DualArmPenCapEnv(BaseEnv):
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_scene(self, options: dict):
-        self.cap = self.load_glb_as_actor(self.scene, 
+        self.cap = self.add_glb_asset_to_scene(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pen_in_cap/cap.glb"),
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         name="cap",
                                         scale=[0.3,0.3,0.2],
                                         type="dynamic")
         
-        self.pen = self.load_glb_as_actor(self.scene,
+        self.pen = self.add_glb_asset_to_scene(self.scene,
                                           os.path.join(PACKAGE_ASSET_DIR, "pen_in_cap/pen.glb"),
                                           sapien.Pose(p=[0.055, -0.158, 0.5], q=[0.854,0.471,0.212,0.068]),
                                           name="pen",
@@ -68,7 +68,7 @@ class DualArmPenCapEnv(BaseEnv):
                                           type="dynamic")
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         builder.add_visual_from_file(glb_filepath, scale=scale)

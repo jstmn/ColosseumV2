@@ -1,4 +1,6 @@
 import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
+from typing import cast
 from termcolor import cprint
 import h5py
 import os
@@ -12,6 +14,7 @@ import numpy as np
 from tqdm import tqdm
 import os.path as osp
 import mani_skill.envs
+from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
 from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveOpenCabinet, solveObjectInCabinet, solvePickCubeFromDrawer, solvePlaceCubeInDrawer
@@ -198,7 +201,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     if args.num_procs > 1:
         new_traj_name = new_traj_name + "." + str(proc_id)
     env = RecordEpisode(
-        env,
+        cast(BaseEnv, env),
         output_dir=osp.join(args.record_dir, env_id, "motionplanning"),
         trajectory_name=new_traj_name, save_video=args.save_video,
         source_type="motionplanning",
@@ -376,10 +379,16 @@ def main(args):
             raise ValueError("Number of trajectories should be greater than or equal to number of processes")
         args.num_traj = args.num_traj // args.num_procs
         seeds = [*range(0, args.num_procs * args.num_traj, args.num_traj)]
-        pool = mp.Pool(args.num_procs)
         proc_args = [(deepcopy(args), i, seeds[i]) for i in range(args.num_procs)]
-        res = pool.starmap(_main, proc_args)
-        pool.close()
+
+        # NOTE:
+        # multiprocessing.Pool uses *daemon* workers, which cannot spawn child
+        # processes. SAPIEN's coacd convex decomposition spawns a child process,
+        # so we use ProcessPoolExecutor instead (workers are non-daemonic).
+        ctx = mp.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=args.num_procs, mp_context=ctx) as ex:
+            res = list(ex.map(_main, *(zip(*proc_args))))
+
         # Merge trajectory files
         output_path = res[0][: -len("0.h5")] + "h5"
         merge_trajectories(output_path, res)

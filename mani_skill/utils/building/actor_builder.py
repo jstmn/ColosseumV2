@@ -197,12 +197,9 @@ class ActorBuilder(SAPIENActorBuilder):
         Different to the original SAPIEN API, a unique name is required here.
         """
         self.set_name(name)
-
-        assert (
-            self.name is not None
-            and self.name != ""
-            and self.name not in self.scene.actors
-        ), "built actors in ManiSkill must have unique names and cannot be None or empty strings"
+        assert self.name is not None, "Name cannot be None"
+        assert self.name != "", f"Name cannot be empty, got {self.name}"
+        assert self.name not in self.scene.actors, f"Name must be unique - got {self.name}, existing actors: {self.scene.actors.keys()}"
 
         if self.scene_idxs is not None:
             self.scene_idxs = common.to_tensor(

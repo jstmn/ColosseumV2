@@ -72,7 +72,7 @@ class RoboCasaDemoEnv(BaseEnv):
         self.cabinet_scene.build(build_config_idxs=[1])
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         builder.add_visual_from_file(glb_filepath, scale=scale)

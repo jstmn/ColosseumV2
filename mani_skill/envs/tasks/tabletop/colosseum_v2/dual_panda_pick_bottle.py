@@ -55,7 +55,7 @@ class DualArmPickBottleEnv(BaseEnv):
 
     
     def _load_scene(self, options: dict):
-        self.obj = self.load_glb_as_actor(self.scene, 
+        self.obj = self.add_glb_asset_to_scene(self.scene, 
                                         os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
                                         sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         name="bottle",
@@ -65,7 +65,7 @@ class DualArmPickBottleEnv(BaseEnv):
     
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_filepath, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
         builder.add_visual_from_file(glb_filepath, scale=scale)
