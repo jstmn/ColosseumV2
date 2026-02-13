@@ -8,14 +8,13 @@ from mani_skill.utils.building import articulations
 import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-import os
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.utils.structs.articulation import Articulation
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
-# 1. Define the Empty Environment
 
 @register_env("DualArmDrawerOpen-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
-class DualArmDrawerOpenEnv(BaseEnv):
+class DualArmDrawerOpenEnv(ColosseumV2Env):
     """
     Two hold the handles of drawer and open the doors.
     Uses PartNet-Mobility dataset (ID 1005).
@@ -26,11 +25,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
     agent: DualPanda # Type hinting for IDE support
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        if self.scene is not None:
-            print(f"Is GPU simulation enabled for this scene? {self.scene.gpu_sim_enabled}")
     
     @property
     def _default_sensor_configs(self):
@@ -46,6 +41,7 @@ class DualArmDrawerOpenEnv(BaseEnv):
                 far=10,
             )
         ]
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -54,20 +50,26 @@ class DualArmDrawerOpenEnv(BaseEnv):
         
 
     def _load_scene(self, options: dict):
-        # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
-        model_id = "1005"
-        builder = articulations.get_articulation_builder(
-            self.scene, f"partnet-mobility:{model_id}"
-        )
-        
-        # Set initial pose to match the previous drawer's location
-        # Position: [0.25, 0, 1.256] (0.456 + 0.8)
-        # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
-        builder.initial_pose = sapien.Pose(
-            p=[0.25, 0, 0.456+0.8], 
-            q=[0.7071, 0, 0, -0.7071]
-        )
-        self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        def get_builder_fn():
+            # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
+            model_id = "1005"
+            builder = articulations.get_articulation_builder(
+                self.scene, f"partnet-mobility:{model_id}"
+            )
+            # Set initial pose to match the previous drawer's location
+            # Position: [0.25, 0, 1.256] (0.456 + 0.8)
+            # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
+            builder.initial_pose = sapien.Pose(
+                p=[0.25, 0, 0.456+0.8], 
+                q=[0.7071, 0, 0, -0.7071]
+            )
+            return builder
+
+        # self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        self.open_cabinet = self.add_asset_to_scene(get_builder_fn, name="drawer", type_="articulation", object_type="MO")
+        assert isinstance(self.open_cabinet, Articulation), "open_cabinet must be an articulation"
+
+        self.load_scene_hook(manipulation_objects=[self.open_cabinet])
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -95,6 +97,8 @@ class DualArmDrawerOpenEnv(BaseEnv):
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(torch.zeros((b, dof), device=self.device))
             self.open_cabinet.set_qvel(torch.zeros((b, dof), device=self.device))
+
+            self.initialize_episode_hook(env_idx)
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -129,13 +133,6 @@ class DualArmDrawerOpenEnv(BaseEnv):
 
         return obs
 
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 # 2. Main Execution Block
 if __name__ == "__main__":

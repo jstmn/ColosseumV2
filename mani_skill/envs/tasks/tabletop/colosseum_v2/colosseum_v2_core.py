@@ -1,6 +1,7 @@
-from typing import Optional, Callable
+from typing import Callable
 import os
 
+from termcolor import cprint
 from sapien.physx import PhysxMaterial
 import numpy as np
 from mani_skill.sensors.camera import CameraConfig
@@ -15,12 +16,13 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 from mani_skill.utils.building.actor_builder import ActorBuilder
 from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
+from mani_skill.utils.building.articulation_builder import ArticulationBuilder
+from mani_skill.utils.structs.articulation import Articulation
 from mani_skill.utils.io_utils import load_json
 from sapien.render import RenderBodyComponent
 from transforms3d.euler import euler2quat
 from mani_skill.utils.structs.actor import Actor
 from mani_skill import ASSET_DIR
-
 
 FLOOR_HEIGHT = -0.920
 
@@ -47,6 +49,12 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
     if isinstance(actor, OpenCabinet):
         for shelf in actor.shelves:
             objs.append(shelf._objs)
+    elif isinstance(actor, Articulation):
+        for obj in actor._objs:
+            for link in obj.links:
+                objs.append(link.entity)
+        cprint(f"WARNING: Articulation {actor.name} is not supported for color/texture randomization, skipping", "yellow")
+        return
     else:
         objs = actor._objs
 
@@ -54,6 +62,7 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
     for obj in objs:
         # modify the i-th object which is in parallel environment i
         render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
+        assert isinstance(render_body_component, RenderBodyComponent), f"render_body_component must be a RenderBodyComponent, got {type(render_body_component)}"
         for render_shape in render_body_component.render_shapes:
             for part in render_shape.parts:
                 # part.material: sapien.core.pysapien.RenderMaterial
@@ -159,7 +168,33 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
-    def add_asset_to_scene(self, get_builder_fn: Callable[[], ActorBuilder], name: str, type_: str, object_type: str) -> Actor:
+    def _add_articulation_to_scene(self, get_builder_fn: Callable[[], ArticulationBuilder], name: str, type_: str, object_type: str) -> Articulation:
+        assert type_ == "articulation", "type_ must be articulation"
+        
+        articulations = []
+        for i in range(self.num_envs):
+            name_i = f"{name}_env:{i}"
+            builder: ArticulationBuilder = get_builder_fn()
+            builder.set_scene_idxs([i])
+            articulation = builder.build(name=name_i)
+
+            if object_type == "MO" and self._ds.MO_mass_enabled():
+                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+                for link in articulation.links:
+                    new_mass = (link.get_mass() * mass_scale).item()
+                    link.set_mass(new_mass)
+
+            self.remove_from_state_dict_registry(articulation)
+            articulations.append(articulation)
+
+        actor = Articulation.merge(articulations, name=name, merge_links=True)
+
+        self.add_to_state_dict_registry(actor)
+        assert isinstance(actor, Actor | Articulation), f"actor must be an actor or articulation, is {type(actor)}"
+        return actor
+
+
+    def add_asset_to_scene(self, get_builder_fn: Callable[[], ActorBuilder | ArticulationBuilder], name: str, type_: str, object_type: str) -> Actor | Articulation:
         """
         def builder_fn():
             builder = self.scene.create_actor_builder()
@@ -176,12 +211,15 @@ class ColosseumV2Env(BaseEnv):
         self.add_asset_to_scene(get_builder_fn, name="cube", type_="dynamic")
         """
         assert object_type in ["MO", "RO", "DISTRACTOR"]
+        if type_ == "articulation":
+            return self._add_articulation_to_scene(get_builder_fn, name, type_, object_type)
 
         actors = []
         for i in range(self.num_envs):
             name_i = f"{name}_env:{i}"
-            builder: ActorBuilder = get_builder_fn()
+            builder: ActorBuilder | ArticulationBuilder = get_builder_fn()
             builder.set_scene_idxs([i])
+            assert isinstance(builder, ActorBuilder), "builder must be an actor builder"
             if type_ == "dynamic":
                 actor = builder.build_dynamic(name=name_i)
             elif type_ == "static":
@@ -193,11 +231,13 @@ class ColosseumV2Env(BaseEnv):
 
             if object_type == "MO" and self._ds.MO_mass_enabled():
                 mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+                assert isinstance(actor, Actor), "actor must be an actor"
                 new_mass = (actor.get_mass() * mass_scale).item()
                 actor.set_mass(new_mass)
 
             self.remove_from_state_dict_registry(actor)
             actors.append(actor)
+
         actor = Actor.merge(actors, name=name)
         self.add_to_state_dict_registry(actor)
         return actor
