@@ -23,9 +23,16 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+
+    IGNORED_VARIATION_FACTORS = [
+        "MO_color_cfg",
+        "RO_color_cfg",
+        "MO_texture_cfg",
+        "RO_texture_cfg",
+    ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):

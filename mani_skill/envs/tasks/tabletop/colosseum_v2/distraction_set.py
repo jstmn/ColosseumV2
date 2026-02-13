@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from termcolor import cprint
 import os
 import numpy as np
 
@@ -95,7 +96,6 @@ class DistractionSet:
             merged_12 = DistractionSet.merge([distraction_sets[0], distraction_sets[1]])
             return DistractionSet.merge([merged_12] + distraction_sets[2:])
 
-
     def MO_color_enabled(self) -> bool:
         return len(self.MO_color_cfg) > 0
 
@@ -149,6 +149,12 @@ class DistractionSet:
                 else:
                     disabled_strs.append(k[:-8])
         return enabled_strs, disabled_strs
+
+    def disable_variation_factors(self, variation_factors: list[str]):
+        for k in variation_factors:
+            setattr(self, f"{k}_cfg", {})
+            cprint(f"WARNING: Variation factor {k} is disabled", "yellow")
+            
 
     def __post_init__(self):
 

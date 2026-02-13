@@ -108,6 +108,8 @@ class ColosseumV2Env(BaseEnv):
             self._ds = distraction_set
         else:
             raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
+        self.ignored_variation_factors = kwargs.pop("ignored_variation_factors", [])
+        self._ds.disable_variation_factors(self.ignored_variation_factors)
 
         # 
         self._human_render_shader = kwargs.pop("human_render_shader", "default")
