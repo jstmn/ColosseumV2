@@ -156,7 +156,7 @@ class PlaceBookEnv(BaseEnv):
             "is_book_grasped": is_book_grasped,
             "is_book_in_shelf": is_book_in_shelf,
             "is_book_static": is_book_static,
-            "success": success.bool()
+            "success": success
         }
 
     def _get_obs_extra(self, info: Dict):
