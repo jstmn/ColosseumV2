@@ -8,24 +8,21 @@ import torch
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 from sapien.physx import PhysxMaterial
-from mani_skill.agents.controllers import PDEEPoseControllerConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+
 
 logger = logging.getLogger(__name__)
 
 
 @register_env("PlaceDishInRack-v1", max_episode_steps=100)
-class PlaceDishInRackEnv(BaseEnv):
+class PlaceDishInRackEnv(ColosseumV2Env):
     """
     **Task Description:**
     Pick up the plate and place it vertically into the upright slots of the dish rack.
@@ -74,8 +71,6 @@ class PlaceDishInRackEnv(BaseEnv):
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         # Use the default robot joint configuration with light noise.
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -124,10 +119,6 @@ class PlaceDishInRackEnv(BaseEnv):
         return obs
 
     def _load_scene(self, options: Dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
 
         # Keep table at default position
         self.table_height_offset = 0.0
@@ -139,103 +130,110 @@ class PlaceDishInRackEnv(BaseEnv):
         self.plate.set_angular_damping(8.0)
         self.dish_rack = self._build_rack()
         self.plate_support = self._build_plate_support()
+        self.load_scene_hook(manipulation_objects=[self.plate], receiving_objects=[self.dish_rack])
+        # ^ self.plate_support ignored b/c i'm not sure if it's actually added
 
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
-        builder = self.scene.create_actor_builder()
+        def get_builder_fn():
+            builder = self.scene.create_actor_builder()
 
-        physical_material = PhysxMaterial(
-            static_friction=20.0,
-            dynamic_friction=20.0,
-            restitution=0.0,
-        )
+            physical_material = PhysxMaterial(
+                static_friction=20.0,
+                dynamic_friction=20.0,
+                restitution=0.0,
+            )
 
-        collision_scale = float(
-            self._plate_outer_radius / self._plate_mesh_source_radius
-        )
-        mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
-        builder.add_multiple_convex_collisions_from_file(
-            filename=str(self._plate_visual_mesh_path),
-            scale=[collision_scale, collision_scale, collision_scale],
-            pose=mesh_pose,
-            material=physical_material,
-            density=self._plate_density,
-            decomposition="coacd",
-        )
-        plate_visual_material = sapien.render.RenderMaterial(
-            base_color=[1.0, 1.0, 1.0, 1.0],
-            specular=0.4,
-            roughness=0.2,
-            metallic=0.0,
-        )
+            collision_scale = float(
+                self._plate_outer_radius / self._plate_mesh_source_radius
+            )
+            mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
+            builder.add_multiple_convex_collisions_from_file(
+                filename=str(self._plate_visual_mesh_path),
+                scale=[collision_scale, collision_scale, collision_scale],
+                pose=mesh_pose,
+                material=physical_material,
+                density=self._plate_density,
+                decomposition="coacd",
+            )
+            plate_visual_material = sapien.render.RenderMaterial(
+                base_color=[1.0, 1.0, 1.0, 1.0],
+                specular=0.4,
+                roughness=0.2,
+                metallic=0.0,
+            )
 
-        builder.add_visual_from_file(
-            filename=str(self._plate_visual_mesh_path),
-            scale=[collision_scale, collision_scale, collision_scale],
-            pose=mesh_pose,
-            material=plate_visual_material,
-        )
+            builder.add_visual_from_file(
+                filename=str(self._plate_visual_mesh_path),
+                scale=[collision_scale, collision_scale, collision_scale],
+                pose=mesh_pose,
+                material=plate_visual_material,
+            )
 
-        builder.initial_pose = sapien.Pose()
-        return builder.build(name="plate")
+            builder.initial_pose = sapien.Pose()
+            return builder
+        return self.add_asset_to_scene(get_builder_fn, name="plate", physics_type="dynamic", object_type="MO")
 
     
     def _build_rack(self):
-        builder = self.scene.create_actor_builder()
+        def get_builder_fn():
+            builder = self.scene.create_actor_builder()
 
-        # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
-        # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
+            # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
+            # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
 
-        # Base plate dimensions (extracted from STL)
-        base_width = 0.180906  # X
-        base_depth = 0.251737  # Y
-        base_thickness = 0.009999  # Z (about 1cm)
-        base_center = [0.004323, 0.007770, -0.057710]
+            # Base plate dimensions (extracted from STL)
+            base_width = 0.180906  # X
+            base_depth = 0.251737  # Y
+            base_thickness = 0.009999  # Z (about 1cm)
+            base_center = [0.004323, 0.007770, -0.057710]
 
-        builder.add_box_collision(
-            half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
-            pose=sapien.Pose(p=base_center)
-        )
-
-        # Vertical divider positions and heights (extracted from STL)
-        rack_width = self._rack_extent[0]  # Width for dividers to span across
-        divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
-        divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
-        divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
-        divider_thickness = 0.003  # 3mm thick
-
-        # Add vertical dividers on top of base
-        # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
-        for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
             builder.add_box_collision(
-                half_size=[rack_width / 2, divider_thickness, height / 2],
-                pose=sapien.Pose(p=[0, y_pos, z_center])
+                half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
+                pose=sapien.Pose(p=base_center)
             )
 
-        # Keep the visual mesh (now centered at origin)
-        builder.add_visual_from_file(
-            filename=str(self._rack_mesh_path),
-            scale=[self._rack_scale] * 3,
-        )
-        builder.initial_pose = sapien.Pose()
-        return builder.build_kinematic(name="dish_rack")
+            # Vertical divider positions and heights (extracted from STL)
+            rack_width = self._rack_extent[0]  # Width for dividers to span across
+            divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+            divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
+            divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
+            divider_thickness = 0.003  # 3mm thick
+
+            # Add vertical dividers on top of base
+            # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
+            for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
+                builder.add_box_collision(
+                    half_size=[rack_width / 2, divider_thickness, height / 2],
+                    pose=sapien.Pose(p=[0, y_pos, z_center])
+                )
+
+            # Keep the visual mesh (now centered at origin)
+            builder.add_visual_from_file(
+                filename=str(self._rack_mesh_path),
+                scale=[self._rack_scale] * 3,
+            )
+            builder.initial_pose = sapien.Pose()
+            return builder
+        return self.add_asset_to_scene(get_builder_fn, name="dish_rack", physics_type="kinematic", object_type="RO")
 
     def _build_plate_support(self):
         if self._plate_support_height <= 0.0:
             return None
-        builder = self.scene.create_actor_builder()
-        builder.add_cylinder_collision(
-            radius=self._plate_support_radius,
-            half_length=self._plate_support_height / 2,
-        )
-        builder.add_cylinder_visual(
-            radius=self._plate_support_radius,
-            half_length=self._plate_support_height / 2,
-            material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0]),
-        )
-        builder.initial_pose = sapien.Pose()
-        support = builder.build_kinematic(name="plate_support")
-        return support
+        def get_builder_fn():
+            builder = self.scene.create_actor_builder()
+            builder.add_cylinder_collision(
+                radius=self._plate_support_radius,
+                half_length=self._plate_support_height / 2,
+            )
+            builder.add_cylinder_visual(
+                radius=self._plate_support_radius,
+                half_length=self._plate_support_height / 2,
+                material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0]),
+            )
+            builder.initial_pose = sapien.Pose()
+            return builder
+        return self.add_asset_to_scene(get_builder_fn, name="plate_support", physics_type="kinematic", object_type="MO")
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
         device = self.device
@@ -274,15 +272,15 @@ class PlaceDishInRackEnv(BaseEnv):
             )
 
 
-            self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
+            # self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
 
             # Compute table top Z for placing objects
-            table_p = self.table_scene.table.pose.p
+            table_p = self.table.pose.p
             if table_p.ndim == 2:
                 table_z = float(table_p[0, 2].cpu())
             else:
                 table_z = float(table_p[2].cpu())
-            table_top_z = table_z + float(self.table_scene.table_height)
+            table_top_z = table_z + float(self._table_scene_builders[0].table_height)
 
             # Set plate position (using pre-computed random values)
             xyz = torch.zeros((b, 3), device=device)
@@ -335,6 +333,8 @@ class PlaceDishInRackEnv(BaseEnv):
             # Reset robot to target position after settling (controller may have drifted during steps)
             self.agent.reset(panda_qpos_above_plate)
 
+            self.initialize_episode_hook(env_idx, mo_pose=plate_pose, ro_pose=rack_pose, qpos_0=panda_qpos_above_plate)
+
     def evaluate(self):
         plate_pos = self.plate.pose.p
         rack_pos = self.dish_rack.pose.p
@@ -383,42 +383,3 @@ class PlaceDishInRackEnv(BaseEnv):
                 tcp_to_plate=plate_pose.p - self.agent.tcp_pose.p,
             )
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict) -> torch.Tensor:
-        """Compute dense reward for the task."""
-        plate_pos = self.plate.pose.p
-        rack_pos = self.dish_rack.pose.p
-        rack_half = torch.tensor(
-            self._rack_extent / 2.0, device=self.device, dtype=plate_pos.dtype
-        )
-        within_x = torch.abs(plate_pos[:, 0] - rack_pos[:, 0]) <= rack_half[0]
-        within_y = torch.abs(plate_pos[:, 1] - rack_pos[:, 1]) <= rack_half[1]
-        plate_within_rack = within_x & within_y
-
-        # Distance reward
-        reaching_reward = plate_within_rack.float()
-
-        # Orientation reward (plate should be vertical)
-        rot_mats = quaternion_to_matrix(self.plate.pose.q)
-        plate_norm = rot_mats[..., 2]
-        vertical_alignment = torch.abs(plate_norm[..., 2])
-        orientation_reward = 1.0 - vertical_alignment
-
-        # Gripper release reward
-        is_grasped = self.agent.is_grasping(self.plate)
-        release_reward = torch.where(
-            plate_within_rack,
-            torch.where(is_grasped, torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device)),
-            torch.tensor(0.0, device=self.device)
-        )
-
-        # Success bonus
-        success = info["success"].float()
-        success_reward = success * 5.0
-
-        reward = reaching_reward + orientation_reward + release_reward + success_reward
-        return reward
-
-    def compute_normalized_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict) -> torch.Tensor:
-        """Compute normalized dense reward."""
-        return self.compute_dense_reward(obs, action, info) / 8.0

@@ -371,9 +371,9 @@ class ColosseumV2Env(BaseEnv):
             builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=custom_material)
         elif visual_material is not None:
             assert color is None, "color and visual_material cannot be set at the same time"
-            builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=visual_material)
+            builder.add_visual_from_file(filename=glb_filepath, scale=scale, material=visual_material, pose=mesh_pose)
         else:
-            builder.add_visual_from_file(filename=glb_filepath, scale=scale)
+            builder.add_visual_from_file(filename=glb_filepath, scale=scale, pose=mesh_pose)
 
         # Collision
         if (density is None) and (physical_material is None):
@@ -499,7 +499,7 @@ class ColosseumV2Env(BaseEnv):
             )
 
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, initialize_table_scene: bool = True):
+    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True):
         
         assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
 
@@ -513,7 +513,7 @@ class ColosseumV2Env(BaseEnv):
 
         if initialize_table_scene:
             for ts in self._table_scene_builders:
-                ts.initialize(env_idx)
+                ts.initialize(env_idx, qpos_0=qpos_0)
 
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():

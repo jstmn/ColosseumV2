@@ -155,7 +155,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
             physical_material=physical_material,
             density=density,
             visual_material=plate_visual_material,
-            initial_pose=sapien.Pose()
+            initial_pose=sapien.Pose(),
+            mesh_pose=mesh_pose,
         )
         return self.add_asset_to_scene(build_plate_fn, name="plate", physics_type="dynamic", object_type="MO")
 
