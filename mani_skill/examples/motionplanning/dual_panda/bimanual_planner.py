@@ -389,8 +389,7 @@ class BimanualPlanner:
                 
                 q = np.clip(q, lower_lim, upper_lim)
         if self.debug:
-            print("❌ IK Failed to converge.")
-        return "Failed"
+            return "Failed"
 
     def plan_dual_arm_grasp(
         self,

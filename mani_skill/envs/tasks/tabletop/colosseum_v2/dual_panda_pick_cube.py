@@ -121,10 +121,10 @@ class DualArmPickCubeEnv(BaseEnv):
         offset_2 = pos_2 - obj_pos
         dist_1 = torch.linalg.norm(offset_1, dim=-1)
         dist_2 = torch.linalg.norm(offset_2, dim=-1)
+        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)
+        success = torch.logical_and(dist_2 <= dist_1, grasped_2)
+        return {"grasping_cube": grasped_2, "success": success}
         
-        success = dist_2 <= dist_1
-        return {"success": success}
-    
     def compute_dense_reward(self, obs, action, info):
         # Return 0 since we are not training RL
         return 0.0
