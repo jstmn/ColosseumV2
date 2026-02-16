@@ -19,7 +19,6 @@ from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.envs.distraction_set import DistractionSet
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
 class HangClothingFrameOnPoleEnv(BaseEnv):
     """
