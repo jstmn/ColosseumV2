@@ -20,7 +20,6 @@ from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 import gymnasium as gym
 
-
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
 class PickSodaFromCabinetEnv(ColosseumV2Env):
     """
@@ -114,20 +113,17 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             body_type="kinematic",
             return_builder=True,
         )
-        self.left = self.add_asset_to_scene(left_builder_fn, name="left", type_="kinematic")
-        self.right = self.add_asset_to_scene(right_builder_fn, name="right", type_="kinematic")
-        self.back = self.add_asset_to_scene(back_builder_fn, name="back", type_="kinematic")
-        # def soda_builder_fn():
-
-        self.soda = self.add_glb_asset_to_scene(
+        soda_builder_fn = lambda: self.get_glb_asset_builder(
             glb_filepath=os.path.join(PACKAGE_ASSET_DIR, "place_soda_in_cabinet/diet_soda.glb"),
-            pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
-            name="soda_can",
-            type_="dynamic",
+            initial_pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             object_type="MO",
             scale=(0.008,0.008,0.008),
         )
-        self.load_scene_hook(manipulation_object=self.soda, receiving_objects=[self.left, self.right, self.back])
+        self.left = self.add_asset_to_scene(left_builder_fn, name="left", physics_type="kinematic", object_type="RO")
+        self.right = self.add_asset_to_scene(right_builder_fn, name="right", physics_type="kinematic", object_type="RO")
+        self.back = self.add_asset_to_scene(back_builder_fn, name="back", physics_type="kinematic", object_type="RO")
+        self.soda = self.add_asset_to_scene(soda_builder_fn, name="soda_can", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.soda], receiving_objects=[self.left, self.right, self.back])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):

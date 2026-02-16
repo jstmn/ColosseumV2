@@ -15,8 +15,6 @@ import os
 from mani_skill.utils.structs import Pose
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
-# 1. Define the Empty Environment
-
 @register_env("DualArmDrawerPlace-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
 class DualArmDrawerPlaceEnv(BaseEnv):
     """

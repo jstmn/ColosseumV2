@@ -73,7 +73,7 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
             return builder
 
         # self.open_cabinet = builder.build(name=f"drawer-{model_id}")
-        self.open_cabinet = self.add_asset_to_scene(get_builder_fn, name="drawer", type_="articulation", object_type="MO")
+        self.open_cabinet = self.add_asset_to_scene(get_builder_fn, name="drawer", physics_type="articulation", object_type="MO")
         assert isinstance(self.open_cabinet, Articulation), "open_cabinet must be an articulation"
 
         self.load_scene_hook(manipulation_objects=[self.open_cabinet])

@@ -6,6 +6,7 @@ import sapien
 import sapien.render
 import torch
 from sapien.physx import PhysxMaterial
+import sapien
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
@@ -14,6 +15,8 @@ from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
+
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +107,7 @@ class PickDishFromRackEnv(ColosseumV2Env):
         self.plate = self._build_plate()
         self.dish_rack = self._build_rack()
         self._plate_gravity_enabled = False
-        self.load_scene_hook(manipulation_object=self.plate, receiving_objects=[self.dish_rack])
+        self.load_scene_hook(manipulation_objects=[self.plate], receiving_objects=[self.dish_rack])
 
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
@@ -145,58 +148,61 @@ class PickDishFromRackEnv(ColosseumV2Env):
         # builder.initial_pose = sapien.Pose()
         # return builder.build(name="plate")
 
-        return self.add_glb_asset_to_scene(
+        build_plate_fn = lambda: self.get_glb_asset_builder(
             glb_filepath=str(self._plate_visual_mesh_path),
-            pose=mesh_pose,
-            name="plate",
-            type_="dynamic",
             object_type="MO",
             scale=collision_scale,
             physical_material=physical_material,
             density=density,
             visual_material=plate_visual_material,
+            initial_pose=sapien.Pose()
         )
+        return self.add_asset_to_scene(build_plate_fn, name="plate", physics_type="dynamic", object_type="MO")
 
     def _build_rack(self):
-        builder = self.scene.create_actor_builder()
+        
+        def rack_builder_fn():
+            builder = self.scene.create_actor_builder()
 
-        # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
-        # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
-        # (Same as place_dish_in_rack.py for consistency)
+            # Collision geometry matching the exact STL mesh: base + 4 vertical dividers
+            # Extracted from dish_rack_with_connectors.stl after 0.0015 scaling
+            # (Same as place_dish_in_rack.py for consistency)
 
-        # Base plate dimensions (extracted from STL)
-        base_width = 0.180906  # X
-        base_depth = 0.251737  # Y
-        base_thickness = 0.009999  # Z (about 1cm)
-        base_center = [0.004323, 0.007770, -0.057710]
+            # Base plate dimensions (extracted from STL)
+            base_width = 0.180906  # X
+            base_depth = 0.251737  # Y
+            base_thickness = 0.009999  # Z (about 1cm)
+            base_center = [0.004323, 0.007770, -0.057710]
 
-        builder.add_box_collision(
-            half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
-            pose=sapien.Pose(p=base_center)
-        )
-
-        # Vertical divider positions and heights (extracted from STL)
-        rack_width = self._rack_extent[0]  # Width for dividers to span across
-        divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
-        divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
-        divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
-        divider_thickness = 0.003  # 3mm thick
-
-        # Add vertical dividers on top of base
-        # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
-        for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
             builder.add_box_collision(
-                half_size=[rack_width / 2, divider_thickness, height / 2],
-                pose=sapien.Pose(p=[0, y_pos, z_center])
+                half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
+                pose=sapien.Pose(p=base_center)
             )
 
-        # Keep the visual mesh (now centered at origin)
-        builder.add_visual_from_file(
-            filename=str(self._rack_mesh_path),
-            scale=[self._rack_scale] * 3,
-        )
-        builder.initial_pose = sapien.Pose()
-        return builder.build_kinematic(name="dish_rack")
+            # Vertical divider positions and heights (extracted from STL)
+            rack_width = self._rack_extent[0]  # Width for dividers to span across
+            divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+            divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
+            divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
+            divider_thickness = 0.003  # 3mm thick
+
+            # Add vertical dividers on top of base
+            # Dividers run in X direction (left-right) so plates slide in from the front (Y direction)
+            for y_pos, height, z_center in zip(divider_y_positions, divider_heights, divider_z_centers):
+                builder.add_box_collision(
+                    half_size=[rack_width / 2, divider_thickness, height / 2],
+                    pose=sapien.Pose(p=[0, y_pos, z_center])
+                )
+
+            # Keep the visual mesh (now centered at origin)
+            builder.add_visual_from_file(
+                filename=str(self._rack_mesh_path),
+                scale=[self._rack_scale] * 3,
+            )
+            builder.initial_pose = sapien.Pose()
+            # return builder.build_kinematic(name="dish_rack")
+            return builder
+        return self.add_asset_to_scene(rack_builder_fn, name="dish_rack", physics_type="kinematic", object_type="RO")
 
 
 
@@ -209,10 +215,10 @@ class PickDishFromRackEnv(ColosseumV2Env):
             b = len(env_idx)
 
             # Get table top Z coordinate
-            table_p_arr = np.asarray(self.table_scene.table.pose.p.cpu()).ravel()
+            table_p_arr = np.asarray(self.table.pose.p.cpu()).ravel()
 
             table_z = float(table_p_arr[-1])
-            table_top_z = table_z + float(self.table_scene.table_height)
+            table_top_z = table_z + float(self.table_scene_builders[0].table_height)
 
             # Position rack on table with Y randomization (symmetric around robot)
             rack_pos = torch.zeros((b, 3), device=device)
@@ -225,50 +231,47 @@ class PickDishFromRackEnv(ColosseumV2Env):
                 rack_pos[i, 1] = torch.rand(1, device=device).item() * (y_max - y_min) + y_min
             rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
 
-            # Compute EE target position above rack center (for grasp approach)
-            # EE should be above the plate which is at rack center, at the top of the vertical plate
-            ee_target_x = rack_pos[0, 0].item()
-            ee_target_y = rack_pos[0, 1].item()
-            ee_target_z = table_top_z + self._plate_outer_radius * 2 + 0.25  # Above plate top + higher clearance
 
             # Use IK to find qpos that places EE at target position
             # Grasp pose: approaching from above (-Z), closing in Y direction
-            from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
-            import sapien
-
             # Initialize table scene first with default qpos
-            self.table_scene.initialize(env_idx)
+            # self._table_scene_builders[env_idx].initialize(env_idx)
 
             # Create a temporary planner to compute IK
-            try:
-                planner = PandaArmMotionPlanningSolver(
-                    self,
-                    debug=False,
-                    vis=False,
-                    base_pose=self.agent.robot.pose,
-                    visualize_target_grasp_pose=False,
-                    print_env_info=False,
-                )
+            # # Compute EE target position above rack center (for grasp approach)
+            # # EE should be above the plate which is at rack center, at the top of the vertical plate
+            # ee_target_x = rack_pos[0, 0].item()
+            # ee_target_y = rack_pos[0, 1].item()
+            # ee_target_z = table_top_z + self._plate_outer_radius * 2 + 0.25  # Above plate top + higher clearance
+            # try:
+            #     planner = PandaArmMotionPlanningSolver(
+            #         self,
+            #         debug=False,
+            #         vis=False,
+            #         base_pose=self.agent.robot.pose,
+            #         visualize_target_grasp_pose=False,
+            #         print_env_info=False,
+            #     )
 
-                # Build target pose above rack
-                approaching = np.array([0, 0, -1])
-                closing = np.array([0, 1, 0])
-                target_pos = np.array([ee_target_x, ee_target_y, ee_target_z])
-                target_pose = self.agent.build_grasp_pose(approaching, closing, target_pos)
+            #     # Build target pose above rack
+            #     approaching = np.array([0, 0, -1])
+            #     closing = np.array([0, 1, 0])
+            #     target_pos = np.array([ee_target_x, ee_target_y, ee_target_z])
+            #     target_pose = self.agent.build_grasp_pose(approaching, closing, target_pos)
 
-                # Compute IK
-                result = planner.planner.IK(target_pose, self.agent.robot.get_qpos()[0, :7].cpu().numpy())
-                if result["status"] == "Success":
-                    pregrasp_qpos = np.array(result["position"])
-                    # Add gripper open position
-                    pregrasp_qpos = np.append(pregrasp_qpos, [0.04, 0.04])
-                    # Re-initialize with computed qpos
-                    self.table_scene.initialize(env_idx, qpos_0=pregrasp_qpos)
+            #     # Compute IK
+            #     result = planner.planner.IK(target_pose, self.agent.robot.get_qpos()[0, :9].cpu().numpy()[None, :])
+            #     if result["status"] == "Success":
+            #         pregrasp_qpos = np.array(result["position"])
+            #         # Add gripper open position
+            #         pregrasp_qpos = np.append(pregrasp_qpos, [0.04, 0.04])
+            #         # Re-initialize with computed qpos
+            #         self.table_scene_builders[env_idx].initialize(env_idx, qpos_0=pregrasp_qpos)
 
-                planner.close()
-            except Exception as e:
-                # If IK fails, just use default initialization
-                pass
+            #     planner.close()
+            # except Exception as e:
+            #     # If IK fails, just use default initialization
+            #     pass
 
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)
@@ -302,6 +305,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
             # Save initial pose so we can hold the plate in place each step
             self._plate_initial_pose = plate_pose
             self._plate_gravity_enabled = False
+        
+            self.initialize_episode_hook(env_idx, mo_pose=plate_pose, ro_pose=rack_pose)
 
     def step(self, action):
         # Zero plate velocity each step to cancel gravity accumulation,
@@ -324,10 +329,10 @@ class PickDishFromRackEnv(ColosseumV2Env):
 
     def evaluate(self):
         plate_pos = self.plate.pose.p
-        table_p_arr = np.asarray(self.table_scene.table.pose.p.cpu()).ravel()
+        table_p_arr = np.asarray(self.table.pose.p.cpu()).ravel()
 
         table_z = float(table_p_arr[-1])
-        table_top_z = table_z + float(self.table_scene.table_height)
+        table_top_z = table_z + float(self.table_scene_builders[0].table_height)
 
         # Check that plate is above table surface
         above_table = plate_pos[:, 2] > table_top_z - 0.01

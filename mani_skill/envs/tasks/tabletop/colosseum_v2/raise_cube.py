@@ -68,7 +68,7 @@ class RaiseCubeEnv(ColosseumV2Env):
         def get_cube_builder():
             return self.get_box_asset_builder(half_size=[self.cube_half_size] * 3, color=cube_color, object_type="MO")
 
-        self.cube = self.add_asset_to_scene(get_cube_builder, name="cube", type_="dynamic", object_type="MO")
+        self.cube = self.add_asset_to_scene(get_cube_builder, name="cube", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.cube])
 
     @property

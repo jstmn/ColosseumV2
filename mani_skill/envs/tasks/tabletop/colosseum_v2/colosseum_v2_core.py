@@ -28,6 +28,8 @@ FLOOR_HEIGHT = -0.920
 
 def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
 
+    assert actor is not None, "actor must be provided, got None"
+
     if not set_color and not set_texture:
         return
 
@@ -115,11 +117,12 @@ class ColosseumV2Env(BaseEnv):
         self._human_render_shader = kwargs.pop("human_render_shader", "default")
 
         # We will use self._table_scenes if the table color or texture is enabled, otherwise the single table_scene
-        self._table_scenes: list[TableSceneBuilder] = []
-        self._table_scene: TableSceneBuilder | None = None
-        self._table_actors: Actor | None = None
+        # self._table_scenes: list[TableSceneBuilder] = []
+        self._table_scene_builders: list[TableSceneBuilder] = []
+        self._table: Actor | None = None
 
         self.robot_init_qpos_noise = robot_init_qpos_noise
+        self._load_scene_hool_called = False
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
 
@@ -154,6 +157,16 @@ class ColosseumV2Env(BaseEnv):
         else:
             super()._load_lighting(options)
 
+    @property
+    def table(self) -> Actor:
+        assert self._table is not None, "table is None"
+        return self._table
+
+    @property
+    def table_scene_builders(self) -> list[TableSceneBuilder]:
+        assert self._table_scene_builders is not None, "table_scene_builders is None"
+        return self._table_scene_builders
+
     def update_camera_configs(self, cfgs: list[CameraConfig]) -> list[CameraConfig]:
         if not self._ds.camera_pose_enabled():
             return cfgs
@@ -170,8 +183,8 @@ class ColosseumV2Env(BaseEnv):
 
         return cfgs
 
-    def _add_articulation_to_scene(self, get_builder_fn: Callable[[], ArticulationBuilder], name: str, type_: str, object_type: str) -> Articulation:
-        assert type_ == "articulation", "type_ must be articulation"
+    def _add_articulation_to_scene(self, get_builder_fn: Callable[[], ArticulationBuilder], name: str, physics_type: str, object_type: str) -> Articulation:
+        assert physics_type == "articulation", "physics_type must be articulation"
         
         articulations = []
         for i in range(self.num_envs):
@@ -196,7 +209,7 @@ class ColosseumV2Env(BaseEnv):
         return actor
 
 
-    def add_asset_to_scene(self, get_builder_fn: Callable[[], ActorBuilder | ArticulationBuilder], name: str, type_: str, object_type: str) -> Actor | Articulation:
+    def add_asset_to_scene(self, get_builder_fn: Callable[[], ActorBuilder | ArticulationBuilder], name: str, physics_type: str, object_type: str) -> Actor | Articulation:
         """
         def builder_fn():
             builder = self.scene.create_actor_builder()
@@ -210,11 +223,11 @@ class ColosseumV2Env(BaseEnv):
             builder.initial_pose = sapien.Pose(p=[0, 0, 0.05])
             return builder
 
-        self.add_asset_to_scene(get_builder_fn, name="cube", type_="dynamic")
+        self.add_asset_to_scene(get_builder_fn, name="cube", physics_type="dynamic")
         """
         assert object_type in ["MO", "RO", "DISTRACTOR"]
-        if type_ == "articulation":
-            return self._add_articulation_to_scene(get_builder_fn, name, type_, object_type)
+        if physics_type == "articulation":
+            return self._add_articulation_to_scene(get_builder_fn, name, physics_type, object_type)
 
         actors = []
         for i in range(self.num_envs):
@@ -222,14 +235,14 @@ class ColosseumV2Env(BaseEnv):
             builder: ActorBuilder | ArticulationBuilder = get_builder_fn()
             builder.set_scene_idxs([i])
             assert isinstance(builder, ActorBuilder), "builder must be an actor builder"
-            if type_ == "dynamic":
+            if physics_type == "dynamic":
                 actor = builder.build_dynamic(name=name_i)
-            elif type_ == "static":
+            elif physics_type == "static":
                 actor = builder.build_static(name=name_i)
-            elif type_ == "kinematic":
+            elif physics_type == "kinematic":
                 actor = builder.build_kinematic(name=name_i)
             else:
-                raise ValueError(f"Invalid type: {type_}")
+                raise ValueError(f"Invalid type: {physics_type}")
 
             if object_type == "MO" and self._ds.MO_mass_enabled():
                 mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
@@ -319,7 +332,8 @@ class ColosseumV2Env(BaseEnv):
         density: float | None = None,
         physical_material: PhysxMaterial | None = None,
         visual_material: sapien.render.RenderMaterial | None = None,
-        pose: sapien.Pose | None = None,
+        initial_pose: sapien.Pose = sapien.Pose(),
+        mesh_pose: sapien.Pose = sapien.Pose(),
     ):
         """Load GLB file as a static actor in the scene"""
         assert object_type in ["MO", "RO"]
@@ -345,8 +359,7 @@ class ColosseumV2Env(BaseEnv):
                 np.random.uniform(*scale_multiplier) * scale[2],
             )
         builder = self.scene.create_actor_builder()
-        if pose is not None:
-            builder.set_initial_pose(pose)
+        builder.set_initial_pose(initial_pose)
 
         # Visual
         if color is not None:
@@ -364,13 +377,13 @@ class ColosseumV2Env(BaseEnv):
 
         # Collision
         if (density is None) and (physical_material is None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, pose=mesh_pose)
         elif (density is None) and (physical_material is not None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material)
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, pose=mesh_pose)
         elif (density is not None) and (physical_material is None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, density=density)
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, density=density, pose=mesh_pose)
         elif (density is not None) and (physical_material is not None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, density=density)
+            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, density=density, pose=mesh_pose)
         else:
             raise ValueError(f"Unhandled combination of density and physical_material: {density} and {physical_material}")
 
@@ -384,14 +397,15 @@ class ColosseumV2Env(BaseEnv):
             for i in range(self.num_envs):
                 table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
                 table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"table_env:{i}", add_visual_from_file=add_visual_from_file)
-                self._table_scenes.append(table_scene)
+                self._table_scene_builders.append(table_scene)
 
-            table_actors = Actor.merge([ts.table for ts in self._table_scenes], name="table_scene")
-            self.add_to_state_dict_registry(table_actors)
-            _set_color_or_texture(table_actors, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
+            self._table = Actor.merge([ts.table for ts in self._table_scene_builders], name="table_scene")
+            self.add_to_state_dict_registry(self._table)
+            _set_color_or_texture(self._table, self._ds.table_color_cfg, self._ds.table_texture_cfg, self._ds.table_color_enabled(), self._ds.table_texture_enabled())
         else:
-            self._table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-            self._table_scene.build()
+            self._table_scene_builders = [TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)]
+            self._table_scene_builders[0].build()
+            self._table = self._table_scene_builders[0].table
 
 
     def load_scene_hook(self, manipulation_objects: list[Actor], receiving_objects: list[Actor] | None = None, add_table_to_scene: bool = True):
@@ -401,6 +415,7 @@ class ColosseumV2Env(BaseEnv):
             manipulation_objects (list[Actor]): The manipulation objects to modify.
             receiving_objects (list[Actor]): The receiving objects to modify.
         """
+        self._load_scene_hool_called = True
 
         # New distractor spheres
         # TODO: Add YCB objects
@@ -426,7 +441,7 @@ class ColosseumV2Env(BaseEnv):
                     return builder
 
                 self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(
-                    self.add_asset_to_scene(get_sphere_builder, name=f"distractor_sphere_{i}", type_="dynamic", object_type="DISTRACTOR")
+                    self.add_asset_to_scene(get_sphere_builder, name=f"distractor_sphere_{i}", physics_type="dynamic", object_type="DISTRACTOR")
                 )
 
         if add_table_to_scene:
@@ -434,11 +449,13 @@ class ColosseumV2Env(BaseEnv):
 
         # Manipulation object
         for mo in manipulation_objects:
+            assert mo is not None, "mo must be provided, got None"
             _set_color_or_texture(mo, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
 
         # Receiving object
         if receiving_objects is not None:
             for ro in receiving_objects:
+                assert ro is not None, "ro must be provided, got None"
                 _set_color_or_texture(ro, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
 
         if self._ds.background_texture_enabled() or self._ds.background_color_enabled():
@@ -481,20 +498,22 @@ class ColosseumV2Env(BaseEnv):
                 use_single_texture_or_texture=True,
             )
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None):
+
+    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, initialize_table_scene: bool = True):
+        
+        assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
+
         if mo_pose is not None:
             assert mo_pose.shape[0] == self.num_envs
             assert mo_pose.shape[1] >= 2, f"mo_pose must have at least 2 dimensions, got {mo_pose.shape[1]}"
         if ro_pose is not None:
             assert ro_pose.shape[0] == self.num_envs
             assert ro_pose.shape[1] >= 2, f"ro_pose must have at least 2 dimensions, got {ro_pose.shape[1]}"
-        
-        if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
-            for ts in self._table_scenes:
+
+
+        if initialize_table_scene:
+            for ts in self._table_scene_builders:
                 ts.initialize(env_idx)
-        else:
-            assert self._table_scene is not None, "Table has not been built yet"
-            self._table_scene.initialize(env_idx)
 
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():

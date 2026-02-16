@@ -59,6 +59,7 @@ MP_SOLUTIONS = {
     "OpenCabinet-v1": solveOpenCabinet,
     "ObjectInCabinet-v1": solveObjectInCabinet,
     "PlaceCubeInDrawer-v1": solvePlaceCubeInDrawer,
+    "StackCubeColosseumV2-v1": solveStackCube,
     # Bimanual
     "DualArmPickCube-v1": solveBimanualPassCube,
     "DualArmLiftPot-v1": solveBimanualLiftPot,
