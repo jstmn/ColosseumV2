@@ -176,15 +176,15 @@ class PickCubeFromDrawerEnv(BaseEnv):
             name="handle_link",
         )
 
+        handle_pos_list = [
+            meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
+            if meshes[link_ids[i] % len(meshes)] is not None
+            else [0, 0, 0]
+            for i, meshes in enumerate(handle_links_meshes)
+        ]
+        # Expand to num_envs (single model replicated across all parallel envs)
         self.handle_link_pos = common.to_tensor(
-            np.array(
-                [
-                    meshes[link_ids[i] % len(meshes)].bounding_box.center_mass
-                    if meshes[link_ids[i] % len(meshes)] is not None
-                    else [0, 0, 0]
-                    for i, meshes in enumerate(handle_links_meshes)
-                ]
-            ),
+            np.array(handle_pos_list * self.num_envs),
             device=self.device,
         )
 
@@ -205,11 +205,14 @@ class PickCubeFromDrawerEnv(BaseEnv):
                     joint.set_drive_properties(stiffness=100.0, damping=50.0)
 
     def _after_reconfigure(self, options):
-        self.cabinet_zs = []
+        cabinet_zs = []
         for cabinet in self._cabinets:
             collision_mesh = cabinet.get_first_collision_mesh()
-            self.cabinet_zs.append(-collision_mesh.bounding_box.bounds[0, 2])
-        self.cabinet_zs = common.to_tensor(self.cabinet_zs, device=self.device)
+            cabinet_zs.append(-collision_mesh.bounding_box.bounds[0, 2])
+        # Expand to num_envs (single model replicated across all parallel envs)
+        self.cabinet_zs = common.to_tensor(
+            cabinet_zs * self.num_envs, device=self.device
+        )
 
         target_qlimits = self.handle_link.joint.limits
         qmin, qmax = target_qlimits[..., 0], target_qlimits[..., 1]
