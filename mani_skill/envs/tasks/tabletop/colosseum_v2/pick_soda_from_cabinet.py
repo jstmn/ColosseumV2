@@ -21,7 +21,6 @@ from mani_skill.envs.distraction_set import DistractionSet
 import gymnasium as gym
 
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
 class PickSodaFromCabinetEnv(BaseEnv):
     """
