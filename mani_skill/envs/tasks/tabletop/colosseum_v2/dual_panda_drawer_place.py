@@ -16,7 +16,7 @@ from mani_skill.utils.structs import Pose
 from mani_skill.envs.distraction_set import DistractionSet
 
 # 1. Define the Empty Environment
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 
 @register_env("DualArmDrawerPlace-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
 class DualArmDrawerPlaceEnv(BaseEnv):
