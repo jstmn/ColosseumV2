@@ -225,7 +225,7 @@ class ColosseumV2Env(BaseEnv):
 
         self.add_asset_to_scene(get_builder_fn, name="cube", physics_type="dynamic")
         """
-        assert object_type in ["MO", "RO", "DISTRACTOR"]
+        assert object_type in ["MO", "RO", "DISTRACTOR", "BACKGROUND"]
         if physics_type == "articulation":
             return self._add_articulation_to_scene(get_builder_fn, name, physics_type, object_type)
 

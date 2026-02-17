@@ -294,6 +294,7 @@ def build_twocolor_peg(
     add_collision: bool = True,
     scene_idxs: Optional[Array] = None,
     initial_pose: Optional[Union[Pose, sapien.Pose]] = None,
+    return_builder: bool = False,
 ):
     builder = scene.create_actor_builder()
     if add_collision:
@@ -314,6 +315,8 @@ def build_twocolor_peg(
             base_color=color_2,
         ),
     )
+    if return_builder:
+        return builder
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 
 

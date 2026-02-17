@@ -13,12 +13,11 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 @register_env("RotateArrow-v1", max_episode_steps=50)
-class RotateArrowEnv(BaseEnv):
+class RotateArrowEnv(ColosseumV2Env):
     """
     **Task Description:**
     The goal is to pick up a book and place it inside a shelf with other books already in it.
@@ -49,8 +48,6 @@ class RotateArrowEnv(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
         # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"
@@ -72,35 +69,43 @@ class RotateArrowEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0])) # Loads the panda arm
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
         # All values obtained carefully from blender
-        self.arrow = self.add_glb_asset_to_scene(self.scene, 
-                                            os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"), 
-                                            sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
-                                            name="arrow",
-                                            type="dynamic")
-
-
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, type="static"):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])
+        # self.arrow = self.add_glb_asset_to_scene(self.scene, 
+        #                                     os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"), 
+        #                                     sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
+        #                                     name="arrow",
+        #                                     type="dynamic")
         custom_material = sapien.render.RenderMaterial()
         custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
-            #     builder.add_visual_from_file(glb_filepath)
-        builder.add_visual_from_file(glb_filepath, material=custom_material)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
+
+        arrow_builder = lambda: self.get_glb_asset_builder(
+            glb_filepath=os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"),
+            object_type="MO",
+            initial_pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]),
+            visual_material=custom_material,
+        )
+        self.arrow = self.add_asset_to_scene(arrow_builder, name="arrow", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.arrow])
+
+
+
+    # @staticmethod
+    # def add_glb_asset_to_scene(scene, glb_filepath, pose, name, type="static"):
+    #     """Load GLB file as a static actor in the scene"""
+    #     builder = scene.create_actor_builder()
+    #     # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])
+    #     custom_material = sapien.render.RenderMaterial()
+    #     custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
+    #         #     builder.add_visual_from_file(glb_filepath)
+    #     builder.add_visual_from_file(glb_filepath, material=custom_material)
+    #     builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
         
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
+    #     builder.set_initial_pose(pose)
+    #     if type=="dynamic":
+    #         actor = builder.build_dynamic(name)
+    #     else:
+    #         actor = builder.build_static(name)
+    #     return actor
 
     def quat_to_z_euler(self, quats):
         # sxyz convention, we want the z-axis rotation
@@ -117,7 +122,6 @@ class RotateArrowEnv(BaseEnv):
 
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx, qpos_0=qpos0)
             # setting the goal tee position, which is fixed, offset from center, and slightly rotated
             target_region_xyz = torch.zeros((b, 3))
 
@@ -148,6 +152,8 @@ class RotateArrowEnv(BaseEnv):
             obj_pose = Pose.create_from_pq(p=target_region_xyz, q=q)
             self.arrow.set_pose(obj_pose)
 
+            self.initialize_episode_hook(env_idx, mo_pose=obj_pose, qpos_0=qpos0)
+
 
     def evaluate(self):
         arrow_z_eulers = self.quat_to_z_euler(self.arrow.pose.q)
@@ -166,16 +172,3 @@ class RotateArrowEnv(BaseEnv):
                 obj_pose=self.arrow.pose.raw_pose,
             )
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        arrow_z_eulers = self.quat_to_z_euler(self.arrow.pose.q)
-        rot_rew = (arrow_z_eulers - self.init_angle+torch.pi).cos()
-        reward = (rot_rew + 1) / 2
-        reward[info["success"]] = 3
-        return reward
-
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / 1

@@ -4,7 +4,7 @@ from .pick_banana_from_open_drawer import PickBananaFromOpenDrawerEnv
 from .place_apple_on_plate import PlaceAppleOnPlateEnv
 from .place_lightbulb_socket import PickLightbulbPlaceSocketEnv
 from .pick_cube_from_drawer import PickCubeFromDrawerEnv
-from .peg_insertion_side_v2 import PegInsertionSideV2Env
+from .peg_insertion_side_v2 import PegInsertionSideColosseumV2
 from .dual_panda_stack_cube import TwoRobotStackCube
 from .place_dish_in_rack import PlaceDishInRackEnv
 from .pick_dish_from_rack import PickDishFromRackEnv
@@ -31,3 +31,5 @@ from .pick_soda_from_cabinet import PickSodaFromCabinetEnv
 from .book_in_shelf import PlaceBookEnv
 from .rotate_arrow import RotateArrowEnv
 from .stack_cube_cv2 import StackCubeColosseumV2Env
+from .lift_peg_upright_cv2 import LiftPegUprightColosseumV2Env
+from .plug_charger_v2 import PlugChargerColosseumV2Env

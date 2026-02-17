@@ -54,12 +54,14 @@ MP_SOLUTIONS = {
     "PlaceDishInRack-v1": solvePlaceDishInRack, # new
     "PickDishFromRack-v1": solvePickDishFromRack, # new
     "PourSphere-v1": solvePourSphere, # new
-    "PegInsertionSide-v2": solvePegInsertionSide, # new
+    "PegInsertionSideColosseumV2-v1": solvePegInsertionSide, # new
+    "PlugChargerColosseumV2-v1": solvePlugCharger, # new
     "HammerNail-v1": solveHammerNail,
     "OpenCabinet-v1": solveOpenCabinet,
     "ObjectInCabinet-v1": solveObjectInCabinet,
     "PlaceCubeInDrawer-v1": solvePlaceCubeInDrawer,
     "StackCubeColosseumV2-v1": solveStackCube,
+    "LiftPegUprightColosseumV2-v1": solveLiftPegUpright,
     # Bimanual
     "DualArmPickCube-v1": solveBimanualPassCube,
     "DualArmLiftPot-v1": solveBimanualLiftPot,
@@ -86,7 +88,7 @@ ENV_ID="PlaceDishInRack-v1"
 ENV_ID="LiftPegUpright-v1"
 ENV_ID="RotateArrow-v1"
 ENV_ID="PegInsertionSide-v2"
-ENV_ID="PlugCharger-v1"
+ENV_ID="PlugChargerColosseumV2-v1"
 ENV_ID="HammerNail-v1"
 ENV_ID="ScoopBanana-v1"
 ENV_ID="OpenDrawer-v1"
@@ -219,7 +221,9 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     solution_episode_lengths = []
     failed_motion_plans = 0
     passed = 0
+    counter = 0
     while True:
+        counter += 1
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
         res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
         # try:
@@ -250,19 +254,20 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             if args.save_video:
                 env.flush_video(name=f"{new_traj_name}___n:{len(successes)}")
             pbar.update(1)
-            pbar.set_postfix(
-                dict(
-                    success_pct=f"{np.mean(successes) * 100:.2f}%",
-                    failed_motion_plan_pct=f"{failed_motion_plans / (seed + 1) * 100:.2f}%",
-                    avg_episode_length=np.mean(solution_episode_lengths),
-                    max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
-                    min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
-                )
-            )
             seed += 1
             passed += 1
             if passed == args.num_traj:
                 break
+
+        pbar.set_postfix(
+            dict(
+                success_pct=f"{100 - (failed_motion_plans / counter * 100):.2f}%",
+                failed_motion_plan_pct=f"{failed_motion_plans / counter * 100:.2f}%",
+                avg_episode_length=np.mean(solution_episode_lengths),
+                max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
+                min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
+            )
+        )
     env.close()
 
     print()

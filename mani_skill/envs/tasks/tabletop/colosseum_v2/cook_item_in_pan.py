@@ -283,7 +283,7 @@ class CookItemInPanEnv(ColosseumV2Env):
         self.stove = self.add_asset_to_scene(_get_stove_builder, name="stove", physics_type="kinematic",  object_type="RO")
         self.pan = self.add_asset_to_scene(_get_pan_builder, name="pan", physics_type="dynamic",  object_type="MO")
         self.food = self.add_asset_to_scene(_get_food_builder, name="food", physics_type="dynamic",  object_type="MO")
-        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove], add_table_to_scene=False)
+        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
 
