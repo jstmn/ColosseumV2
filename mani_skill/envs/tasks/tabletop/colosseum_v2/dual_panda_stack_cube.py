@@ -5,7 +5,6 @@ import sapien
 import torch
 from transforms3d.euler import euler2quat
 import gymnasium as gym
-from mani_skill.agents.multi_agent import MultiAgent
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils.randomization.pose import random_quaternions
@@ -13,13 +12,11 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 @register_env("DualArmStackCube-v1", max_episode_steps=100)
-class TwoRobotStackCube(BaseEnv):
+class TwoRobotStackCube(ColosseumV2Env):
     """
     **Task Description:**
     A collaborative task where two robot arms need to work together to stack two cubes. One robot must pick up the green cube and place it on the target region, while the other robot picks up the blue cube and stacks it on top of the green cube.
@@ -41,21 +38,22 @@ class TwoRobotStackCube(BaseEnv):
 
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/TwoRobotStackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda
 
     goal_radius = 0.06
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
 
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.0 + 0.83]) # 0.83: height of the table
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -65,7 +63,8 @@ class TwoRobotStackCube(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -74,21 +73,30 @@ class TwoRobotStackCube(BaseEnv):
 
     def _load_scene(self, options: dict):
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-        self.cubeA = actors.build_cube(
-            self.scene,
-            half_size=0.02,
-            color=np.array([12, 42, 160, 255]) / 255,
-            name="cubeA",
-            initial_pose=sapien.Pose(p=[1, 0, 0.02]),
-        )
-        self.cubeB = actors.build_cube(
-            self.scene,
-            half_size=0.02,
-            color=[0, 1, 0, 1],
-            name="cubeB",
-            initial_pose=sapien.Pose(p=[-1, 0, 0.02]),
-        )
-        self.goal_region = actors.build_red_white_target(
+        # self.cubeA = actors.build_cube(
+        #     self.scene,
+        #     half_size=0.02,
+        #     color=np.array([12, 42, 160, 255]) / 255,
+        #     name="cubeA",
+        #     initial_pose=sapien.Pose(p=[1, 0, 0.02]),
+        # )
+        # self.cubeB = actors.build_cube(
+        #     self.scene,
+        #     half_size=0.02,
+        #     color=[0, 1, 0, 1],
+        #     name="cubeB",
+        #     initial_pose=sapien.Pose(p=[-1, 0, 0.02]),
+        # )
+        # self.goal_region = actors.build_red_white_target(
+        #     self.scene,
+        #     radius=self.goal_radius,
+        #     thickness=1e-5,
+        #     name="goal_region",
+        #     add_collision=False,
+        #     body_type="kinematic",
+        #     initial_pose=sapien.Pose(),
+        # )
+        goal_region_builder = lambda: actors.build_red_white_target(
             self.scene,
             radius=self.goal_radius,
             thickness=1e-5,
@@ -96,7 +104,22 @@ class TwoRobotStackCube(BaseEnv):
             add_collision=False,
             body_type="kinematic",
             initial_pose=sapien.Pose(),
+            return_builder=True,
         )
+        cubeA_builder = lambda: self.get_box_asset_builder(
+            half_size=(0.02, 0.02, 0.02),
+            color=[1, 0, 0, 1],
+            object_type="MO",
+        )
+        cubeB_builder = lambda: self.get_box_asset_builder(
+            half_size=(0.02, 0.02, 0.02),
+            color=[0, 1, 0, 1],
+            object_type="MO",
+        )
+        self.cubeA = self.add_asset_to_scene(cubeA_builder, name="cubeA", physics_type="dynamic", object_type="MO")
+        self.cubeB = self.add_asset_to_scene(cubeB_builder, name="cubeB", physics_type="dynamic", object_type="MO")
+        self.goal_region = self.add_asset_to_scene(goal_region_builder, name="goal_region", physics_type="kinematic", object_type="RO")
+        self.load_scene_hook(manipulation_objects=[self.cubeA, self.cubeB], receiving_objects=[self.goal_region])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -138,6 +161,7 @@ class TwoRobotStackCube(BaseEnv):
                     q=euler2quat(0, np.pi / 2, 0),
                 )
             )
+            self.initialize_episode_hook(mo_pose=self.cubeA.pose, env_idx=env_idx)
 
     def _initialize_agent(self):
         # Reset the robot to a neutral position
@@ -190,14 +214,6 @@ class TwoRobotStackCube(BaseEnv):
             "success": success,
         }
 
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
-        return 0.0
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: dict
-    ):
-        return 0.0
 
 if __name__ == "__main__":
     # Now you can load this safe environment

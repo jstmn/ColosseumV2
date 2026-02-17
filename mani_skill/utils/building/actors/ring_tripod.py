@@ -10,6 +10,7 @@ import sapien
 from sapien import Pose
 from typing import Optional
 
+from mani_skill.utils.building.actor_builder import ActorBuilder
 
 def build_ring_tripod(
     scene: sapien.Scene,
@@ -23,7 +24,8 @@ def build_ring_tripod(
     density: float = 1000.0,
     color: Optional[np.ndarray] = None,
     initial_pose: Optional[Pose] = None,
-) -> sapien.Entity:
+    return_builder: bool = False,
+) -> ActorBuilder | sapien.Entity:
     """
     Build a ring tripod actor - a square base with a vertical pole and a ring at the top.
     Used for needle threading tasks.
@@ -191,6 +193,9 @@ def build_ring_tripod(
     if initial_pose is None:
         initial_pose = sapien.Pose(p=[0, 0, 0])
     builder.initial_pose = initial_pose
+
+    if return_builder:
+        return builder
     
     # Build and return the actor
     return builder.build(name=name)

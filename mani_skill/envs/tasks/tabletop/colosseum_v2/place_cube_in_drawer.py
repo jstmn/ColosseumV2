@@ -16,7 +16,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 CABINET_COLLISION_BIT = 29
 
@@ -26,7 +26,7 @@ CABINET_COLLISION_BIT = 29
     asset_download_ids=["partnet_mobility_cabinet"],
     max_episode_steps=200,
 )
-class PlaceCubeInDrawerEnv(BaseEnv):
+class PlaceCubeInDrawerEnv(ColosseumV2Env):
     """
     **Task Description:**
     Open a drawer, pick up a cube from the table, and place it inside the drawer.
@@ -47,6 +47,12 @@ class PlaceCubeInDrawerEnv(BaseEnv):
 
     CUBE_HALF_SIZE = 0.035
 
+    IGNORED_VARIATION_FACTORS = [
+        "MO_color",
+        "MO_texture",
+        "MO_mass",
+    ]
+
     def __init__(
         self,
         *args,
@@ -54,8 +60,6 @@ class PlaceCubeInDrawerEnv(BaseEnv):
         robot_init_qpos_noise=0.0,
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 45427  # Same cabinet as PickCubeFromDrawer
 
@@ -85,7 +89,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.15, 0.5, 0.8], target=[-0.1, 0.0, 0.1])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -95,24 +99,20 @@ class PlaceCubeInDrawerEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     def _load_agent(self, options: dict):
         # Robot positioned perpendicular to cabinet (at -Y, facing +Y)
         super()._load_agent(options, sapien.Pose(p=[0, -0.615, 0]))
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-
-        sapien.set_log_level("off")
         self._load_cabinets(self.handle_types)
-        sapien.set_log_level("warn")
         self._hidden_objects.append(self.handle_link_goal)
 
-        self._load_cube()
+        cube_builder = lambda: self._load_cube()
+        self.cube = self.add_asset_to_scene(cube_builder, name="cube", physics_type="dynamic", object_type="MO")
+
+        self.load_scene_hook(manipulation_objects=[self.cube])
 
     def _load_cube(self):
         # Build cube with high friction so it stays in drawer
@@ -131,7 +131,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
             material=sapien.render.RenderMaterial(base_color=[1, 0, 0, 1]),
         )
         builder.set_initial_pose(sapien.Pose(p=[0, 0, self.CUBE_HALF_SIZE]))
-        self.cube = builder.build(name="cube")
+        return builder
 
     def _load_cabinets(self, joint_types: List[str]):
         # Use the bottom drawer (same as PickCubeFromDrawer)
@@ -270,7 +270,6 @@ class PlaceCubeInDrawerEnv(BaseEnv):
                 -0.6512154340744019, 2.07772159576416, -1.7972638607025146,
                 0.04, 0.04  # gripper open
             ])
-            self.table_scene.initialize(env_idx, qpos_0=pregrasp_qpos)
 
             if self.gpu_sim_enabled:
                 self.scene._gpu_apply_all()
@@ -284,6 +283,8 @@ class PlaceCubeInDrawerEnv(BaseEnv):
 
             # Place cube on table (NOT in drawer - this is the key difference)
             self._place_cube_on_table(env_idx)
+
+            self.initialize_episode_hook(env_idx, mo_pose=self.cube.pose, qpos_0=pregrasp_qpos)
 
     def _place_cube_on_table(self, env_idx: torch.Tensor):
         """Place cube on the table with random position offset."""
@@ -369,50 +370,3 @@ class PlaceCubeInDrawerEnv(BaseEnv):
                 tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
             )
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        tcp_pos = self.agent.tcp.pose.p
-        handle_pos = info["handle_link_pos"]
-        cube_pos = self.cube.pose.p
-
-        reward = torch.zeros(self.num_envs, device=self.device)
-
-        # Phase 1: Reach and open drawer
-        tcp_to_handle = torch.linalg.norm(tcp_pos - handle_pos, axis=1)
-        reach_handle_reward = 1 - torch.tanh(5.0 * tcp_to_handle)
-        reward += reach_handle_reward
-
-        # Drawer opening reward
-        drawer_reward = info["drawer_open_pct"] * 2.0
-        reward += drawer_reward
-
-        # Phase 2: After drawer is open, reach cube
-        is_open = info["is_drawer_open"]
-        tcp_to_cube = torch.linalg.norm(tcp_pos - cube_pos, axis=1)
-        reach_cube_reward = (1 - torch.tanh(5.0 * tcp_to_cube)) * is_open.float()
-        reward += reach_cube_reward
-
-        # Grasp reward
-        is_grasping = info["is_cube_grasped"]
-        grasp_reward = is_grasping.float() * is_open.float()
-        reward += grasp_reward
-
-        # Phase 3: Move cube to drawer
-        drawer_center = handle_pos.clone()
-        drawer_center[..., 1] -= 0.12
-        cube_to_drawer = torch.linalg.norm(cube_pos - drawer_center, axis=1)
-        place_reward = (1 - torch.tanh(5.0 * cube_to_drawer)) * is_grasping.float()
-        reward += place_reward
-
-        # Cube in drawer bonus
-        reward += info["is_cube_in_drawer"].float() * 2.0
-
-        # Success bonus
-        reward[info["success"]] = 10.0
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        return self.compute_dense_reward(obs, action, info) / 10.0

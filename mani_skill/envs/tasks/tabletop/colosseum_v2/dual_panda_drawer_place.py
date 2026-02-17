@@ -1,24 +1,22 @@
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
+import torch
+
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.building import actors
 from mani_skill.utils.building import articulations
-import torch
+
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-import os
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
-# 1. Define the Empty Environment
 
 @register_env("DualArmDrawerPlace-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
-class DualArmDrawerPlaceEnv(BaseEnv):
+class DualArmDrawerPlaceEnv(ColosseumV2Env):
     """
     Uses PartNet-Mobility dataset (ID 1005).
     """
@@ -26,18 +24,20 @@ class DualArmDrawerPlaceEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+        "RO_color_cfg",
+        "RO_texture_cfg",
+    ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        if self.scene is not None:
-            print(f"Is GPU simulation enabled for this scene? {self.scene.gpu_sim_enabled}")
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[0.1, 0, 0.1+0.83])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -47,7 +47,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -57,29 +57,36 @@ class DualArmDrawerPlaceEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
         # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
-        model_id = "1005"
-        builder = articulations.get_articulation_builder(
-            self.scene, f"partnet-mobility:{model_id}"
-        )
-        
-        # Set initial pose to match the previous drawer's location
-        # Position: [0.25, 0, 1.256] (0.456 + 0.8)
-        # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
-        builder.initial_pose = sapien.Pose(
-            p=[0.25, 0, 0.456+0.8], 
-            q=[0.7071, 0, 0, -0.7071]
-        )
-        self.obj = actors.build_cube(
+        def get_drawer_builder_fn():
+            model_id = "1005"
+            builder = articulations.get_articulation_builder(
+                self.scene, f"partnet-mobility:{model_id}"
+            )
+            
+            # Set initial pose to match the previous drawer's location
+            # Position: [0.25, 0, 1.256] (0.456 + 0.8)
+            # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
+            builder.initial_pose = sapien.Pose(
+                p=[0.25, 0, 0.456+0.8], 
+                q=[0.7071, 0, 0, -0.7071]
+            )
+            return builder
+        self.open_cabinet = self.add_asset_to_scene(get_drawer_builder_fn, name="drawer", physics_type="articulation", object_type="MO")
+
+        obj_builder = lambda: actors.build_cube(
             self.scene,
             half_size=self.cube_half_size,
             color=np.array([12, 42, 160, 255]) / 255,
             name="cube",
             body_type="dynamic",
             initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
+            return_builder=True,
         )
-        scene_idxs = [i for i in range(self.num_envs)]
-        builder.set_scene_idxs(scene_idxs=scene_idxs)
-        self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        self.obj = self.add_asset_to_scene(obj_builder, name="cube", physics_type="dynamic", object_type="MO")
+        # scene_idxs = [i for i in range(self.num_envs)]
+        # builder.set_scene_idxs(scene_idxs=scene_idxs)
+        # self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        self.load_scene_hook(manipulation_objects=[self.obj], receiving_objects=[self.open_cabinet])
     
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -115,7 +122,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
             # Close the drawers
             self.open_cabinet.set_qpos(torch.zeros((b, dof), device=self.device))
             self.open_cabinet.set_qvel(torch.zeros((b, dof), device=self.device))
-        
+            self.initialize_episode_hook(env_idx, mo_pose=self.obj.pose)
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -149,13 +156,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
 
         return obs
     
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
 
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 # 2. Main Execution Block
 if __name__ == "__main__":

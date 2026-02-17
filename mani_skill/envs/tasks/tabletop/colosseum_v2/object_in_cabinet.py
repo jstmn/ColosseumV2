@@ -21,7 +21,7 @@ from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
 
@@ -189,7 +189,7 @@ class ObjectInCabinetEnv(BaseEnv):
     def _default_sensor_configs(self):
         # Sensor camera with view of robot arm and cabinet handle
         pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.1])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -199,7 +199,7 @@ class ObjectInCabinetEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))

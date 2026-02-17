@@ -197,12 +197,9 @@ class ActorBuilder(SAPIENActorBuilder):
         Different to the original SAPIEN API, a unique name is required here.
         """
         self.set_name(name)
-
-        assert (
-            self.name is not None
-            and self.name != ""
-            and self.name not in self.scene.actors
-        ), "built actors in ManiSkill must have unique names and cannot be None or empty strings"
+        assert self.name is not None, "Name cannot be None"
+        assert self.name != "", f"Name cannot be empty, got {self.name}"
+        assert self.name not in self.scene.actors, f"Name must be unique - got {self.name}, existing actors: {self.scene.actors.keys()}"
 
         if self.scene_idxs is not None:
             self.scene_idxs = common.to_tensor(
@@ -213,9 +210,9 @@ class ActorBuilder(SAPIENActorBuilder):
         num_actors = len(self.scene_idxs)
 
         if self.initial_pose is None:
-            logger.warn(
-                f"No initial pose set for actor builder of {self.name}, setting to default pose q=[1,0,0,0], p=[0,0,0]. Not setting reasonable initial poses may slow down simulation, see https://github.com/haosulab/ManiSkill/issues/421."
-            )
+            # logger.warn(
+            #     f"No initial pose set for actor builder of {self.name}, setting to default pose q=[1,0,0,0], p=[0,0,0]. Not setting reasonable initial poses may slow down simulation, see https://github.com/haosulab/ManiSkill/issues/421."
+            # )
             self.initial_pose = Pose.create(sapien.Pose())
         else:
             self.initial_pose = Pose.create(self.initial_pose, device=self.scene.device)

@@ -130,9 +130,9 @@ class ArticulationBuilder(SapienArticulationBuilder):
         num_arts = len(self.scene_idxs)
 
         if self.initial_pose is None:
-            logger.warn(
-                f"No initial pose set for articulation builder of {self.name}, setting to default pose q=[1,0,0,0], p=[0,0,0]. There may be simulation issues/bugs if this articulation at it's initial pose collides with other objects at their initial poses."
-            )
+            # logger.warn(
+            #     f"No initial pose set for articulation builder of {self.name}, setting to default pose q=[1,0,0,0], p=[0,0,0]. There may be simulation issues/bugs if this articulation at it's initial pose collides with other objects at their initial poses."
+            # )
             self.initial_pose = sapien.Pose()
         self.initial_pose = Pose.create(self.initial_pose)
         initial_pose_b = self.initial_pose.raw_pose.shape[0]

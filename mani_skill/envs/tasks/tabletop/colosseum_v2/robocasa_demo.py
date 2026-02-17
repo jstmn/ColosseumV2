@@ -12,9 +12,8 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.robocasa.scene_builder import RoboCasaSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from math import fabs
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("RobocasaDemo-v1", max_episode_steps=50)
 class RoboCasaDemoEnv(BaseEnv):
     """
@@ -51,7 +50,7 @@ class RoboCasaDemoEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[-0.1, 0, -0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -72,11 +71,11 @@ class RoboCasaDemoEnv(BaseEnv):
         self.cabinet_scene.build(build_config_idxs=[1])
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd")
+        builder.add_visual_from_file(glb_filepath, scale=scale)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)

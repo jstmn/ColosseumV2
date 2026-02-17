@@ -1,10 +1,7 @@
 import gymnasium as gym
 import numpy as np
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
 import torch
 from mani_skill.utils.building.actors.needle import build_needle
 from mani_skill.utils.building.actors.ring_tripod import build_ring_tripod
@@ -13,27 +10,28 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix,
 from mani_skill.utils import common, sapien_utils
 import sapien.core as sapien
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 
 @register_env("DualArmThreading-v1", max_episode_steps=1000)
-class DualPandaThreadingEnv(BaseEnv):
+class DualPandaThreadingEnv(ColosseumV2Env):
     """
     A threading task environment for Dual Panda arms.
     One arm holds the needle, the other manipulates the ring tripod.
     """
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda
-    
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.2 + 0.83]) # 0.83: height of the table
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -43,7 +41,7 @@ class DualPandaThreadingEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
         
     @property
     def _default_human_render_camera_configs(self):
@@ -55,7 +53,7 @@ class DualPandaThreadingEnv(BaseEnv):
     def _load_scene(self, options: dict):
         """Load the needle and ring tripod actors into the scene."""
         # Build the needle
-        self.needle = build_needle(
+        needle_builder = lambda: build_needle(
             self.scene,
             name="needle",
             length=0.1,
@@ -66,10 +64,11 @@ class DualPandaThreadingEnv(BaseEnv):
             density=8000.0,
             color=np.array([0.3, 0.3, 0.3, 1.0]),
             initial_pose=sapien.Pose(p=[0.0, 0.0, 0.85]),
+            return_builder=True,
         )
         
         # Build the ring tripod
-        self.ring_tripod = build_ring_tripod(
+        ring_tripod_builder = lambda: build_ring_tripod(
             self.scene,
             name="ring_tripod",
             base_size = 0.15,
@@ -81,7 +80,11 @@ class DualPandaThreadingEnv(BaseEnv):
             density=1000.0,
             color=np.array([110/255, 38/255, 14/255, 1.0]),
             initial_pose=sapien.Pose(p=[0.3, 0.0, 0.9]),
+            return_builder=True,
         )
+        self.needle = self.add_asset_to_scene(needle_builder, name="needle", physics_type="dynamic", object_type="MO")
+        self.ring_tripod = self.add_asset_to_scene(ring_tripod_builder, name="ring_tripod", physics_type="dynamic", object_type="RO")
+        self.load_scene_hook(manipulation_objects=[self.needle], receiving_objects=[self.ring_tripod])
     
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         """Reset actor poses for each episode."""
@@ -104,7 +107,7 @@ class DualPandaThreadingEnv(BaseEnv):
             needle_xyz[..., 1] += 0.1
             needle_xyz[..., 2] = 0.85
             self.needle.set_pose(Pose.create_from_pq(p=needle_xyz))
-
+            self.initialize_episode_hook(env_idx, mo_pose=self.needle.pose)
         self._initialize_agent()
         
     def evaluate(self):
@@ -181,14 +184,7 @@ class DualPandaThreadingEnv(BaseEnv):
         
         return obs
     
-    def compute_dense_reward(self, obs, action, info):
-        """Compute reward (placeholder for now)."""
-        return 0.0
     
-    def compute_normalized_dense_reward(self, obs, action, info):
-        """Compute normalized reward."""
-        return 0.0
-
 
 if __name__ == "__main__":
     env = gym.make(

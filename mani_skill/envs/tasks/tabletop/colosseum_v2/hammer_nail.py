@@ -6,11 +6,14 @@ from typing import Any, Dict, List, Sequence, Union
 import numpy as np
 import sapien
 import torch
+import sapien.physx as physx
+import sapien.render
+from scipy.spatial.transform import Rotation
+import sapien.render
+
 
 from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR, logger
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils.randomization.pose import random_quaternions
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
@@ -19,7 +22,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 YCB_HAMMER_ID = "048_hammer"
 NAIL_HEIGHT = 0.086
@@ -34,7 +37,7 @@ class NailSpec:
 
 
 @register_env("HammerNail-v1", max_episode_steps=200)
-class HammerNailEnv(BaseEnv):
+class HammerNailEnv(ColosseumV2Env):
     """A tabletop hammering task with a single nail and a simple wooden block.
 
     **Task**: Pick up the hammer and drive the nail horizontally (sideways) into the
@@ -55,8 +58,6 @@ class HammerNailEnv(BaseEnv):
         robot_init_qpos_noise: float = 0.0,  # No noise to prevent self-collision
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._asset_scale = 0.05
 
@@ -92,14 +93,12 @@ class HammerNailEnv(BaseEnv):
             + self._nail_dir * nail_target_insert
         )
 
-        self._nail_specs = [
-            NailSpec(
+        self._nail_spec = NailSpec(
                 name="nail",
                 rest_center=nail_rest_center,
                 success_center_y=self._nail_success_center_y,
                 raise_range=0.005,
             )
-        ]
 
     # Simple box hammer design: rotated 270° so handle at -X (left), head at +X (right)
         # Perfect for striking horizontally along the hammer's +X axis (mapped to world +Y after Z rotation)
@@ -156,7 +155,7 @@ class HammerNailEnv(BaseEnv):
         pose = sapien_utils.look_at(
             eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0]
         )
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -166,7 +165,7 @@ class HammerNailEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -182,15 +181,54 @@ class HammerNailEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.55, 0.0, 0.0]))
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-
         self._load_block()
         self._load_nails()
         self._load_hammer()
+        
+        self.block = self.add_asset_to_scene(self._load_block, name="block", physics_type="kinematic", object_type="BACKGROUND")
+        self.nail = self.add_asset_to_scene(self._load_nails, name="nail", physics_type="dynamic", object_type="MO")
+        self.hammer = self.add_asset_to_scene(self._load_hammer, name="hammer", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.nail, self.hammer], receiving_objects=[self.block])
         self._lock_table()
+
+
+        # ========== Nail initialization ==========
+        spec = self._nail_spec
+        rest_centers: List[torch.Tensor] = []
+        success_thresholds: List[torch.Tensor] = []
+        self.nail.set_linear_damping(2.0)
+        self.nail.set_angular_damping(5.0)
+        # Lock X and Z linear movement, allow only Y; lock all rotations.
+        # Must be set before GPU sim initialization.
+        self.nail.set_locked_motion_axes([True, False, True, True, True, True])
+        self.nails = [self.nail]
+
+        rest_center = torch.from_numpy(spec.rest_center).to(torch.float32)
+        rest_centers.append(rest_center)
+        success_thresholds.append(torch.tensor(spec.success_center_y, dtype=torch.float32))
+
+        self._nail_rest_centers = torch.stack(rest_centers)
+        self._nail_success_threshold = torch.stack(success_thresholds)
+        self._nail_raise_ranges = torch.tensor([self._nail_spec.raise_range], dtype=torch.float32)
+
+        # ========== Hammer initialization ==========
+        # self.hammer = builder.build(name="hammer")
+        # self.hammer.set_mass(2.0)
+        # Keep the hammer from drifting due to tiny numerical vibrations.
+        self.hammer.set_linear_damping(10.0)
+        self.hammer.set_angular_damping(12.0)
+
+        self._choose_hammer_orientation()
+        self._apply_hammer_z_rotation(-90.0)
+        self._update_hammer_rest_height()
+        # Use underlying SAPIEN object since GPU sim is not yet initialized
+        # self.hammer._objs[0].set_pose(
+        #     sapien.Pose(
+        #         p=self._hammer_rest_center.tolist(),
+        #         q=self._hammer_orientation.tolist(),
+        #     )
+        # )
+
 
     def _get_obs_agent(self):
         obs = super()._get_obs_agent()
@@ -202,10 +240,6 @@ class HammerNailEnv(BaseEnv):
 
     def _load_block(self):
         """Create a vertical wooden block with a square hole for the nail and collision mesh"""
-        import sapien.physx as physx
-        import sapien.render
-        from scipy.spatial.transform import Rotation
-
         block_half = self._block_half_size.cpu().numpy()
         block_center = self._block_center.cpu().numpy()
 
@@ -300,13 +334,12 @@ class HammerNailEnv(BaseEnv):
         block_rot = Rotation.from_euler("z", 90, degrees=True).as_quat()  # [x, y, z, w]
         block_quat = [block_rot[3], block_rot[0], block_rot[1], block_rot[2]]  # [w, x, y, z]
         builder.set_initial_pose(sapien.Pose(p=block_center.tolist(), q=block_quat))
-        self.block = builder.build_static(name="wood_block")
+        # self.block = builder.build_static(name="wood_block")
+        return builder
 
     def _load_nails(self):
         """Load nails that can only move in Y axis (horizontally)"""
-        self.nails = []
-        rest_centers: List[torch.Tensor] = []
-        success_thresholds: List[torch.Tensor] = []
+        # self.nails = []
 
         # Rotate nail to point along the desired Y direction
         from scipy.spatial.transform import Rotation
@@ -340,70 +373,51 @@ class HammerNailEnv(BaseEnv):
         use_mesh = self._nail_mesh_path.is_file()
         mesh_scale = NAIL_HEIGHT / 2.0
 
-        for spec in self._nail_specs:
-            builder = self.scene.create_actor_builder()
-            if use_mesh:
-                builder.add_multiple_convex_collisions_from_file(
-                    filename=str(self._nail_mesh_path),
-                    scale=[mesh_scale] * 3,
-                    material=nail_material,
-                    density=5000,
-                    decomposition="coacd",
-                )
-                builder.add_visual_from_file(
-                    str(self._nail_mesh_path),
-                    scale=[mesh_scale] * 3,
-                    material=nail_visual,
-                )
-            else:
-                builder.add_cylinder_collision(
-                    radius=shaft_radius,
-                    half_length=shaft_half,
-                    pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                    material=nail_material,
-                    density=5000,
-                )
-                builder.add_cylinder_collision(
-                    radius=head_radius,
-                    half_length=head_half,
-                    pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                    material=nail_material,
-                    density=5000,
-                )
-                builder.add_cylinder_visual(
-                    radius=shaft_radius,
-                    half_length=shaft_half,
-                    pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                    material=nail_visual,
-                )
-                builder.add_cylinder_visual(
-                    radius=head_radius,
-                    half_length=head_half,
-                    pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                    material=nail_visual,
-                )
-            builder.set_initial_pose(sapien.Pose(q=nail_quat))
-            nail = builder.build_dynamic(name=spec.name)
-            nail.set_linear_damping(2.0)
-            nail.set_angular_damping(5.0)
-            # Lock X and Z linear movement, allow only Y; lock all rotations.
-            # Must be set before GPU sim initialization.
-            nail.set_locked_motion_axes([True, False, True, True, True, True])
-            self.nails.append(nail)
-
-            rest_center = torch.from_numpy(spec.rest_center).to(torch.float32)
-            rest_centers.append(rest_center)
-            success_thresholds.append(torch.tensor(spec.success_center_y, dtype=torch.float32))
-
-        self._nail_rest_centers = torch.stack(rest_centers)
-        self._nail_success_threshold = torch.stack(success_thresholds)
-        self._nail_raise_ranges = torch.tensor(
-            [spec.raise_range for spec in self._nail_specs], dtype=torch.float32
-        )
+        builder = self.scene.create_actor_builder()
+        if use_mesh:
+            builder.add_multiple_convex_collisions_from_file(
+                filename=str(self._nail_mesh_path),
+                scale=[mesh_scale] * 3,
+                material=nail_material,
+                density=5000,
+                decomposition="coacd",
+            )
+            builder.add_visual_from_file(
+                str(self._nail_mesh_path),
+                scale=[mesh_scale] * 3,
+                material=nail_visual,
+            )
+        else:
+            builder.add_cylinder_collision(
+                radius=shaft_radius,
+                half_length=shaft_half,
+                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
+                material=nail_material,
+                density=5000,
+            )
+            builder.add_cylinder_collision(
+                radius=head_radius,
+                half_length=head_half,
+                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
+                material=nail_material,
+                density=5000,
+            )
+            builder.add_cylinder_visual(
+                radius=shaft_radius,
+                half_length=shaft_half,
+                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
+                material=nail_visual,
+            )
+            builder.add_cylinder_visual(
+                radius=head_radius,
+                half_length=head_half,
+                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
+                material=nail_visual,
+            )
+        builder.set_initial_pose(sapien.Pose(q=nail_quat))
+        return builder
 
     def _load_hammer(self):
-        import sapien.physx as physx
-        import sapien.render
 
         hammer_material = physx.PhysxMaterial(
             static_friction=3.0,
@@ -411,82 +425,16 @@ class HammerNailEnv(BaseEnv):
             restitution=0.0
         )
 
-        ycb_model_dir = ASSET_DIR / "assets/mani_skill2_ycb/models" / YCB_HAMMER_ID
-        ycb_visual = ycb_model_dir / "textured.obj"
-        ycb_collision = ycb_model_dir / "collision.ply"
-        if ycb_visual.is_file() and ycb_collision.is_file():
-            builder = actors.get_actor_builder(self.scene, id=f"ycb:{YCB_HAMMER_ID}")
-            for record in builder.collision_records:
-                record.material = hammer_material
-                record.density = 2000
-        else:
-            logger.warning(
-                "YCB hammer assets not found; falling back to a procedural hammer. "
-                "Download YCB assets to use 048_hammer."
-            )
-            builder = self.scene.create_actor_builder()
-            handle_size = self._hammer_handle_size
-            head_size = self._hammer_head_size
-            handle_half = [handle_size[1] / 2, handle_size[0] / 2, handle_size[2] / 2]
-            head_half = [head_size[1] / 2, head_size[0] / 2, head_size[2] / 2]
-            head_offset_x = handle_size[1] / 2 + head_size[1] / 2
-
-            handle_pose = sapien.Pose(p=[0.0, 0.0, 0.0])
-            head_pose = sapien.Pose(p=[head_offset_x, 0.0, 0.0])
-
-            builder.add_box_collision(
-                half_size=handle_half,
-                pose=handle_pose,
-                material=hammer_material,
-                density=2000,
-            )
-            builder.add_box_collision(
-                half_size=head_half,
-                pose=head_pose,
-                material=hammer_material,
-                density=2000,
-            )
-            hammer_visual = sapien.render.RenderMaterial(
-                base_color=[0.2, 0.2, 0.2, 1.0],
-                metallic=0.6,
-                roughness=0.3,
-            )
-            handle_visual = sapien.render.RenderMaterial(
-                base_color=[0.4, 0.2, 0.1, 1.0],
-                metallic=0.0,
-                roughness=0.8,
-            )
-            builder.add_box_visual(
-                half_size=handle_half,
-                pose=handle_pose,
-                material=handle_visual,
-            )
-            builder.add_box_visual(
-                half_size=head_half,
-                pose=head_pose,
-                material=hammer_visual,
-            )
+        builder = actors.get_actor_builder(self.scene, id=f"ycb:{YCB_HAMMER_ID}")
+        for record in builder.collision_records:
+            record.material = hammer_material
+            record.density = 2000
 
         builder.set_initial_pose(sapien.Pose(
             p=self._hammer_rest_center.tolist(),
             q=self._hammer_orientation.tolist()
         ))
-        self.hammer = builder.build(name="hammer")
-        self.hammer.set_mass(2.0)
-        # Keep the hammer from drifting due to tiny numerical vibrations.
-        self.hammer.set_linear_damping(10.0)
-        self.hammer.set_angular_damping(12.0)
-
-        self._choose_hammer_orientation()
-        self._apply_hammer_z_rotation(-90.0)
-        self._update_hammer_rest_height()
-        # Use underlying SAPIEN object since GPU sim is not yet initialized
-        self.hammer._objs[0].set_pose(
-            sapien.Pose(
-                p=self._hammer_rest_center.tolist(),
-                q=self._hammer_orientation.tolist(),
-            )
-        )
+        return builder
 
     def _apply_hammer_z_rotation(self, degrees: float):
         angle = np.deg2rad(degrees) * 0.5
@@ -523,7 +471,6 @@ class HammerNailEnv(BaseEnv):
         )
 
     def _choose_hammer_orientation(self):
-        import sapien.render
 
         # Use underlying SAPIEN object directly since GPU sim is not yet initialized
         raw_hammer = self.hammer._objs[0]
@@ -552,7 +499,6 @@ class HammerNailEnv(BaseEnv):
         self._hammer_orientation = best_q
 
     def _update_hammer_rest_height(self):
-        import sapien.render
 
         # Use underlying SAPIEN object directly since GPU sim is not yet initialized
         raw_hammer = self.hammer._objs[0]
@@ -570,9 +516,9 @@ class HammerNailEnv(BaseEnv):
         self._hammer_rest_center[2] = float(-aabb[0, 2] + 1e-3)
 
     def _lock_table(self):
-        components = getattr(self.table_scene.table, "components", None)
+        components = getattr(self.table, "components", None)
         if components is None:
-            getter = getattr(self.table_scene.table, "get_components", None)
+            getter = getattr(self.table, "get_components", None)
             components = getter() if getter is not None else []
         for comp in components:
             if isinstance(comp, sapien.physx.PhysxRigidDynamicComponent):
@@ -589,7 +535,6 @@ class HammerNailEnv(BaseEnv):
             closer_to_hammer_qpos = np.array(
                 [0.2, -0.3, 0.0, -2.0, 0.0, 1.8, 0.78, 0.04, 0.04]
             )
-            self.table_scene.initialize(env_idx, qpos_0=closer_to_hammer_qpos)
 
             base_centers = self._nail_rest_centers.to(self.device)
             raise_ranges = self._nail_raise_ranges.to(self.device)
@@ -633,6 +578,8 @@ class HammerNailEnv(BaseEnv):
             self.hammer.set_linear_velocity(torch.zeros((b, 3), device=self.device))
             self.hammer.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
+            self.initialize_episode_hook(env_idx, mo_pose=self.nail.pose, ro_pose=self.hammer.pose)
+
     def evaluate(self):
         # Check Y position instead of Z for horizontal nail
         nail_centers_y = torch.stack(
@@ -660,36 +607,3 @@ class HammerNailEnv(BaseEnv):
             task_state = torch.hstack([flat_centers, target_depth, hammer_pose])
             obs["task_state"] = task_state
         return obs
-
-    def compute_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ) -> torch.Tensor:
-        # Current nail Y positions (horizontal direction)
-        nail_y = torch.stack(
-            [nail.pose.p[..., 1] for nail in self.nails], dim=1
-        )
-
-        # Initial nail Y positions
-        nail_rest_y = self._nail_rest_centers[:, 1].to(self.device)
-
-        # Reward based on how far the nail has been driven forward from its initial position
-        # Higher current Y - lower initial Y = more reward (nail moves in +Y direction)
-        y_progress = self._nail_dir * (nail_y - nail_rest_y.unsqueeze(0))
-        y_progress = torch.clamp(y_progress, min=0.0)  # Only reward forward movement
-
-        # Normalize by total distance needed (from rest to success threshold)
-        total_distance = (
-            self._nail_dir
-            * (self._nail_success_threshold.to(self.device) - nail_rest_y)
-        )
-        normalized_progress = (y_progress / total_distance.unsqueeze(0)).sum(dim=1)
-
-        # Success bonus for fully driving the nail
-        success_bonus = self.evaluate()["success"].to(self.device).float() * 2.0
-
-        return normalized_progress + success_bonus
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ) -> torch.Tensor:
-        return self.compute_dense_reward(obs, action, info) / 3.0

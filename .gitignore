@@ -47,3 +47,8 @@ htmlcov/
 venv/
 notes
 runs/
+checkpoints/
+
+logs/
+
+*.ply

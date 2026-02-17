@@ -1,27 +1,20 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import sapien
-import sapien.physx as physx
 import torch
 import trimesh
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
-from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_env_utils import get_human_render_camera_config, REALSENSE_DEPTH_FOV_VERTICAL_RAD, SHADER, DEFAULT_CAMERA_WIDTH, DEFAULT_CAMERA_HEIGHT
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 CABINET_COLLISION_BIT = 29
 
@@ -33,7 +26,7 @@ CABINET_COLLISION_BIT = 29
     asset_download_ids=["partnet_mobility_cabinet"],
     max_episode_steps=100,
 )
-class OpenDrawerEnv(BaseEnv):
+class OpenDrawerEnv(ColosseumV2Env):
     """
     **Task Description:**
     Use the Panda open the target drawer out.
@@ -65,9 +58,16 @@ class OpenDrawerEnv(BaseEnv):
     # ^ Starts getting planning failures above 0.25
     CABINET_Y_LIMS = [-0.05, 0.05]
     CABINET_YAW_LIMS = [0, np.pi/8]
-
-
     min_open_frac = 0.5
+
+    IGNORED_VARIATION_FACTORS = [
+        "MO_color",
+        "RO_color",
+        "MO_texture",
+        "RO_texture",
+        "MO_mass",
+        "RO_mass",
+    ]
 
     def __init__(
         self,
@@ -76,8 +76,6 @@ class OpenDrawerEnv(BaseEnv):
         robot_init_qpos_noise=0.02,
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self._human_render_shader = kwargs.pop("human_render_shader", None)
         self.robot_init_qpos_noise = robot_init_qpos_noise
         # TRAIN_JSON.keys(): ['1000' '1004' '1005' '1013' '1016' '1021' '1024' '1027' '1032' '1033'
@@ -92,58 +90,19 @@ class OpenDrawerEnv(BaseEnv):
         super().__init__(
             *args,
             robot_uids=robot_uids,
+            ignored_variation_factors=self.IGNORED_VARIATION_FACTORS,
             **kwargs,
         )
 
     @property
     def _default_human_render_camera_configs(self):
-        return get_human_render_camera_config(eye=(-0.2, 0.5, 1.1), target=(-0.1, 0, 0.5), shader=self._human_render_shader)
-
-    # @property
-    # def _default_sensor_configs(self):
-    #     target = (-0.2, 0, 0.5)
-    #     pose_center = sapien_utils.look_at(eye=(-0.5, 0.0, 1.25), target=target)
-    #     pose_left = sapien_utils.look_at(eye=(-0.2, 0.5, 1.1), target=target)
-    #     pose_right = sapien_utils.look_at(eye=(-0.2, -0.5, 1.1), target=target)
-    #     cfgs = [
-    #         CameraConfig(
-    #             uid="camera_center",
-    #             pose=pose_center,
-    #             width=DEFAULT_CAMERA_WIDTH,
-    #             height=DEFAULT_CAMERA_HEIGHT,
-    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-    #             near=0.01,
-    #             far=100,
-    #             shader_pack=SHADER,
-    #         ),
-    #         CameraConfig(
-    #             uid="camera_left",
-    #             pose=pose_left,
-    #             width=DEFAULT_CAMERA_WIDTH,
-    #             height=DEFAULT_CAMERA_HEIGHT,
-    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-    #             near=0.01,
-    #             far=100,
-    #             shader_pack=SHADER,
-    #         ),
-    #         CameraConfig(
-    #             uid="camera_right",
-    #             pose=pose_right,
-    #             width=DEFAULT_CAMERA_WIDTH,
-    #             height=DEFAULT_CAMERA_HEIGHT,
-    #             fov=REALSENSE_DEPTH_FOV_VERTICAL_RAD,
-    #             near=0.01,
-    #             far=100,
-    #             shader_pack=SHADER,
-    #         )]
-        # return self._distraction_set.update_camera_configs(cfgs)
-
+        return self._get_human_render_camera_config(eye=(-0.2, 0.5, 1.1), target=(-0.1, 0, 0.5))
 
     @property
     def _default_sensor_configs(self):
         target = (-0.2, 0, 0.5)
         pose = sapien_utils.look_at(eye=(-0.4, 0.0, 1.1), target=target)
-        cfgs = [
+        cfgs = self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -153,24 +112,20 @@ class OpenDrawerEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
-        return self._distraction_set.update_camera_configs(cfgs)
+        ])
+        return cfgs
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
 
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
         # temporarily turn off the logging as there will be big red warnings
         # about the cabinets having oblong meshes which we ignore for now.
-        sapien.set_log_level("off")
         self._load_cabinets(self.handle_types)
-        sapien.set_log_level("warn")
         self._hidden_objects.append(self.handle_link_goal)
+
+        self.load_scene_hook()
 
 
     def _load_cabinets(self, joint_types: List[str]):
@@ -305,7 +260,7 @@ class OpenDrawerEnv(BaseEnv):
             # initialize robot
             qpos_0 = np.array([-0.13595445, -1.2611351, 0.24094589, -2.9000182, 2.5728698, 3.0259767, 0.029944034, 0.039999813, 0.03999985]) # final two are gripper (start open)
             # ^ Copied from visualizer
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+            self.initialize_episode_hook(env_idx, mo_pose=xy, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
             # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
 
 

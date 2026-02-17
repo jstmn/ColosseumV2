@@ -7,7 +7,7 @@ import torch
 import mani_skill.envs.utils.randomization as randomization
 from mani_skill.utils.structs import Actor
 from mani_skill.agents.robots import SO100, Fetch, Panda, WidowXAI, XArm6Robotiq
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.tasks.tabletop.pick_cube_cfgs import PICK_CUBE_CONFIGS
 from mani_skill.sensors.camera import CameraConfig
@@ -16,7 +16,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_env_utils import get_human_render_camera_config
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 PICK_CUBE_DOC_STRING = """**Task Description:**
 A simple task where the objective is to grasp a red cube with the {robot_id} robot and move it to a target goal position. This is also the *baseline* task to test whether a robot with manipulation
@@ -34,7 +34,7 @@ capabilities can be simulated and trained properly. Hence there is extra code fo
 
 
 @register_env("RaiseCube-v1", max_episode_steps=50)
-class RaiseCubeEnv(BaseEnv):
+class RaiseCubeEnv(ColosseumV2Env):
 
     """ This is a copy of the PickCube-v1 environment, but rather than reaching a goal position after grasping, the 
     cube simply needs to be raised above a target height.
@@ -43,12 +43,6 @@ class RaiseCubeEnv(BaseEnv):
     GOAL_HEIGHT = 0.2
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
-
-        # ColosseumV2 stuff:
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        self._human_render_shader = kwargs.pop("human_render_shader", None)
-
 
         # 
         self.robot_init_qpos_noise = robot_init_qpos_noise
@@ -70,102 +64,26 @@ class RaiseCubeEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
 
-        # Create table
-        self._table_scenes = []
-        add_visual_from_file = not self._distraction_set.table_color_enabled()
-        for i in range(self.num_envs):
-            table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-            table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"-env-{i}", add_visual_from_file=add_visual_from_file)
-            self._table_scenes.append(table_scene)
-        self.table_scene = Actor.merge([ts.table for ts in self._table_scenes], name="table")
-        self.add_to_state_dict_registry(self.table_scene)
+        cube_color = np.array([12, 42, 160, 255]) / 255
+        def get_cube_builder():
+            return self.get_box_asset_builder(half_size=[self.cube_half_size] * 3, color=cube_color, object_type="MO")
 
-        # Create cube
-        cube_actors = []
-        for i in range(self.num_envs):
-            builder = self.scene.create_actor_builder()
-            builder.add_box_collision(half_size=[self.cube_half_size] * 3)
-            builder.add_box_visual(
-                half_size=[self.cube_half_size] * 3,
-                material=sapien.render.RenderMaterial(
-                    base_color=np.array([12, 42, 160, 255]) / 255,
-                ),
-            )
-            builder.set_scene_idxs([i])
-            builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
-            actor = builder.build_dynamic(name=f"cube_{i}")
-            self.remove_from_state_dict_registry(actor)
-            cube_actors.append(actor)
-        self.cube = Actor.merge(cube_actors, name="cube")
-        self.add_to_state_dict_registry(self.cube)
-
-        # load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor], receiving_object: Optional[Actor])
-        self._distraction_set.load_scene_hook(scene=self.scene, manipulation_object=self.cube, table=self.table_scene)
-
+        self.cube = self.add_asset_to_scene(get_cube_builder, name="cube", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.cube])
 
     @property
     def _default_human_render_camera_configs(self):
-        return get_human_render_camera_config(eye=(0.5, 0.6, 0.5), target=(0.0, 0.0, 0.1), shader=self._human_render_shader)
-
-    # @property
-    # def _default_sensor_configs(self):
-    #     target=(0.1, 0, -0.1)
-    #     eye_xy = 0.35
-    #     eye_z = 0.45
-    #     cfgs = get_camera_configs(eye_xy, eye_z, target)
-    #     cfgs_adjusted = self._distraction_set.update_camera_configs(cfgs)
-    #     return cfgs_adjusted
+        return self._get_human_render_camera_config(eye=(0.5, 0.6, 0.5), target=(0.0, 0.0, 0.1))
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(
-            eye=self.sensor_cam_eye_pos, target=self.sensor_cam_target_pos
-        )
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
-
-
-    def _load_scene(self, options: dict):
-
-        # Create table
-        self._table_scenes = []
-        add_visual_from_file = not self._distraction_set.table_color_enabled()
-        for i in range(self.num_envs):
-            table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
-            table_scene.build(remove_table_from_state_dict_registry=True, scene_idx=i, name_suffix=f"-env-{i}", add_visual_from_file=add_visual_from_file)
-            self._table_scenes.append(table_scene)
-        self.table_scene = Actor.merge([ts.table for ts in self._table_scenes], name="table")
-        self.add_to_state_dict_registry(self.table_scene)
-
-        # Create cube
-        cube_actors = []
-        for i in range(self.num_envs):
-            builder = self.scene.create_actor_builder()
-            builder.add_box_collision(half_size=(self.cube_half_size, self.cube_half_size, self.cube_half_size))
-            builder.add_box_visual(
-                half_size=(self.cube_half_size, self.cube_half_size, self.cube_half_size),
-                material=sapien.render.RenderMaterial(
-                    base_color=np.array([12, 42, 160, 255]) / 255,
-                ),
-            )
-            builder.set_scene_idxs([i])
-            builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
-            actor = builder.build_dynamic(name=f"cube_{i}")
-            self.remove_from_state_dict_registry(actor)
-            cube_actors.append(actor)
-        self.cube = Actor.merge(cube_actors, name="cube")
-        self.add_to_state_dict_registry(self.cube)
-
-        # load_scene_hook(self, scene: ManiSkillScene, manipulation_object: Optional[Actor], table: Optional[Actor], receiving_object: Optional[Actor])
-        self._distraction_set.load_scene_hook(scene=self.scene, manipulation_object=self.cube, table=self.table_scene)
-
+        pose = sapien_utils.look_at(eye=self.sensor_cam_eye_pos, target=self.sensor_cam_target_pos)
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-
-            for ts in self._table_scenes:
-                ts.initialize(env_idx)
 
             xyz = torch.zeros((b, 3))
             xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
@@ -175,8 +93,8 @@ class RaiseCubeEnv(BaseEnv):
             obj_pose = Pose.create_from_pq(p=xyz, q=q)
             self.cube.set_pose(obj_pose)
 
-            # 
-            self._distraction_set.initialize_episode_hook(b, mo_pose=xyz)
+            #
+            self.initialize_episode_hook(env_idx, mo_pose=xyz)
         
     def _get_obs_extra(self, info: dict):
         # in reality some people hack is_grasped into observations by checking if the gripper can close fully or not

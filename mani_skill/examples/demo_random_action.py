@@ -1,19 +1,21 @@
+from typing import Optional, Annotated, Union
+from dataclasses import dataclass
+
 import gymnasium as gym
 import numpy as np
 import sapien
+import tyro
+
 import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.distraction_set import DistractionSet
 from mani_skill.utils import gym_utils
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS, DistractionSet
 from mani_skill.utils.wrappers import RecordEpisode
 
 
-import tyro
-from dataclasses import dataclass
-from typing import List, Optional, Annotated, Union
 
 """
-# ENV_ID="RaiseCube-v1"
+ENV_ID="RaiseCube-v1"
 # ENV_ID="PickSodaFromCabinet-v1"
 # ENV_ID="PickDishFromRack-v1"
 # ENV_ID="StackCube-v1"
@@ -28,7 +30,7 @@ from typing import List, Optional, Annotated, Union
 # ENV_ID="OpenDrawer-v1"
 # ENV_ID="OpenCabinet-v1"
 # ENV_ID="PlaceCubeInDrawer-v1"
-ENV_ID="CookItemInPan-v1"
+# ENV_ID="CookItemInPan-v1"
 
 
 python mani_skill/examples/demo_random_action.py \
@@ -36,7 +38,11 @@ python mani_skill/examples/demo_random_action.py \
     --num-envs 5 \
     --obs-mode "rgb" \
     --reward-mode "sparse" \
-    --sim-backend "cuda"
+    --sim-backend "cuda" \
+    --record-dir "demos/random_action" \
+    --distraction-set "MO_color" "distractor_object" "MO_mass"
+
+    --distraction-set "all"
 """
 
 
@@ -84,6 +90,8 @@ class Args:
     seed: Annotated[Optional[Union[int, list[int]]], tyro.conf.arg(aliases=["-s"])] = None
     """Seed(s) for random actions and simulator. Can be a single integer or a list of integers. Default is None (no seeds)"""
 
+    distraction_set: Annotated[Optional[list[str]], tyro.conf.arg(aliases=["-d"])] = None
+    """Distraction set"""
 
 def main(args: Args):
     if args.render_mode == "none":
@@ -100,6 +108,14 @@ def main(args: Args):
         parallel_in_single_scene = False
     if args.render_mode == "human" and args.num_envs == 1:
         parallel_in_single_scene = False
+        
+    
+    # Create the distraction set
+    distraction_set = None
+    if args.distraction_set is not None:
+        distraction_sets = [DISTRACTION_SETS[distraction_set.upper()] for distraction_set in args.distraction_set]
+        distraction_set = DistractionSet.merge(distraction_sets)
+
     env_kwargs = dict(
         obs_mode=args.obs_mode,
         reward_mode=args.reward_mode,
@@ -113,7 +129,7 @@ def main(args: Args):
         render_backend=args.render_backend,
         enable_shadow=True,
         parallel_in_single_scene=parallel_in_single_scene,
-        distraction_set=DistractionSet(),
+        distraction_set=distraction_set,
     )
     if args.robot_uids is not None:
         env_kwargs["robot_uids"] = tuple(args.robot_uids.split(","))

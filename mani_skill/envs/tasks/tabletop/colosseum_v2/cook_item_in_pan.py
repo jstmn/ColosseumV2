@@ -3,26 +3,23 @@ import os
 
 import numpy as np
 import sapien
-import sapien.render
 import torch
 import trimesh
 from transforms3d.euler import euler2quat
 
 from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+
 
 @register_env("CookItemInPan-v1", max_episode_steps=150, asset_download_ids=["ycb"])
-class CookItemInPanEnv(BaseEnv):
+class CookItemInPanEnv(ColosseumV2Env):
     """
     **Task Description:**
     Pick a pan, place it on the stove, then place a food item inside the pan.
@@ -52,9 +49,6 @@ class CookItemInPanEnv(BaseEnv):
         food_model_id="013_apple",
         **kwargs,
     ):
-        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        self.robot_init_qpos_noise = robot_init_qpos_noise
         # Use default asset paths if not provided
         if pan_glb_path is None:
             pan_glb_path = PACKAGE_ASSET_DIR / "cook_item_in_pan/panev2.stl"
@@ -201,7 +195,7 @@ class CookItemInPanEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.35, -0.3, 0.4], target=[0.0, 0.0, 0.0])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -214,8 +208,6 @@ class CookItemInPanEnv(BaseEnv):
     def _build_ycb_actor(self, model_id: str, name: str) -> Actor:
         actors_list = []
         for i in range(self.num_envs):
-            builder = actors.get_actor_builder(self.scene, id=f"ycb:{model_id}")
-            builder.initial_pose = sapien.Pose()
             builder.set_scene_idxs([i])
             actor = builder.build(name=f"{name}_{i}")
             self.remove_from_state_dict_registry(actor)
@@ -224,85 +216,65 @@ class CookItemInPanEnv(BaseEnv):
         self.add_to_state_dict_registry(merged)
         return merged
 
-    def _build_pan(self) -> Actor:
-        pan_actors = []
-        for i in range(self.num_envs):
-            builder = self.scene.create_actor_builder()
-            scale = [self.pan_scale] * 3
-            builder.add_multiple_convex_collisions_from_file(
-                filename=self.pan_glb_path,
-                scale=scale,
-                decomposition="coacd",
-                density=300.0,
-            )
-            builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
-            builder.initial_pose = sapien.Pose()
-            builder.set_scene_idxs([i])
-            actor = builder.build(name=f"pan_{i}")
-            self.remove_from_state_dict_registry(actor)
-            pan_actors.append(actor)
-        merged = Actor.merge(pan_actors, name="pan")
-        self.add_to_state_dict_registry(merged)
-        return merged
+    def _load_scene(self, options: dict):
+        self._add_table_to_scene()
+        raw_table = self.table._objs[0]
+        table_z = float(raw_table.pose.p[2])
+        self.table_surface_z = table_z + float(self.table_scene_builders[0].table_height)
 
-    def _build_stove(self) -> Actor:
-        stoves = []
-        for i in range(self.num_envs):
-            builder = self.scene.create_actor_builder()
-            scale = [self.stove_scale] * 3
-            # Use convex collision for OBJ file
-            builder.add_convex_collision_from_file(
-                filename=self.stove_glb_path,
-                scale=scale,
-                pose=self.stove_mesh_pose,
-                density=300.0,
-            )
-            builder.add_visual_from_file(
-                filename=self.stove_glb_path,
-                scale=scale,
-                pose=self.stove_mesh_pose,
-            )
-            builder.initial_pose = sapien.Pose(
+        def _get_stove_builder():
+            # builder = self.scene.create_actor_builder()
+            scale = (self.stove_scale, self.stove_scale, self.stove_scale)
+            initial_pose = sapien.Pose(
                 p=[
                     float(self.stove_center_xy[0]),
                     float(self.stove_center_xy[1]),
                     self.table_surface_z + self.stove_bottom_offset + self.stove_z_offset,
                 ]
             )
-            builder.set_scene_idxs([i])
-            actor = builder.build_static(name=f"stove_{i}")
-            self.remove_from_state_dict_registry(actor)
-            stoves.append(actor)
-        merged = Actor.merge(stoves, name="stove")
-        self.add_to_state_dict_registry(merged)
-        return merged
+            return self.get_glb_asset_builder(
+                glb_filepath=self.stove_glb_path,
+                object_type="RO",
+                density=300.0,
+                scale=scale,
+                initial_pose=initial_pose,
+                mesh_pose=self.stove_mesh_pose,
+            )
 
-    def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-        # Use underlying SAPIEN object to get table Z since GPU sim is not yet initialized
-        raw_table = self.table_scene.table._objs[0]
-        table_z = float(raw_table.pose.p[2])
-        self.table_surface_z = table_z + float(self.table_scene.table_height)
+        def _get_pan_builder():
+            scale = (self.pan_scale, self.pan_scale, self.pan_scale)
+            return self.get_glb_asset_builder(
+                glb_filepath=self.pan_glb_path,
+                object_type="MO",
+                density=300.0,
+                scale=scale,
+            )
 
-        self.stove = self._build_stove()
-        self.pan = self._build_pan()
-        self.food = self._build_ycb_actor(self.food_model_id, "food")
+        def _get_food_builder():
+            return self.get_ycb_asset_builder(
+                ycb_id=self.food_model_id,
+                object_type="MO",
+            )
+
+        self.stove = self.add_asset_to_scene(_get_stove_builder, name="stove", physics_type="kinematic",  object_type="RO")
+        self.pan = self.add_asset_to_scene(_get_pan_builder, name="pan", physics_type="dynamic",  object_type="MO")
+        self.food = self.add_asset_to_scene(_get_food_builder, name="food", physics_type="dynamic",  object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove], add_table_to_scene=False)
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
+            # self.table_scene.initialize(env_idx)
 
             # Initialize robot at pregrasp pose (above pan rim, ready to grasp)
             pregrasp_qpos = np.array([
                 -0.321, 0.314, 0.635, -2.240, -0.300, 2.473, -1.820,
                 0.04, 0.04  # gripper open
             ])
-            qpos = torch.tensor(pregrasp_qpos, device=self.device, dtype=torch.float32).unsqueeze(0).repeat(b, 1)
-            self.agent.reset(qpos)
+            # Initialize the table + robot *before* placing dynamic objects to avoid
+            # contact explosions (e.g., the robot spawning intersecting the pan).
+            self.initialize_episode_hook(env_idx, mo_pose=None, qpos_0=pregrasp_qpos)
 
             pan_xy = (
                 torch.rand((b, 2), device=self.device) * 2 - 1
@@ -317,6 +289,9 @@ class CookItemInPanEnv(BaseEnv):
                 device=self.device,
             ).repeat(b, 1)
             self.pan.set_pose(Pose.create_from_pq(p=pan_pos, q=pan_q))
+            # Ensure no carry-over momentum across episode resets.
+            self.pan.set_linear_velocity(torch.zeros((b, 3), device=self.device))
+            self.pan.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
             food_xy = (
                 torch.rand((b, 2), device=self.device) * 2 - 1
@@ -327,6 +302,8 @@ class CookItemInPanEnv(BaseEnv):
             food_pos[:, :2] = food_xy
             food_pos[:, 2] = self.table_surface_z + self.food_bottom_offset
             self.food.set_pose(Pose.create_from_pq(p=food_pos))
+            self.food.set_linear_velocity(torch.zeros((b, 3), device=self.device))
+            self.food.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
     def evaluate(self):
         pan_pose = self.pan.pose
@@ -367,18 +344,6 @@ class CookItemInPanEnv(BaseEnv):
             & ~is_food_grasped
         )
 
-        # Live status update (overwrite same line)
-        # status = (
-        #     f"\r[Status] pan_on_stove:{is_pan_on_stove[0].item()} | "
-        #     f"food_in_pan:{is_food_in_pan[0].item()} | "
-        #     f"pan_static:{is_pan_static[0].item()} | "
-        #     f"food_static:{is_food_static[0].item()} | "
-        #     f"pan_grasped:{is_pan_grasped[0].item()} | "
-        #     f"food_grasped:{is_food_grasped[0].item()} | "
-        #     f"SUCCESS:{success[0].item()}    "
-        # )
-        # print(status, end="", flush=True)
-
         return {
             "success": success,
             "is_pan_on_stove": is_pan_on_stove,
@@ -400,26 +365,3 @@ class CookItemInPanEnv(BaseEnv):
                 food_to_pan_pos=self.pan.pose.p - self.food.pose.p,
             )
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        pan_pos = self.pan.pose.p
-        food_pos = self.food.pose.p
-        stove_pos = self.stove.pose.p
-
-        pan_to_stove_dist = torch.linalg.norm(pan_pos[:, :2] - stove_pos[:, :2], dim=1)
-        food_to_pan_dist = torch.linalg.norm(food_pos[:, :2] - pan_pos[:, :2], dim=1)
-
-        pan_reach = 1 - torch.tanh(5 * pan_to_stove_dist)
-        food_reach = 1 - torch.tanh(5 * food_to_pan_dist)
-        stove_bonus = info["is_pan_on_stove"].float()
-        pan_bonus = info["is_food_in_pan"].float()
-
-        reward = 0.5 * pan_reach + 0.5 * food_reach + stove_bonus + pan_bonus
-        reward[info["success"]] = 3.0
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 3.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward

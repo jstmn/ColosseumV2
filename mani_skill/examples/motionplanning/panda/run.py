@@ -1,4 +1,6 @@
 import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
+from typing import cast
 from termcolor import cprint
 import h5py
 import os
@@ -12,10 +14,11 @@ import numpy as np
 from tqdm import tqdm
 import os.path as osp
 import mani_skill.envs
+from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
 from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveOpenCabinet, solveObjectInCabinet, solvePickCubeFromDrawer, solvePlaceCubeInDrawer
-from mani_skill.envs.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
 MP_SOLUTIONS = {
@@ -51,11 +54,14 @@ MP_SOLUTIONS = {
     "PlaceDishInRack-v1": solvePlaceDishInRack, # new
     "PickDishFromRack-v1": solvePickDishFromRack, # new
     "PourSphere-v1": solvePourSphere, # new
-    "PegInsertionSide-v2": solvePegInsertionSide, # new
+    "PegInsertionSideColosseumV2-v1": solvePegInsertionSide, # new
+    "PlugChargerColosseumV2-v1": solvePlugCharger, # new
     "HammerNail-v1": solveHammerNail,
     "OpenCabinet-v1": solveOpenCabinet,
     "ObjectInCabinet-v1": solveObjectInCabinet,
     "PlaceCubeInDrawer-v1": solvePlaceCubeInDrawer,
+    "StackCubeColosseumV2-v1": solveStackCube,
+    "LiftPegUprightColosseumV2-v1": solveLiftPegUpright,
     # Bimanual
     "DualArmPickCube-v1": solveBimanualPassCube,
     "DualArmLiftPot-v1": solveBimanualLiftPot,
@@ -72,8 +78,44 @@ MP_SOLUTIONS = {
 }
 
 """
-ENV_ID=PickSodaFromCabinet-v1
-DISTRACTION_SET=none
+# Colosseum v2 single-arm tasks
+ENV_ID="RaiseCube-v1"
+ENV_ID="PickSodaFromCabinet-v1"
+ENV_ID="PickDishFromRack-v1"
+ENV_ID="StackCube-v1"
+ENV_ID="PlaceBookInShelf-v1"
+ENV_ID="PlaceDishInRack-v1"
+ENV_ID="LiftPegUpright-v1"
+ENV_ID="RotateArrow-v1"
+ENV_ID="PegInsertionSide-v2"
+ENV_ID="PlugChargerColosseumV2-v1"
+ENV_ID="HammerNail-v1"
+ENV_ID="ScoopBanana-v1"
+ENV_ID="OpenDrawer-v1"
+ENV_ID="OpenCabinet-v1"
+ENV_ID="PlaceCubeInDrawer-v1"
+ENV_ID="CookItemInPan-v1"
+
+# Colosseum v2 bimanual tasks
+ENV_ID="DualArmPickCube-v1"
+ENV_ID="DualArmPickBottle-v1"
+ENV_ID="DualArmLiftPot-v1"
+ENV_ID="DualArmLiftTray-v1"
+ENV_ID="DualArmPushBox-v1"
+ENV_ID="DualArmPourPot-v1"
+ENV_ID="DualArmThreading-v1"
+ENV_ID="DualArmPenCap-v1"
+ENV_ID="DualArmDrawerPlace-v1"
+ENV_ID="DualArmDrawerOpen-v1"
+ENV_ID="DualArmStackCube-v1"
+ENV_ID="DualArmStack3Cube-v1"
+
+
+
+
+
+ENV_ID="RaiseCube-v1"
+DISTRACTION_SET=all
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 
@@ -81,7 +123,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 100 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 1 \
+    --num-procs 2 \
     --obs-mode "rgb" \
     --reward-mode "sparse" \
     --random-seed \
@@ -162,7 +204,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     if args.num_procs > 1:
         new_traj_name = new_traj_name + "." + str(proc_id)
     env = RecordEpisode(
-        env,
+        cast(BaseEnv, env),
         output_dir=osp.join(args.record_dir, env_id, "motionplanning"),
         trajectory_name=new_traj_name, save_video=args.save_video,
         source_type="motionplanning",
@@ -179,7 +221,9 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     solution_episode_lengths = []
     failed_motion_plans = 0
     passed = 0
+    counter = 0
     while True:
+        counter += 1
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
         res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
         # try:
@@ -195,7 +239,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         else:
             success = res[-1]["success"].item()
             elapsed_steps = res[-1]["elapsed_steps"].item()
-            solution_episode_lengths.append(elapsed_steps)
+
         successes.append(success)
         if args.only_count_success and not success:
             seed += 1
@@ -204,24 +248,38 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
                 env.flush_video(save=False)
             continue
         else:
+            # Only save episode length if the solution was successful
+            solution_episode_lengths.append(elapsed_steps)
             env.flush_trajectory()
             if args.save_video:
                 env.flush_video(name=f"{new_traj_name}___n:{len(successes)}")
             pbar.update(1)
-            pbar.set_postfix(
-                dict(
-                    success_rate=np.mean(successes),
-                    failed_motion_plan_rate=failed_motion_plans / (seed + 1),
-                    avg_episode_length=np.mean(solution_episode_lengths),
-                    max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
-                    min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
-                )
-            )
             seed += 1
             passed += 1
             if passed == args.num_traj:
                 break
+
+        pbar.set_postfix(
+            dict(
+                success_pct=f"{100 - ((failed_motion_plans / counter) * 100):.2f}%",
+                failed_motion_plan_pct=f"{(failed_motion_plans / counter) * 100:.2f}%",
+                avg_episode_length=np.mean(solution_episode_lengths),
+                max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
+                min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1
+            )
+        )
     env.close()
+
+    print()
+    print(f"Summary ({proc_id=}):")
+    print("  success_rate:           ", np.mean(successes),)
+    print("  failed_motion_plan_rate:", failed_motion_plans / (seed + 1))
+    print("  avg_episode_length:     ", np.mean(solution_episode_lengths))
+    print("  std_episode_length:     ", np.std(solution_episode_lengths))
+    print("  max_episode_length:     ", np.max(solution_episode_lengths) if solution_episode_lengths else -1)
+    print("  min_episode_length:     ", np.min(solution_episode_lengths) if solution_episode_lengths else -1)
+    print()
+
     return output_h5_path
 
 
@@ -327,10 +385,16 @@ def main(args):
             raise ValueError("Number of trajectories should be greater than or equal to number of processes")
         args.num_traj = args.num_traj // args.num_procs
         seeds = [*range(0, args.num_procs * args.num_traj, args.num_traj)]
-        pool = mp.Pool(args.num_procs)
         proc_args = [(deepcopy(args), i, seeds[i]) for i in range(args.num_procs)]
-        res = pool.starmap(_main, proc_args)
-        pool.close()
+
+        # NOTE:
+        # multiprocessing.Pool uses *daemon* workers, which cannot spawn child
+        # processes. SAPIEN's coacd convex decomposition spawns a child process,
+        # so we use ProcessPoolExecutor instead (workers are non-daemonic).
+        ctx = mp.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=args.num_procs, mp_context=ctx) as ex:
+            res = list(ex.map(_main, *(zip(*proc_args))))
+
         # Merge trajectory files
         output_path = res[0][: -len("0.h5")] + "h5"
         merge_trajectories(output_path, res)

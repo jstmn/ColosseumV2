@@ -3,24 +3,18 @@ from typing import Any, Tuple
 import numpy as np
 import sapien
 import torch
-from transforms3d.euler import euler2quat
 import gymnasium as gym
-from mani_skill.agents.multi_agent import MultiAgent
+
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils.randomization.pose import random_quaternions
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 @register_env("DualArmPushBox-v1", max_episode_steps=100)
-class DualPandaPushBoxEnv(BaseEnv):
+class DualPandaPushBoxEnv(ColosseumV2Env):
     """
     **Task Description:**
     A collaborative task where two robot arms need to work together to stack two cubes. One robot must pick up the green cube and place it on the target region, while the other robot picks up the blue cube and stacks it on top of the green cube.
@@ -44,16 +38,18 @@ class DualPandaPushBoxEnv(BaseEnv):
 
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
 
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.6, 0.0, 0.8 + 0.83], target=[-0.2, 0, 0.1 + 0.83]) # 0.83: height of the table
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -63,7 +59,7 @@ class DualPandaPushBoxEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -73,25 +69,26 @@ class DualPandaPushBoxEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
 
-        self.cube_half_size = [0.08,0.12,0.04]
-
-        self.box = actors.build_box(
-            self.scene,
-            half_sizes=self.cube_half_size,
-            color=[0, 0.5, 0, 1],
-            name="Box",
+        self.cube_half_size = [0.08, 0.12, 0.04]
+        box_builder = lambda: self.get_box_asset_builder(
+            half_size=self.cube_half_size,
+            color=np.array([0, 0.5, 0, 1]),
+            object_type="MO",
             initial_pose=sapien.Pose(p=[1, 0, 0.02], q=[1,0,0,0]),
         )
-        
-        self.goal_region = actors.build_box_target(
+        goal_region_builder = lambda: actors.build_box_target(
             self.scene,
-            half_sizes=self.cube_half_size[:2],
+            half_sizes=self.cube_half_size[:2], # x and y
             thickness=1e-5,
             name="goal_region",
             add_collision=False,
             body_type="kinematic",
             initial_pose=sapien.Pose(),
+            return_builder=True,
         )
+        self.goal_region = self.add_asset_to_scene(goal_region_builder, name="goal_region", physics_type="kinematic", object_type="RO")
+        self.box = self.add_asset_to_scene(box_builder, name="box", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.box], receiving_objects=[self.goal_region])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -115,6 +112,7 @@ class DualPandaPushBoxEnv(BaseEnv):
             self.box.set_pose(Pose.create_from_pq(p=box_xyz, q=box_q))
 
             self.goal_region.set_pose(Pose.create_from_pq(p=goal_xyz, q=torch.tensor([1,0,0,0], device=self.device).repeat(b, 1)))
+            self.initialize_episode_hook(env_idx, mo_pose=self.box.pose)
         self._initialize_agent()
 
     def _initialize_agent(self):
@@ -156,13 +154,7 @@ class DualPandaPushBoxEnv(BaseEnv):
             obs["goal_region_pose"] = self.goal_region.pose.raw_pose
         return obs
 
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
-        return 0.0
 
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: dict
-    ):
-        return 0.0
 
 if __name__ == "__main__":
     # Now you can load this safe environment
