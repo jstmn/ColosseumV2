@@ -55,8 +55,7 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
         for obj in actor._objs:
             for link in obj.links:
                 objs.append(link.entity)
-        cprint(f"WARNING: Articulation {actor.name} is not supported for color/texture randomization, skipping", "yellow")
-        return
+        raise ValueError(f"Articulation {actor.name} is not supported for color/texture randomization")
     else:
         objs = actor._objs
 
@@ -263,6 +262,7 @@ class ColosseumV2Env(BaseEnv):
         half_size: tuple[float, float, float],
         color: list,
         object_type: str,
+        initial_pose: sapien.Pose = sapien.Pose(),
     ):
         if self._ds.MO_size_enabled() and object_type == "MO":
             scale_multiplier = self._ds.MO_size_cfg["scale_range"]
@@ -282,7 +282,7 @@ class ColosseumV2Env(BaseEnv):
                 base_color=color,
             ),
         )
-        # cube_builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
+        builder.set_initial_pose(initial_pose)
         return builder
 
 
@@ -337,7 +337,7 @@ class ColosseumV2Env(BaseEnv):
         mesh_pose: sapien.Pose = sapien.Pose(),
     ):
         """Load GLB file as a static actor in the scene"""
-        assert object_type in ["MO", "RO"]
+        assert object_type in ["MO", "RO"], f"object_type must be MO or RO, got {object_type}"
 
         if scale is None:
             scale = (1.0, 1.0, 1.0)

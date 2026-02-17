@@ -261,8 +261,8 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
 
         pbar.set_postfix(
             dict(
-                success_pct=f"{100 - (failed_motion_plans / counter * 100):.2f}%",
-                failed_motion_plan_pct=f"{failed_motion_plans / counter * 100:.2f}%",
+                success_pct=f"{100 - ((failed_motion_plans / counter) * 100):.2f}%",
+                failed_motion_plan_pct=f"{(failed_motion_plans / counter) * 100:.2f}%",
                 avg_episode_length=np.mean(solution_episode_lengths),
                 max_episode_length=np.max(solution_episode_lengths) if solution_episode_lengths else -1,
                 min_episode_length=np.min(solution_episode_lengths) if solution_episode_lengths else -1

@@ -12,6 +12,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils import sapien_utils
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 import torch
 import os
@@ -19,7 +20,7 @@ from mani_skill import PACKAGE_ASSET_DIR
 
 # 1. Define the Empty Environment
 @register_env("DualArmLiftTray-v1", max_episode_steps=1000)
-class DualArmLiftTrayEnv(BaseEnv):
+class DualArmLiftTrayEnv(ColosseumV2Env):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
@@ -28,11 +29,12 @@ class DualArmLiftTrayEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
-
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
@@ -58,34 +60,15 @@ class DualArmLiftTrayEnv(BaseEnv):
 
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
-        self.tray = self.add_glb_asset_to_scene(self.scene,
-                                           os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
-                                           sapien.Pose(),
-                                           name="tray",
-                                           scale=[0.4,0.4,0.4],
-                                           type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
-        
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static", color=None):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        if color is not None:
-            custom_material = sapien.render.RenderMaterial()
-            custom_material.base_color = color  # Green [R, G, B, A]
-            custom_material.roughness = 0.0
-            custom_material.metallic = 0.8
-            builder.add_visual_from_file(glb_filepath, scale=scale, material=custom_material)
-        else:
-            builder.add_visual_from_file(glb_filepath, scale=scale)
-
-        # builder.add_visual_from_file(glb_filepath, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
+        tray_builder = lambda: self.get_glb_asset_builder(
+            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
+            initial_pose=sapien.Pose(),
+            object_type="MO",
+            scale=(0.4,0.4,0.4),
+            color=np.array([48/255, 49/255, 51/255, 1]),
+        )
+        self.tray = self.add_asset_to_scene(tray_builder, name="tray", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.tray])
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -105,6 +88,7 @@ class DualArmLiftTrayEnv(BaseEnv):
             final_pose = Pose.create_from_pq(p=xyz, q=final_q)
             self.tray.set_pose(final_pose)
             self.init_pose = final_pose
+            self.initialize_episode_hook(env_idx, mo_pose=final_pose)
         
     def _initialize_agent(self):
         # Reset the robot to a neutral position
@@ -148,15 +132,6 @@ class DualArmLiftTrayEnv(BaseEnv):
         success = torch.logical_and(offset_x > 0.15, is_tray_grasped)
         return {"left_grasped": is_tray_grasped_left, "right_grasped": is_tray_grasped_right, "grasped": is_tray_grasped, "success": success}
     
-    
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
-
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 
 # 2. Main Execution Block

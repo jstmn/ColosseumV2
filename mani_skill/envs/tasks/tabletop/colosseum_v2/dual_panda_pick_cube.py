@@ -8,25 +8,26 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 import torch
 
 # 1. Define the Empty Environment
 @register_env("DualArmPickCube-v1", max_episode_steps=1000)
-class DualArmPickCubeEnv(BaseEnv):
+class DualArmPickCubeEnv(ColosseumV2Env):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
     """
     cube_half_size = 0.02
-    # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
@@ -52,23 +53,24 @@ class DualArmPickCubeEnv(BaseEnv):
     
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
-        self.obj = actors.build_cube(
-            self.scene,
-            half_size=self.cube_half_size,
+        cube_builder = lambda: self.get_box_asset_builder(
+            half_size=(self.cube_half_size, self.cube_half_size, self.cube_half_size),
             color=np.array([12, 42, 160, 255]) / 255,
-            name="cube",
-            body_type="dynamic",
-            initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
+            object_type="MO",
+            initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83 + self.cube_half_size]),
         )
-    
+        self.obj = self.add_asset_to_scene(cube_builder, name="cube", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.obj])
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3), device=self.device)
             xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
-            xyz[..., 2] = self.cube_half_size+0.83
+            xyz[..., 2] = self.cube_half_size + 0.83
             q = [1, 0, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
+            self.initialize_episode_hook(env_idx, mo_pose=self.obj.pose)
         
     def _initialize_agent(self):
         # Reset the robot to a neutral position
@@ -83,15 +85,6 @@ class DualArmPickCubeEnv(BaseEnv):
         self.agent.reset(qpos)
 
     def _get_obs_extra(self, info: dict):
-        # THIS FIXES YOUR ERROR.
-        # We manually define what "extra" info we want, handling both arms correctly.
-        
-        # Access the specific attributes for Dual Panda
-        # (Using getattr to be safe, but usually it's tcp_pose_1 / tcp_pose_2 or similar)
-        
-        # Note: In many ManiSkill versions, dual agents might return a list for tcp_pose
-        # But if the error says 'tcp_1_pose', we use that.
-        
         obs = dict()
         # Helper to convert sapien.Pose to numpy array (Pos + Quat)
         def pose_to_vec(pose):
@@ -102,8 +95,6 @@ class DualArmPickCubeEnv(BaseEnv):
         if hasattr(self.agent, "tcp_pose"):
              obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
         else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
             obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
             obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
         if "state" in self.obs_mode:

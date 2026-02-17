@@ -9,7 +9,7 @@ import numpy as np
 import sapien
 from sapien import Pose
 from typing import Optional
-
+from mani_skill.utils.building.actor_builder import ActorBuilder
 
 def build_needle(
     scene: sapien.Scene,
@@ -22,7 +22,8 @@ def build_needle(
     density: float = 8000.0,
     color: Optional[np.ndarray] = None,
     initial_pose: Optional[Pose] = None,
-) -> sapien.Entity:
+    return_builder: bool = False,
+) -> ActorBuilder | sapien.Entity:
     """
     Build a needle actor - a thin cylindrical shaft with a pointed tip and an eye for threading.
     
@@ -187,4 +188,6 @@ def build_needle(
     builder.initial_pose = initial_pose
     
     # Build and return the actor
+    if return_builder:
+        return builder
     return builder.build(name=name)

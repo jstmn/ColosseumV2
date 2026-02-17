@@ -6,19 +6,19 @@ pm = importlib.import_module("mani_skill.utils.building.articulations.partnet_mo
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-from mani_skill.envs.sapien_env import BaseEnv
+import torch
+
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.utils.structs import Pose
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
-import torch
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 # 1. Define the Empty Environment
 @register_env("DualArmPickBottle-v1", max_episode_steps=1000)
-class DualArmPickBottleEnv(BaseEnv):
+class DualArmPickBottleEnv(ColosseumV2Env):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
@@ -27,11 +27,13 @@ class DualArmPickBottleEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
 
     @property
     def _default_sensor_configs(self):
@@ -56,28 +58,16 @@ class DualArmPickBottleEnv(BaseEnv):
 
     
     def _load_scene(self, options: dict):
-        self.obj = self.add_glb_asset_to_scene(self.scene, 
+        obj_builder = lambda: self.get_glb_asset_builder(
                                         os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
-                                        sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-                                        name="bottle",
-                                        scale=[0.06,0.06,0.08],
-                                        type="dynamic")
+            initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
+            object_type="MO",
+            scale=(0.06,0.06,0.08),
+        )
+        self.obj = self.add_asset_to_scene(obj_builder, name="bottle", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.obj])
     
-    
-        
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_filepath, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
-    
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
@@ -86,6 +76,7 @@ class DualArmPickBottleEnv(BaseEnv):
             xyz[..., 2] = self.cube_half_size+0.83
             q = [0.707, 0.707, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
+            self.initialize_episode_hook(env_idx, mo_pose=self.obj.pose)
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -130,15 +121,7 @@ class DualArmPickBottleEnv(BaseEnv):
         grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)        
         success = torch.logical_and(dist_2 <= dist_1, grasped_2)
         return {"grasping_bottle": grasped_2, "success": success}
-    
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
 
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 
 # 2. Main Execution Block

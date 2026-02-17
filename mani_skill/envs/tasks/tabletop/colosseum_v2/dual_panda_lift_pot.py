@@ -1,25 +1,25 @@
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
+import os
+
+import torch
+
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
-
-import torch
-import os
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 from mani_skill import PACKAGE_ASSET_DIR
+
+
 
 # 1. Define the Empty Environment
 @register_env("DualArmLiftPot-v1", max_episode_steps=1000)
-class DualArmLiftPotEnv(BaseEnv):
+class DualArmLiftPotEnv(ColosseumV2Env):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
@@ -28,11 +28,13 @@ class DualArmLiftPotEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
 
     @property
     def _default_sensor_configs(self):
@@ -58,32 +60,14 @@ class DualArmLiftPotEnv(BaseEnv):
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
         
-        self.pot = self.add_glb_asset_to_scene(self.scene, 
-                                        os.path.join(PACKAGE_ASSET_DIR,"pour_pot/pot.glb"),
-                                        sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-                                        name="pot",
-                                        scale=[1,1,1],
-                                        type="dynamic", color=np.array((129/255, 133/255, 137/255, 1)))
-        
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static", color=None):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        if color is not None:
-            custom_material = sapien.render.RenderMaterial()
-            custom_material.base_color = color  # Green [R, G, B, A]
-            custom_material.roughness = 0.0
-            custom_material.metallic = 0.8
-            builder.add_visual_from_file(glb_filepath, scale=scale, material=custom_material)
-        else:
-            builder.add_visual_from_file(glb_filepath, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
+        pot_builder = lambda: self.get_glb_asset_builder(
+            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/pot.glb"),
+            initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
+            object_type="MO",
+            scale=(1,1,1),
+        )
+        self.pot = self.add_asset_to_scene(pot_builder, name="pot", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.pot])
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -103,6 +87,7 @@ class DualArmLiftPotEnv(BaseEnv):
             final_pose = Pose.create_from_pq(p=xyz, q=final_q)
             self.pot.set_pose(final_pose)
             self.init_pose = final_pose
+            self.initialize_episode_hook(env_idx, mo_pose=final_pose)
         
         # Initialize agent after scene objects
         self._initialize_agent()

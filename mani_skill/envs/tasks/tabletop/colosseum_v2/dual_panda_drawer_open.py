@@ -26,9 +26,11 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
 
     IGNORED_VARIATION_FACTORS = [
         "MO_color_cfg",
-        "RO_color_cfg",
         "MO_texture_cfg",
+        "RO_color_cfg",
         "RO_texture_cfg",
+        "table_color_cfg",
+        "table_texture_cfg",
     ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
