@@ -18,7 +18,6 @@ import os
 import gymnasium as gym
 from mani_skill.envs.distraction_set import DistractionSet
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
 class PlaceBookEnv(BaseEnv):
     """
@@ -156,7 +155,7 @@ class PlaceBookEnv(BaseEnv):
             "is_book_grasped": is_book_grasped,
             "is_book_in_shelf": is_book_in_shelf,
             "is_book_static": is_book_static,
-            "success": success.bool()
+            "success": success
         }
 
     def _get_obs_extra(self, info: Dict):

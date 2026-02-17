@@ -19,7 +19,6 @@ from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.envs.distraction_set import DistractionSet
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
 class HangClothingFrameOnPoleEnv(BaseEnv):
     """
@@ -186,13 +185,13 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.clothing_frame.is_static(lin_thresh=1e-1, ang_thresh=1) # Not working well
         # print(self.clothing_frame.pose.p)
-        is_soda_on_table = (self.clothing_frame.pose.p[:,2] < 0.43) and (self.clothing_frame.pose.p[:,2] > 0.4)
+        is_soda_on_table = torch.logical_and(self.clothing_frame.pose.p[:,2] < 0.43,self.clothing_frame.pose.p[:,2] > 0.4)
         success = (is_soda_on_table)
         return {
             # "is_book_grasped": is_book_grasped,
             "is_frame_on_pole": is_soda_on_table,
             "is_frame_static": is_soda_static,
-            "success": success.bool()
+            "success": success
         }
         
     def _get_obs_extra(self, info: Dict):

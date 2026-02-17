@@ -21,7 +21,6 @@ from mani_skill.envs.distraction_set import DistractionSet
 import gymnasium as gym
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ensure GPU 0 is used for both sim and render
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
 class PickSodaFromCabinetEnv(BaseEnv):
     """
@@ -175,10 +174,15 @@ class PickSodaFromCabinetEnv(BaseEnv):
     def evaluate(self):
         is_soda_static = self.soda.is_static(lin_thresh=1e-2, ang_thresh=0.5)
         is_soda_on_table = self.soda.pose.p[..., 2] < 0.1
+        is_soda_in_x_lims = self.soda.pose.p[..., 0] > -0.3
+        is_soda_in_y_lims = torch.logical_and(self.soda.pose.p[..., 1] > -0.3, self.soda.pose.p[..., 1] < -0)
+        is_soda_within_bounds = torch.logical_and(is_soda_in_x_lims, is_soda_in_y_lims)
+        success = torch.logical_and(is_soda_on_table, is_soda_within_bounds)
         return {
             "is_soda_on_table": is_soda_on_table,
             "is_soda_static": is_soda_static,
-            "success": is_soda_on_table
+            "is_soda_within_bounds": is_soda_within_bounds,
+            "success": success
         }
         
     def _get_obs_extra(self, info: Dict):
