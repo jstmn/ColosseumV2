@@ -20,6 +20,7 @@ from mani_skill.envs.tasks.tabletop import *
 
 
 """
+# Run on a single task
 python examples/baselines/act/eval_rgbd.py \
     --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
     --distraction-set "none" \
@@ -31,6 +32,19 @@ python examples/baselines/act/eval_rgbd.py \
     --num-eval-episodes 100 \
     --num-eval-envs 50 \
     --max-episode-steps 200
+
+# Run on all tasks x variation factors
+python examples/baselines/act/eval_rgbd.py \
+    --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
+    --control-mode "pd_joint_pos" \
+    --no-include-depth \
+    --sim-backend "physx_cuda" \
+    --capture-video \
+    --num-eval-episodes 100 \
+    --num-eval-envs 50 \
+    --max-episode-steps 500 \
+    --distraction-set "BLANK" \
+    --results-path logs/results_bimanual.csv
 """
 
 ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (
@@ -193,5 +207,6 @@ if __name__ == "__main__":
             n_success,
             f"{success_percentage:.2f}",
         ]
+        results.loc[len(results)] = new_row
         results.to_csv(args.results_path, index=False)
         print(f"Saved results to {args.results_path}")
