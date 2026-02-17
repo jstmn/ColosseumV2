@@ -35,7 +35,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[0.1, 0, 0.1+0.83])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -45,7 +45,7 @@ class DualArmDrawerPlaceEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""

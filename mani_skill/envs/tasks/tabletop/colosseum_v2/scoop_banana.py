@@ -14,21 +14,20 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
-
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 @register_env("ScoopBanana-v1", max_episode_steps=100)
-class ScoopBananaEnv(BaseEnv):
+class ScoopBananaEnv(ColosseumV2Env):
     """
     **Task Description**
-    Take a dustpan and scoop a ball onto it.
+    Take a dustpan and scoop a banana onto it.
 
     **Randomizations**
-    - The ball's (x,y) positions are randomized on top of a table.
+    - The banana's (x,y) positions are randomized on top of a table.
 
 
     **Success Conditions**
-    - The ball is inside the dustpan, lifted above the table height.
+    - The banana is inside the dustpan, lifted above the table height.
     """
 
     _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/PullCubeTool-v1_rt.mp4"
@@ -38,7 +37,7 @@ class ScoopBananaEnv(BaseEnv):
     agent: Union[Panda, Fetch]
 
     goal_radius = 0.3
-    ball_radius: float = 0.035  # radius of the ball
+    banana_radius: float = 0.035  # radius of the banana
     handle_length = 0.2
     hook_length = 0.05
     width = 0.24
@@ -47,9 +46,6 @@ class ScoopBananaEnv(BaseEnv):
     arm_reach = 0.35
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
@@ -63,7 +59,7 @@ class ScoopBananaEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.25, 0.25, 0.5], target=[0.0, 0.0, 0.1])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -73,7 +69,7 @@ class ScoopBananaEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -91,60 +87,32 @@ class ScoopBananaEnv(BaseEnv):
         ]
 
     def _load_scene(self, options: dict):
-        self.scene_builder = TableSceneBuilder(
-            self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.scene_builder.build()
-
-        # self.ball = actors.build_sphere(
-        #     self.scene,
-        #     radius=ScoopBananaEnv.ball_radius,
-        #     color=[0, 0.2, 0.8, 1],
-        #     name="ball",
-        #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
-        # )
-        try:
-            builder = actors.get_actor_builder(self.scene, "ycb:011_banana")
-        except FileNotFoundError as e:
-            raise FileNotFoundError("You are missing the YCB dataset. Run 'python mani_skill/utils/download_asset.py ycb'")
-        builder.initial_pose = sapien.Pose(p=[0, 0, 0])
-        self.ball = builder.build_dynamic(name="ball")
-
-        self.dustpan = self.add_glb_asset_to_scene(
-            self.scene,
+        banana_builder = lambda: self.get_ycb_asset_builder(ycb_id="011_banana", object_type="MO")
+        dustpan_builder = lambda: self.get_glb_asset_builder(
             glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'scoop_particles/dustpan.glb'),
-            pose=sapien.Pose(p=[0, 0, 0.015]),
-            name="dustpan",
-            type="dynamic"
+            object_type="MO",
+            initial_pose=sapien.Pose(p=[0, 0, 0.015]),
         )
 
-        self.wall = actors.build_box(
+        wall_builder = lambda: actors.build_box(
             self.scene, half_sizes=[0.2, 0.02, 0.1], 
             color=[201/255, 204/255, 182/255, 1], 
             name="wall", 
             body_type="kinematic", 
             add_collision=True, 
-            initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071])
+            initial_pose=sapien.Pose(p=[0.2, -0.25, 0.2], q=[0.7071, 0, 0, 0.7071]),
+            return_builder=True,
         )
+        self.banana = self.add_asset_to_scene(banana_builder, name="banana", physics_type="dynamic", object_type="RO")
+        self.dustpan = self.add_asset_to_scene(dustpan_builder, name="dustpan", physics_type="dynamic", object_type="MO")
+        self.wall = self.add_asset_to_scene(wall_builder, name="wall", physics_type="kinematic", object_type="BACKGROUND")
+        self.load_scene_hook(manipulation_objects=[self.dustpan], receiving_objects=[self.banana])
 
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, type="static"):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_filepath)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            self.scene_builder.initialize(env_idx)
 
             tool_xyz = torch.zeros((b, 3), device=self.device)
             tool_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 - 0.1
@@ -154,31 +122,24 @@ class ScoopBananaEnv(BaseEnv):
             tool_pose = Pose.create_from_pq(p=tool_xyz, q=tool_q)
             self.dustpan.set_pose(tool_pose)
 
-            ball_xyz = torch.zeros((b, 3), device=self.device)
-            ball_xyz[..., 0] = (
+            banana_xyz = torch.zeros((b, 3), device=self.device)
+            banana_xyz[..., 0] = (
                 self.arm_reach
                 + torch.rand(b, device=self.device) * (self.handle_length)
                 - 0.4
             )
-            ball_xyz[..., 1] = torch.rand(b, device=self.device) * 0.3 - 0.25
-            ball_xyz[..., 2] = self.ball_radius + 0.01
+            banana_xyz[..., 1] = torch.rand(b, device=self.device) * 0.3 - 0.25
+            banana_xyz[..., 2] = self.banana_radius + 0.01
 
-            # ball_q = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=False,
-            #     bounds=(-np.pi / 6, np.pi / 6),
-            #     device=self.device,
-            # )
-
-            ball_pose = Pose.create_from_pq(p=ball_xyz, q=torch.tensor([1, 0, 0, 0], dtype=torch.float32))
-            self.ball.set_pose(ball_pose)
+            banana_pose = Pose.create_from_pq(p=banana_xyz, q=torch.tensor([1, 0, 0, 0], dtype=torch.float32))
+            self.banana.set_pose(banana_pose)
             wall_xyz = torch.zeros((b, 3), device=self.device)
-            wall_xyz[..., 0] = ball_xyz[..., 0] + 0.15
-            wall_xyz[..., 1] = ball_xyz[..., 1]
+            wall_xyz[..., 0] = banana_xyz[..., 0] + 0.15
+            wall_xyz[..., 1] = banana_xyz[..., 1]
             wall_xyz[..., 2] = 0.1
             self.wall.set_pose(Pose.create_from_pq(p=wall_xyz, q=torch.tensor([0.7071, 0, 0, 0.7071], dtype=torch.float32)))
+
+            self.initialize_episode_hook(env_idx, mo_pose=self.dustpan.pose)
 
     def _get_obs_extra(self, info: Dict):
         obs = dict(
@@ -187,31 +148,31 @@ class ScoopBananaEnv(BaseEnv):
 
         if self.obs_mode_struct.use_state:
             obs.update(
-                ball_pose=self.ball.pose.raw_pose,
+                banana_pose=self.banana.pose.raw_pose,
                 dustpan_pose=self.dustpan.pose.raw_pose,
             )
 
         return obs
 
     def evaluate(self):
-        ball_pos = self.ball.pose.p
+        banana_pos = self.banana.pose.p
 
         dustpan_pos = self.dustpan.pose.p
 
-        z_dist = ball_pos[..., 2] - dustpan_pos[..., 2]
-        xy_dist = torch.linalg.norm(ball_pos[..., :2] - dustpan_pos[..., :2], dim=1)
+        z_dist = banana_pos[..., 2] - dustpan_pos[..., 2]
+        xy_dist = torch.linalg.norm(banana_pos[..., :2] - dustpan_pos[..., :2], dim=1)
         # Success condition - cube is pulled close enough
-        ball_z_close_flag = torch.logical_and(z_dist < ScoopBananaEnv.ball_radius + 0.02, z_dist > 0.0)
-        ball_xy_close_flag = xy_dist < ScoopBananaEnv.width * 1.414 / 2
-        ball_pulled_close = torch.logical_and(ball_z_close_flag, ball_xy_close_flag)
-        # is_ball_static = self.ball.is_static(lin_thresh=1e-1, ang_thresh=0.5)
-        # print(is_ball_static)
-        success = ball_pulled_close
+        banana_z_close_flag = torch.logical_and(z_dist < ScoopBananaEnv.banana_radius + 0.02, z_dist > 0.0)
+        banana_xy_close_flag = xy_dist < ScoopBananaEnv.width * 1.414 / 2
+        banana_pulled_close = torch.logical_and(banana_z_close_flag, banana_xy_close_flag)
+        # is_banana_static = self.banana.is_static(lin_thresh=1e-1, ang_thresh=0.5)
+        # print(is_banana_static)
+        success = banana_pulled_close
 
         return {
             "success": success,
-            "ball_pulled_close": ball_pulled_close,
-            "ball_z_close_flag": ball_z_close_flag,
-            "ball_xy_close_flag": ball_xy_close_flag,
-            # "is_ball_static": is_ball_static,
+            "banana_pulled_close": banana_pulled_close,
+            "banana_z_close_flag": banana_z_close_flag,
+            "banana_xy_close_flag": banana_xy_close_flag,
+            # "is_banana_static": is_banana_static,
         }

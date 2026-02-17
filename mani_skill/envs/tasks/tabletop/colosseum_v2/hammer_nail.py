@@ -155,7 +155,7 @@ class HammerNailEnv(ColosseumV2Env):
         pose = sapien_utils.look_at(
             eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0]
         )
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -165,7 +165,7 @@ class HammerNailEnv(ColosseumV2Env):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -201,6 +201,7 @@ class HammerNailEnv(ColosseumV2Env):
         # Lock X and Z linear movement, allow only Y; lock all rotations.
         # Must be set before GPU sim initialization.
         self.nail.set_locked_motion_axes([True, False, True, True, True, True])
+        self.nails = [self.nail]
 
         rest_center = torch.from_numpy(spec.rest_center).to(torch.float32)
         rest_centers.append(rest_center)
@@ -208,7 +209,7 @@ class HammerNailEnv(ColosseumV2Env):
 
         self._nail_rest_centers = torch.stack(rest_centers)
         self._nail_success_threshold = torch.stack(success_thresholds)
-        self._nail_raise_ranges = torch.tensor([self._nail_spec.raise_range], dtype=torch.float32).expand(self.num_envs, 1)
+        self._nail_raise_ranges = torch.tensor([self._nail_spec.raise_range], dtype=torch.float32)
 
         # ========== Hammer initialization ==========
         # self.hammer = builder.build(name="hammer")
@@ -338,7 +339,7 @@ class HammerNailEnv(ColosseumV2Env):
 
     def _load_nails(self):
         """Load nails that can only move in Y axis (horizontally)"""
-        self.nails = []
+        # self.nails = []
 
         # Rotate nail to point along the desired Y direction
         from scipy.spatial.transform import Rotation

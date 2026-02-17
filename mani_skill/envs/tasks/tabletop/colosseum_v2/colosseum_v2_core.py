@@ -292,6 +292,7 @@ class ColosseumV2Env(BaseEnv):
         ycb_id: str,
         object_type: str,
     ):
+        assert "ycb:" not in ycb_id, "ycb_id shouldn't contain 'ycb:'. Remove that substring if it does"
         builder = self.scene.create_actor_builder()
 
         model_db = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
@@ -408,7 +409,7 @@ class ColosseumV2Env(BaseEnv):
             self._table = self._table_scene_builders[0].table
 
 
-    def load_scene_hook(self, manipulation_objects: list[Actor], receiving_objects: list[Actor] | None = None, add_table_to_scene: bool = True):
+    def load_scene_hook(self, manipulation_objects: list[Actor] = [], receiving_objects: list[Actor] = [], add_table_to_scene: bool = True):
         """
         This function is called when the scene is loaded.
         Args:
@@ -453,10 +454,9 @@ class ColosseumV2Env(BaseEnv):
             _set_color_or_texture(mo, self._ds.MO_color_cfg, self._ds.MO_texture_cfg, self._ds.MO_color_enabled(), self._ds.MO_texture_enabled())
 
         # Receiving object
-        if receiving_objects is not None:
-            for ro in receiving_objects:
-                assert ro is not None, "ro must be provided, got None"
-                _set_color_or_texture(ro, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
+        for ro in receiving_objects:
+            assert ro is not None, "ro must be provided, got None"
+            _set_color_or_texture(ro, self._ds.RO_color_cfg, self._ds.RO_texture_cfg, self._ds.RO_color_enabled(), self._ds.RO_texture_enabled())
 
         if self._ds.background_texture_enabled() or self._ds.background_color_enabled():
 
@@ -499,7 +499,7 @@ class ColosseumV2Env(BaseEnv):
             )
 
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True):
+    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
         
         assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
 
@@ -513,7 +513,10 @@ class ColosseumV2Env(BaseEnv):
 
         if initialize_table_scene:
             for ts in self._table_scene_builders:
-                ts.initialize(env_idx, qpos_0=qpos_0)
+                if table_z_rotation_angle is not None:
+                    ts.initialize(env_idx, table_z_rotation_angle=table_z_rotation_angle)
+                else:
+                    ts.initialize(env_idx, qpos_0=qpos_0)
 
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():

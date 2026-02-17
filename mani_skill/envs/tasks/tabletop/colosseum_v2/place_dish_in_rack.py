@@ -87,7 +87,7 @@ class PlaceDishInRackEnv(ColosseumV2Env):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.2, -0.2, 0.4], target=[-0.3, 0.0, 0.0])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -97,7 +97,7 @@ class PlaceDishInRackEnv(ColosseumV2Env):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):

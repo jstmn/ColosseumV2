@@ -85,7 +85,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.15, 0.5, 0.8], target=[-0.1, 0.0, 0.1])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -95,7 +95,7 @@ class PlaceCubeInDrawerEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     def _load_agent(self, options: dict):
         # Robot positioned perpendicular to cabinet (at -Y, facing +Y)

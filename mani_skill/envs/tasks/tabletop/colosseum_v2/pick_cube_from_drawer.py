@@ -49,9 +49,6 @@ class PickCubeFromDrawerEnv(BaseEnv):
         robot_init_qpos_noise=0.0,
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 45427  # Cabinet with drawers
 
         super().__init__(
@@ -80,7 +77,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -90,7 +87,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     def _load_agent(self, options: dict):
         # Robot positioned perpendicular to cabinet (at -Y, facing +Y)

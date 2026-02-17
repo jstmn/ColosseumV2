@@ -90,9 +90,6 @@ def build_cube(
         ),
     )
     if return_builder:
-        builder.name = name
-        builder.physx_body_type = body_type
-        builder.scene_idxs = scene_idxs
         if initial_pose is not None:
             builder.set_initial_pose(initial_pose)
         return builder
@@ -124,9 +121,6 @@ def build_box(
         ),
     )
     if return_builder:
-        builder.name = name
-        builder.physx_body_type = body_type
-        builder.scene_idxs = scene_idxs
         if initial_pose is not None:
             builder.set_initial_pose(initial_pose)
         return builder
@@ -159,9 +153,6 @@ def build_cylinder(
         ),
     )
     if return_builder:
-        builder.name = name
-        builder.physx_body_type = body_type
-        builder.scene_idxs = scene_idxs
         if initial_pose is not None:
             builder.set_initial_pose(initial_pose)
         return builder
@@ -191,9 +182,6 @@ def build_sphere(
         ),
     )
     if return_builder:
-        builder.name = name
-        builder.physx_body_type = body_type
-        builder.scene_idxs = scene_idxs
         if initial_pose is not None:
             builder.set_initial_pose(initial_pose)
         return builder
@@ -316,6 +304,8 @@ def build_twocolor_peg(
         ),
     )
     if return_builder:
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
         return builder
     return _build_by_type(builder, name, body_type, scene_idxs, initial_pose)
 

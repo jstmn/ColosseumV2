@@ -85,7 +85,7 @@ class PourSphereEnv(BaseEnv):
     def _default_sensor_configs(self):
         # Sensor camera with view of robot arm and cups (matching OpenCabinet setup)
         pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -95,7 +95,7 @@ class PourSphereEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
