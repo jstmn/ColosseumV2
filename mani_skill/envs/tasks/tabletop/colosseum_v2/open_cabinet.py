@@ -4,6 +4,7 @@ import numpy as np
 import sapien
 import torch
 import trimesh
+from transforms3d.euler import euler2quat
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
@@ -18,7 +19,7 @@ from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 CABINET_COLLISION_BIT = 29
 
@@ -109,7 +110,7 @@ def _get_handle_obb(handle_link):
     asset_download_ids=["partnet_mobility_cabinet"],
     max_episode_steps=100,
 )
-class OpenCabinetEnv(BaseEnv):
+class OpenCabinetEnv(ColosseumV2Env):
     """
     **Task Description:**
     Open a cabinet door using the Panda robot.
@@ -130,6 +131,16 @@ class OpenCabinetEnv(BaseEnv):
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
     )
 
+    IGNORED_VARIATION_FACTORS = [
+        "MO_color",
+        "RO_color",
+        "MO_texture",
+        "RO_texture",
+        "MO_mass",
+        "RO_mass",
+    ]
+
+
     CABINET_X_LIMS = [0.15, 0.22]
     CABINET_Y_LIMS = [0.0, 0.08]  # Shifted positive to match angled robot
 
@@ -145,11 +156,10 @@ class OpenCabinetEnv(BaseEnv):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         # Cabinet door model - 1027 has revolute door joints (from info_cabinet_door_train.json)
         self._model_id = 1027
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         super().__init__(
             *args,
             robot_uids=robot_uids,
+            ignored_variation_factors=self.IGNORED_VARIATION_FACTORS,
             **kwargs,
         )
 
@@ -191,15 +201,9 @@ class OpenCabinetEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
-
-        sapien.set_log_level("off")
         self._load_cabinets(self.handle_types)
-        sapien.set_log_level("warn")
         self._hidden_objects.append(self.handle_link_goal)
+        self.load_scene_hook()
 
     def _load_cabinets(self, joint_types: List[str]):
         link_ids = [0]
@@ -302,8 +306,6 @@ class OpenCabinetEnv(BaseEnv):
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
-        from transforms3d.euler import euler2quat
-
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
@@ -382,7 +384,7 @@ class OpenCabinetEnv(BaseEnv):
             ])
 
             # Initialize robot with fixed configuration
-            self.table_scene.initialize(env_idx, table_z_rotation_angle=np.pi, qpos_0=pregrasp_qpos)
+            self.initialize_episode_hook(env_idx, mo_pose=xy, table_z_rotation_angle=np.pi, qpos_0=pregrasp_qpos)
             self.agent.robot.set_pose(robot_pose)
 
             if self.gpu_sim_enabled:
@@ -428,31 +430,3 @@ class OpenCabinetEnv(BaseEnv):
             obs["handle_pos"] = self.handle_link_positions()
             obs["cabinet_qpos"] = self.cabinet.qpos
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        tcp_pos = self.agent.tcp_pose.p
-        handle_pos = self.handle_link_positions()
-
-        # Distance to handle
-        tcp_to_handle = torch.linalg.norm(tcp_pos - handle_pos, axis=1)
-        reaching_reward = 1 - torch.tanh(5.0 * tcp_to_handle)
-
-        # Opening reward
-        qpos = self.handle_link.joint.qpos
-        if qpos.ndim > 1:
-            qpos = qpos.squeeze(-1)
-        qlimits = self.handle_link.joint.limits
-        qmin, qmax = qlimits[..., 0].squeeze(-1), qlimits[..., 1].squeeze(-1)
-        open_frac = (qpos - qmin) / (qmax - qmin + 1e-6)
-        open_reward = open_frac
-
-        # Success bonus
-        success = info["success"].float()
-
-        reward = reaching_reward + open_reward * 2 + success * 5
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        return self.compute_dense_reward(obs, action, info) / 8.0

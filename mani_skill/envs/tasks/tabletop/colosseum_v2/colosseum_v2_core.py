@@ -377,16 +377,12 @@ class ColosseumV2Env(BaseEnv):
             builder.add_visual_from_file(filename=glb_filepath, scale=scale, pose=mesh_pose)
 
         # Collision
-        if (density is None) and (physical_material is None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, pose=mesh_pose)
-        elif (density is None) and (physical_material is not None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, pose=mesh_pose)
-        elif (density is not None) and (physical_material is None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, density=density, pose=mesh_pose)
-        elif (density is not None) and (physical_material is not None):
-            builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale, material=physical_material, density=density, pose=mesh_pose)
-        else:
-            raise ValueError(f"Unhandled combination of density and physical_material: {density} and {physical_material}")
+        collision_kwargs = {"decomposition": "coacd", "scale": scale, "pose": mesh_pose}
+        if physical_material is not None:
+            collision_kwargs["material"] = physical_material
+        if density is not None:
+            collision_kwargs["density"] = density
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, **collision_kwargs)
 
         return builder
 
@@ -512,11 +508,13 @@ class ColosseumV2Env(BaseEnv):
 
 
         if initialize_table_scene:
+            init_kwargs = {}
+            if table_z_rotation_angle is not None:
+                init_kwargs["table_z_rotation_angle"] = table_z_rotation_angle
+            if qpos_0 is not None:
+                init_kwargs["qpos_0"] = qpos_0
             for ts in self._table_scene_builders:
-                if table_z_rotation_angle is not None:
-                    ts.initialize(env_idx, table_z_rotation_angle=table_z_rotation_angle)
-                else:
-                    ts.initialize(env_idx, qpos_0=qpos_0)
+                ts.initialize(env_idx, **init_kwargs)
 
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():

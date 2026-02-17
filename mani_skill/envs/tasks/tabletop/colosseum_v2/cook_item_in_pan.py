@@ -3,7 +3,6 @@ import os
 
 import numpy as np
 import sapien
-import sapien.render
 import torch
 import trimesh
 from transforms3d.euler import euler2quat
@@ -12,10 +11,8 @@ from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
@@ -221,25 +218,13 @@ class CookItemInPanEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
         self._add_table_to_scene()
-        raw_table = self._table_scene.table._objs[0]
+        raw_table = self.table._objs[0]
         table_z = float(raw_table.pose.p[2])
-        self.table_surface_z = table_z + float(self._table_scene.table_height)
+        self.table_surface_z = table_z + float(self.table_scene_builders[0].table_height)
 
         def _get_stove_builder():
             # builder = self.scene.create_actor_builder()
             scale = (self.stove_scale, self.stove_scale, self.stove_scale)
-            # # Use convex collision for OBJ file
-            # builder.add_convex_collision_from_file(
-            #     filename=self.stove_glb_path,
-            #     scale=scale,
-            #     pose=self.stove_mesh_pose,
-            #     density=300.0,
-            # )
-            # builder.add_visual_from_file(
-            #     filename=self.stove_glb_path,
-            #     scale=scale,
-            #     pose=self.stove_mesh_pose,
-            # )
             initial_pose = sapien.Pose(
                 p=[
                     float(self.stove_center_xy[0]),
@@ -253,20 +238,11 @@ class CookItemInPanEnv(ColosseumV2Env):
                 density=300.0,
                 scale=scale,
                 initial_pose=initial_pose,
+                mesh_pose=self.stove_mesh_pose,
             )
 
         def _get_pan_builder():
             scale = (self.pan_scale, self.pan_scale, self.pan_scale)
-            # builder = self.scene.create_actor_builder()
-            # builder.add_multiple_convex_collisions_from_file(
-            #     filename=self.pan_glb_path,
-            #     scale=scale,
-            #     decomposition="coacd",
-            #     density=300.0,
-            # )
-            # builder.add_visual_from_file(filename=self.pan_glb_path, scale=scale)
-            # builder.initial_pose = sapien.Pose()
-            # return builder
             return self.get_glb_asset_builder(
                 glb_filepath=self.pan_glb_path,
                 object_type="MO",
@@ -283,7 +259,7 @@ class CookItemInPanEnv(ColosseumV2Env):
         self.stove = self.add_asset_to_scene(_get_stove_builder, name="stove", physics_type="kinematic",  object_type="RO")
         self.pan = self.add_asset_to_scene(_get_pan_builder, name="pan", physics_type="dynamic",  object_type="MO")
         self.food = self.add_asset_to_scene(_get_food_builder, name="food", physics_type="dynamic",  object_type="MO")
-        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove])
+        self.load_scene_hook(manipulation_objects=[self.pan, self.food], receiving_objects=[self.stove], add_table_to_scene=False)
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
 
@@ -296,8 +272,9 @@ class CookItemInPanEnv(ColosseumV2Env):
                 -0.321, 0.314, 0.635, -2.240, -0.300, 2.473, -1.820,
                 0.04, 0.04  # gripper open
             ])
-            qpos = torch.tensor(pregrasp_qpos, device=self.device, dtype=torch.float32).unsqueeze(0).repeat(b, 1)
-            self.agent.reset(qpos)
+            # Initialize the table + robot *before* placing dynamic objects to avoid
+            # contact explosions (e.g., the robot spawning intersecting the pan).
+            self.initialize_episode_hook(env_idx, mo_pose=None, qpos_0=pregrasp_qpos)
 
             pan_xy = (
                 torch.rand((b, 2), device=self.device) * 2 - 1
@@ -312,6 +289,9 @@ class CookItemInPanEnv(ColosseumV2Env):
                 device=self.device,
             ).repeat(b, 1)
             self.pan.set_pose(Pose.create_from_pq(p=pan_pos, q=pan_q))
+            # Ensure no carry-over momentum across episode resets.
+            self.pan.set_linear_velocity(torch.zeros((b, 3), device=self.device))
+            self.pan.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
             food_xy = (
                 torch.rand((b, 2), device=self.device) * 2 - 1
@@ -322,8 +302,8 @@ class CookItemInPanEnv(ColosseumV2Env):
             food_pos[:, :2] = food_xy
             food_pos[:, 2] = self.table_surface_z + self.food_bottom_offset
             self.food.set_pose(Pose.create_from_pq(p=food_pos))
-            
-            self.initialize_episode_hook(env_idx, mo_pose=self.pan.pose)
+            self.food.set_linear_velocity(torch.zeros((b, 3), device=self.device))
+            self.food.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
     def evaluate(self):
         pan_pose = self.pan.pose
@@ -385,26 +365,3 @@ class CookItemInPanEnv(ColosseumV2Env):
                 food_to_pan_pos=self.pan.pose.p - self.food.pose.p,
             )
         return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        pan_pos = self.pan.pose.p
-        food_pos = self.food.pose.p
-        stove_pos = self.stove.pose.p
-
-        pan_to_stove_dist = torch.linalg.norm(pan_pos[:, :2] - stove_pos[:, :2], dim=1)
-        food_to_pan_dist = torch.linalg.norm(food_pos[:, :2] - pan_pos[:, :2], dim=1)
-
-        pan_reach = 1 - torch.tanh(5 * pan_to_stove_dist)
-        food_reach = 1 - torch.tanh(5 * food_to_pan_dist)
-        stove_bonus = info["is_pan_on_stove"].float()
-        pan_bonus = info["is_food_in_pan"].float()
-
-        reward = 0.5 * pan_reach + 0.5 * food_reach + stove_bonus + pan_bonus
-        reward[info["success"]] = 3.0
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 3.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward

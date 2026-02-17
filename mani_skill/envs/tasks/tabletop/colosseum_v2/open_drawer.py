@@ -1,27 +1,20 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import sapien
-import sapien.physx as physx
 import torch
 import trimesh
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
-from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
 
@@ -267,6 +260,8 @@ class OpenDrawerEnv(ColosseumV2Env):
             # initialize robot
             qpos_0 = np.array([-0.13595445, -1.2611351, 0.24094589, -2.9000182, 2.5728698, 3.0259767, 0.029944034, 0.039999813, 0.03999985]) # final two are gripper (start open)
             # ^ Copied from visualizer
+            self.initialize_episode_hook(env_idx, mo_pose=xy, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
+            # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
 
 
             # close all the cabinets. We know beforehand that lower qlimit means "closed" for these assets.
@@ -287,8 +282,6 @@ class OpenDrawerEnv(ColosseumV2Env):
             self.handle_link_goal.set_pose(
                 Pose.create_from_pq(p=self.handle_link_positions(env_idx))
             )
-            self.initialize_episode_hook(env_idx, mo_pose=xy, table_z_rotation_angle=np.pi, qpos_0=qpos_0)
-            # ^ table_z_rotation_angle=np.pi rotates the table 90 degrees from default so that the cabinet has more table space behind it
 
     def _after_control_step(self):
         # after each control step, we update the goal position of the handle link
