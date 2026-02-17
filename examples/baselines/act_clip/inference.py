@@ -26,7 +26,7 @@ def run_inference():
 
 
     if not os.path.exists(eval_args.checkpoint_path):
-        raise FileNotFoundError(f"체크포인트를 찾을 수 없습니다: {eval_args.checkpoint_path}")
+        raise FileNotFoundError(f"Not Found checkpoint: {eval_args.checkpoint_path}")
 
     print(f"[*] Loading checkpoint: {eval_args.checkpoint_path}")
     checkpoint = torch.load(eval_args.checkpoint_path, map_location=device)

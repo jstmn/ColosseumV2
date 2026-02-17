@@ -96,11 +96,12 @@ TARGET_KEY_TO_SOURCE_KEY = {
     # 'rewards': 'rewards',
     'actions': 'actions',
 }
-def load_content_from_h5_file(file, path=""):
+
+def load_content_from_h5_file(file, prefix = ""):
     if isinstance(file, (File, Group)):
         out = {}
         for key in list(file.keys()):
-            child_path = f"{path}/{key}" if path else key
+            child_path = f"{prefix}/{key}" if prefix else key
             out[key] = load_content_from_h5_file(file[key], child_path)
         return out
 
@@ -109,7 +110,7 @@ def load_content_from_h5_file(file, path=""):
             return file[()]
         except OSError as e:
             print(f"[H5 WARN] read failed -> replacing with zeros")
-            print(f"  dataset: {path}")
+            print(f"  dataset: {prefix}")
             print(f"  shape={file.shape}, dtype={file.dtype}, compression={file.compression}, chunks={file.chunks}")
             print(f"  err: {e}")
             return np.zeros(file.shape, dtype=file.dtype)

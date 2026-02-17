@@ -85,6 +85,8 @@ class Args:
     """Number of environments to run to replay trajectories. With CPU backends typically this is parallelized via python multiprocessing.
     For parallelized simulation backends like physx_gpu, this is parallelized within a single python process by leveraging the GPU."""
 
+    success_count: Optional[int] = None
+    """stop when num of the successed episodes is success_count."""
 
 @dataclass
 class ReplayResult:
@@ -251,7 +253,15 @@ def replay_cpu_sim(
     args: Args, env: RecordEpisode, ori_env, pbar, episodes, trajectories
 ):
     successful_replays = 0
+
+    target_success = args.success_count if args.success_count is not None else len(episodes)
+
     for episode in episodes:
+
+        if successful_replays >= target_success:
+            logger.info(f"Target success count {target_success} reached. Stopping replay.")
+            break
+
         sanity_check_and_format_seed(episode)
         episode_id = episode["episode_id"]
         traj_id = f"traj_{episode_id}"

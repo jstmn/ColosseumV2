@@ -37,13 +37,13 @@ import tyro
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 import wandb
 from mani_skill.utils.io_utils import load_json
+from collections import Counter
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
 # causes at torch shape mismatch error, because the configuration space is [batch x ndof], but these values are
 # [batch x 4 x 4]
 OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
-ALLOWED_OBS_EXTRA_KEYS = {"tcp_pose", "left_arm_tcp", "right_arm_tcp", "goal_pos", "is_grasped"}
 
 @dataclass
 class Args:
@@ -60,11 +60,11 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "ManiSkill_fixed"
+    wandb_project_name: str = "ManiSkill"
     """the wandb's project name"""
     wandb_entity: Optional[str] = None
     """the entity (team) of wandb's project"""
-    capture_video: bool = False #Hayden
+    capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     env_id: str = "PickCube-v1"
@@ -77,7 +77,6 @@ class Args:
     """total timesteps of the experiment"""
     batch_size: int = 256
     """the batch size of sample from the replay memory"""
-    #Hayden
     real: bool = False
     """use real demonstartion dataset"""
 
@@ -95,7 +94,7 @@ class Args:
     lr_backbone: float = 1e-5
     masks: bool = False
     dilation: bool = False
-    include_depth: bool = False #Hayden
+    include_depth: bool = False
 
     # Transformer
     enc_layers: int = 2
@@ -145,7 +144,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     Note that the returned observations will have a "rgbd" or "rgb" or "depth" key depending on the rgb/depth bool flags.
     """
 
-    def __init__(self, env, rgb=True, depth=True, state=True, is_multi_task=True, target_num_cams=3) -> None:
+    def __init__(self, env, is_multi_task, target_num_cams, rgb=True, depth=True, state=True) -> None:
         self.base_env: BaseEnv = env.unwrapped
         super().__init__(env)
         self.include_rgb = rgb
@@ -206,29 +205,12 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
         rgb = torch.stack(images_rgb, dim=1) # (1, num_cams, C, 224, 224), uint8
         
-        #Hayden - Multi-task
-        if self.is_multi_task:
-            cur = rgb.shape[1]
-            if cur < self.target_num_cams:
-                pad = torch.zeros(
-                    (rgb.shape[0], self.target_num_cams - cur, rgb.shape[2], rgb.shape[3], rgb.shape[4]),
-                    dtype=rgb.dtype,
-                    device=rgb.device
-                )
-                rgb = torch.cat([rgb, pad], dim=1)
-
-            elif cur > self.target_num_cams:
-                rgb = rgb[:, :self.target_num_cams]
-        
         if self.include_depth:
             depth = torch.stack(images_depth, dim=1) # (1, num_cams, C, 224, 224), float16
 
         # flatten the rest of the data which should just be state data
         observation = common.flatten_state_dict(observation, use_torch=True)
 
-        #Hayden
-        if args.real:
-            observation = observation[..., :18]
 
         ret = dict()
         if self.include_state:
@@ -244,7 +226,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
 
 class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
-    def __init__(self, data_path, num_queries, num_traj, include_depth=True, is_multi_task=True, target_state_dim=None):
+    def __init__(self, data_path, num_queries, num_traj, include_depth, is_multi_task, target_state_dim):
         if data_path[-4:] == '.pkl':
             raise NotImplementedError()
         else:
@@ -272,7 +254,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             obs_traj_dict = self.process_obs(obs_traj_dict)
             obs_traj_dict_list.append(obs_traj_dict)
         trajectories['observations'] = obs_traj_dict_list
-        self.obs_keys = list(obs_traj_dict.keys())
 
 
         if self.is_multi_task:
@@ -282,7 +263,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
                 eid = ep.get("env_id", args.env_id)
                 self.episode_env_ids.append(eid)
 
-            from collections import Counter
             dims = [o["state"].shape[1] for o in trajectories["observations"]]
             
             if self.target_state_dim is None:
@@ -304,10 +284,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         # Pre-process the actions
         for i in tqdm.tqdm(range(len(trajectories['actions'])), desc='Pre-processing actions'):
             current_act = torch.Tensor(trajectories['actions'][i])
-
-            #Hayen
-            if args.real:
-                current_act = current_act[..., :8]
 
             trajectories['actions'][i] = current_act
         print('Obs/action pre-processing is done.')
@@ -336,11 +312,10 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         self.norm_stats = self.get_norm_stats() if not self.delta_control else None
 
 
-        #Hayden - multi-task
+        #multi-task
         if self.is_multi_task:
             #self.json_data = load_json(data_path.replace(".h5", ".json"))
             #self.episode_env_ids = [ep.get("env_id", "Unknown-v1") for ep in self.json_data["episodes"]]
-            from collections import Counter
             print("[EP ENV_ID COUNTS]", Counter(self.episode_env_ids))
 
     def __getitem__(self, index):
@@ -362,12 +337,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             elif not self.delta_control:
                 target = act_seq[-1]
                 act_seq = torch.cat([act_seq, target.repeat(self.num_queries-action_len, 1)], dim=0)
-            else:
-                #multi_task
-                pad_size = self.num_queries - action_len
-                last_action = act_seq[-1:] # (1, act_dim)
-                padding = last_action.repeat(pad_size, 1)
-                act_seq = torch.cat([act_seq, padding], dim=0)
 
         # normalize state and act_seq
         if not self.delta_control:
@@ -392,6 +361,7 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         return len(self.slices)
 
     def process_obs(self, obs_dict):
+        
         # remove keys that shouldn't be included in the observation space
         for key in OBS_KEYS_TO_REMOVE:
             try:
@@ -404,31 +374,21 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         del obs_dict["sensor_param"]
 
         cam_data = sensor_data["base_camera"]
-        # RGB 처리
+        # RGB
         rgb_tensor = torch.from_numpy(cam_data["rgb"])
         resized_rgb = self.transforms(rgb_tensor.permute(0, 3, 1, 2))
         rgb = torch.stack([resized_rgb], dim=1) # (ep_len, 1, 3, 224, 224)
 
-        # Depth 처리
+        # Depth
         if self.include_depth:
             depth_tensor = torch.Tensor(cam_data["depth"].astype(np.float32) / 1024).to(torch.float16)
             resized_depth = self.transforms(depth_tensor.permute(0, 3, 1, 2))
             depth = torch.stack([resized_depth], dim=1)
 
-        # obs_dict['extra']
-        if isinstance(obs_dict, dict) and 'extra' in obs_dict:
-            new_extra = {}
-            for k, v in obs_dict['extra'].items():
-                if k in ALLOWED_OBS_EXTRA_KEYS:
-                    if hasattr(v, 'ndim') and v.ndim == 1:
-                        v = v[:, None] if isinstance(v, np.ndarray) else v.unsqueeze(1)
-                    new_extra[k] = v
-            obs_dict['extra'] = new_extra
-
-
-        # State
+        if not args.real:
+            obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
-        
+
         if self.is_multi_task and (self.target_state_dim is not None):
             s = obs_dict
             d = s.shape[1]
@@ -484,19 +444,13 @@ class Agent(nn.Module):
         assert len(env.single_action_space.shape) == 1 # (act_dim,)
         #assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
 
-        print("single_action_space:", envs.single_action_space)
-        print("low :", envs.single_action_space.low)
-        print("high:", envs.single_action_space.high)
-
-
-        #Hayden - real dataset
+        
         if args.real:
             self.state_dim = 18
-            self.act_dim = 8
+            self.act_dim = 9
         else:
             self.state_dim = env.single_observation_space['state'].shape[0]
             self.act_dim = env.single_action_space.shape[0]
-
 
         self.kl_weight = args.kl_weight
         self.normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -557,7 +511,6 @@ class Agent(nn.Module):
         if args.include_depth:
             obs['depth'] = obs['depth'].float()
 
-        #multi-task padding
         if self.is_multi_task:
             current_dim = obs['state'].shape[-1]
             if current_dim < self.state_dim:
@@ -569,12 +522,6 @@ class Agent(nn.Module):
                 )
                 obs['state'] = torch.cat([obs['state'], padding], dim=-1)
 
-            current_num_cams = obs['rgb'].shape[1]
-            if current_num_cams < self.num_cams:
-                # [B, 1, 3, 224, 224] -> [B, 2, 3, 224, 224]
-                pad_shape = (obs['rgb'].shape[0], self.num_cams - current_num_cams, 3, 224, 224)
-                padding_rgb = torch.zeros(pad_shape, device=obs['rgb'].device, dtype=obs['rgb'].dtype)
-                obs['rgb'] = torch.cat([obs['rgb'], padding_rgb], dim=1)
 
 
         # forward pass
@@ -612,14 +559,11 @@ if __name__ == "__main__":
 
     assert args.sim_backend in ("physx_cpu", "physx_cuda")
 
-    #multi-task
     demo_json = None
     is_multi_task = False
-    try:
-        demo_json = load_json(args.demo_path.replace(".h5", ".json"))
-        is_multi_task = bool(demo_json.get("multi_env", False))
-    except Exception as e:
-        print("[WARN] failed to read demo json for multi_env:", e)
+    demo_json = load_json(args.demo_path.replace(".h5", ".json"))
+    is_multi_task = bool(demo_json.get("multi_env", False))
+
 
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]
@@ -656,7 +600,6 @@ if __name__ == "__main__":
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
     wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth, is_multi_task=is_multi_task, target_num_cams=1)]
-    
     envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
 
@@ -711,7 +654,6 @@ if __name__ == "__main__":
 
     # agent setup
     agent = Agent(envs, args, is_multi_task).to(device)
-    #agent = torch.compile(agent) #Hayden
 
     # optimizer setup
     param_dicts = [
@@ -734,8 +676,6 @@ if __name__ == "__main__":
     ema_agent = Agent(envs, args, is_multi_task).to(device)
 
      # Evaluation
-    
-    #Hayden
     eval_stats = None
     if dataset.norm_stats is not None:
         eval_stats = {k: (v.to(device) if torch.is_tensor(v) else v)
@@ -750,8 +690,7 @@ if __name__ == "__main__":
     #    stats=dataset.norm_stats, num_queries=args.num_queries, temporal_agg=args.temporal_agg,
     #    max_timesteps=args.max_episode_steps, device=device, sim_backend=args.sim_backend
     #)
-    
-    #Hayden
+
     eval_kwargs = dict(
         stats=eval_stats,
         num_queries=args.num_queries,
@@ -795,7 +734,7 @@ if __name__ == "__main__":
         timings["update"] += time.time() - last_tick
 
         #Evaluation
-        if cur_iter % args.eval_freq == 0:
+        if cur_iter % args.eval_freq == 0 and not args.real:
             last_tick = time.time()
             ema.copy_to(ema_agent.parameters())
 

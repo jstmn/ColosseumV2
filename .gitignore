@@ -47,3 +47,4 @@ htmlcov/
 venv/
 notes
 runs/
+bpe_simple_vocab_16e6.txt.gz

@@ -36,13 +36,13 @@ from typing import Optional, List, Dict
 import tyro
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 from mani_skill.utils.io_utils import load_json
+from collections import Counter
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
 # causes at torch shape mismatch error, because the configuration space is [batch x ndof], but these values are
 # [batch x 4 x 4]
 OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
-ALLOWED_OBS_EXTRA_KEYS = {"tcp_pose", "left_arm_tcp", "right_arm_tcp", "goal_pos", "is_grasped"}
 
 @dataclass
 class Args:
@@ -59,7 +59,7 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "ManiSkill_fixed"
+    wandb_project_name: str = "ManiSkill"
     """the wandb's project name"""
     wandb_entity: Optional[str] = None
     """the entity (team) of wandb's project"""
@@ -81,7 +81,7 @@ class Args:
     internal_instruction: bool = False
     """ use pre-defiend language_instructions for clip embedding"""
     is_multi_task: bool = True
-    """ use pre-defiend language_instructions for clip embedding"""
+    """ use multi-task dataset"""
     
     # ACT specific arguments
     lr: float = 1e-4
@@ -97,7 +97,7 @@ class Args:
     lr_backbone: float = 1e-5
     masks: bool = False
     dilation: bool = False
-    include_depth: bool = False  #Hayden
+    include_depth: bool = False
 
     # Transformer
     enc_layers: int = 2
@@ -170,7 +170,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     Note that the returned observations will have a "rgbd" or "rgb" or "depth" key depending on the rgb/depth bool flags.
     """
 
-    def __init__(self, env, rgb=True, depth=True, state=True, is_multi_task=True, target_num_cams=3) -> None:
+    def __init__(self, env, is_multi_task, target_num_cams, rgb=True, depth=True, state=True) -> None:
         self.base_env: BaseEnv = env.unwrapped
         super().__init__(env)
         self.include_rgb = rgb
@@ -216,7 +216,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
         #         )  # (1, 1, 224, 224)
         #         images_depth.append(resized_depth)
 
-        cam_data = sensor_data["base_camera"]
+        #cam_data = sensor_data["base_camera"]
             
         if self.include_rgb:
             resized_rgb = self.transforms(
@@ -233,29 +233,12 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
         rgb = torch.stack(images_rgb, dim=1) # (1, num_cams, C, 224, 224), uint8
 
-        #Hayden - Multi-task
-        if self.is_multi_task:
-            cur = rgb.shape[1]
-            if cur < self.target_num_cams:
-                pad = torch.zeros(
-                    (rgb.shape[0], self.target_num_cams - cur, rgb.shape[2], rgb.shape[3], rgb.shape[4]),
-                    dtype=rgb.dtype,
-                    device=rgb.device
-                )
-                rgb = torch.cat([rgb, pad], dim=1)
-
-            elif cur > self.target_num_cams:
-                rgb = rgb[:, :self.target_num_cams]
-
         if self.include_depth:
             depth = torch.stack(images_depth, dim=1) # (1, num_cams, C, 224, 224), float16
 
         # flatten the rest of the data which should just be state data
         
         observation = common.flatten_state_dict(observation, use_torch=True)
-        
-        if args.real:
-            observation = observation[..., :18]
 
         ret = dict()
         if self.include_state:
@@ -271,7 +254,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
 
 class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
-    def __init__(self, data_path, num_queries, num_traj, internal_instruction, lang_instruction, include_depth=True, is_multi_task=True, target_state_dim=None):
+    def __init__(self, data_path, num_queries, num_traj, internal_instruction, lang_instruction, include_depth, is_multi_task, target_state_dim):
         if data_path[-4:] == '.pkl':
             raise NotImplementedError()
         else:
@@ -304,7 +287,7 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         trajectories['observations'] = obs_traj_dict_list
 
 
-        #Hayden - multi-task
+        #multi-task
         if self.is_multi_task:
             self.json_data = load_json(data_path.replace(".h5", ".json"))
             self.episode_env_ids = []
@@ -312,7 +295,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
                 eid = ep.get("env_id", args.env_id)
                 self.episode_env_ids.append(eid)
 
-            from collections import Counter
             dims = [o["state"].shape[1] for o in trajectories["observations"]]
             
             if self.target_state_dim is None:
@@ -334,10 +316,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         # Pre-process the actions
         for i in tqdm.tqdm(range(len(trajectories['actions'])), desc='Pre-processing actions'):
             current_act = torch.Tensor(trajectories['actions'][i])
-
-            #Hayen
-            if args.real:
-                current_act = current_act[..., :8]
 
             trajectories['actions'][i] = current_act
         print('Obs/action pre-processing is done.')
@@ -366,12 +344,11 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         self.norm_stats = self.get_norm_stats() if not self.delta_control else None
 
 
-        #Hayden - multi-task
+        #multi-task
         if self.is_multi_task:
             #self.json_data = load_json(data_path.replace(".h5", ".json"))
             #self.episode_env_ids = [ep.get("env_id", "Unknown-v1") for ep in self.json_data["episodes"]]
 
-            from collections import Counter
             print("[EP ENV_ID COUNTS]", Counter(self.episode_env_ids))
 
     def __getitem__(self, index):
@@ -402,12 +379,6 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             elif not self.delta_control:
                 target = act_seq[-1]
                 act_seq = torch.cat([act_seq, target.repeat(self.num_queries-action_len, 1)], dim=0)
-            else:
-                #multi_task
-                pad_size = self.num_queries - action_len
-                last_action = act_seq[-1:] # (1, act_dim)
-                padding = last_action.repeat(pad_size, 1)
-                act_seq = torch.cat([act_seq, padding], dim=0)
                 
         # normalize state and act_seq
         if not self.delta_control:
@@ -456,19 +427,8 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             resized_depth = self.transforms(depth_tensor.permute(0, 3, 1, 2))
             depth = torch.stack([resized_depth], dim=1)
 
-        # obs_dict['extra']
-        if isinstance(obs_dict, dict) and 'extra' in obs_dict:
-            new_extra = {}
-            for k, v in obs_dict['extra'].items():
-                if k in ALLOWED_OBS_EXTRA_KEYS:
-                    # 데이터가 numpy든 torch든 2차원으로 변환
-                    if hasattr(v, 'ndim') and v.ndim == 1:
-                        v = v[:, None] if isinstance(v, np.ndarray) else v.unsqueeze(1)
-                    new_extra[k] = v
-            obs_dict['extra'] = new_extra
-
-
-        # State
+        if not args.real:
+            obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
         
         if self.is_multi_task and (self.target_state_dim is not None):
@@ -525,10 +485,10 @@ class Agent(nn.Module):
         assert len(env.single_action_space.shape) == 1 # (act_dim,)
         #assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
 
-        #Hayden - real dataset
+        #real dataset
         if args.real:
             self.state_dim = 18
-            self.act_dim = 8
+            self.act_dim = 9
         else:
             self.state_dim = env.single_observation_space['state'].shape[0]
             self.act_dim = env.single_action_space.shape[0]
@@ -557,7 +517,7 @@ class Agent(nn.Module):
             use_lang_instruction = False
         self.internal_instruction = args.internal_instruction
         self.is_multi_task = is_multi_task
-        
+        self.num_cams = 1
         self.model = DETRVAE(
             backbones,
             transformer,
@@ -567,8 +527,6 @@ class Agent(nn.Module):
             num_queries=args.num_queries,
             use_lang_instruction=use_lang_instruction,
         )
-
-        self.num_cams = 1
 
     def compute_loss(self, obs, action_seq, lang_instruction):
         # normalize rgb data
@@ -606,7 +564,7 @@ class Agent(nn.Module):
         if args.include_depth:
             obs['depth'] = obs['depth'].float()
 
-        #Hayden - multi-task padding
+        #multi-task padding
         if self.is_multi_task:
             current_dim = obs['state'].shape[-1]
             if current_dim < self.state_dim:
@@ -618,17 +576,6 @@ class Agent(nn.Module):
                 )
                 obs['state'] = torch.cat([obs['state'], padding], dim=-1)
 
-            current_num_cams = obs['rgb'].shape[1]
-            if current_num_cams < self.num_cams:
-                # [B, 1, 3, 224, 224] -> [B, 2, 3, 224, 224]
-                pad_shape = (obs['rgb'].shape[0], self.num_cams - current_num_cams, 3, 224, 224)
-                padding_rgb = torch.zeros(pad_shape, device=obs['rgb'].device, dtype=obs['rgb'].dtype)
-                obs['rgb'] = torch.cat([obs['rgb'], padding_rgb], dim=1)
-
-
-        # forward pass
-        #a_hat, (_, _) = self.model(obs, ) # no action, sample from prior
-        
         a_hat, (_, _) = self.model(
             obs=obs, 
             lang_instruction=lang_instruction
@@ -664,36 +611,32 @@ def save_ckpt(run_name, tag):
 if __name__ == "__main__":
     args = tyro.cli(Args)
 
-    #Hayden - defensive for multi task
+    assert args.sim_backend in ("physx_cpu", "physx_cuda")
+
+    #defensive for multi task
     demo_json = None
     is_multi_task = False
-    try:
-        demo_json = load_json(args.demo_path.replace(".h5", ".json"))
-        is_multi_task = bool(demo_json.get("multi_env", False))
-    except Exception as e:
-        print("[WARN] failed to read demo json for multi_env:", e)
+    demo_json = load_json(args.demo_path.replace(".h5", ".json"))
+    is_multi_task = bool(demo_json.get("multi_env", False))
+
     # Multi-task policy:
     #   - either use internal_instruction
     #   - or use no language embedding at all (both None/False)
+    # Single-task policy:
+    #   - either use lang_instruction (fixed sentence)
+    #   - or no language embedding at all
     if is_multi_task:
         if args.internal_instruction:
-            # internal_instruction 켜면 lang_instruction은 혼동 방지용으로 무시
             if args.lang_instruction is not None:
                 print("[WARN] multi-task + internal_instruction=True: ignoring lang_instruction")
                 args.lang_instruction = None
         else:
-            # internal_instruction 안 쓰면 "언어 임베딩 자체를 안쓴다"가 정책
             if args.lang_instruction is not None:
                 raise ValueError(
                     "Multi-task에 -> internal_instruction=True or "
                     "set lang_instruction=None(=no language embedding)"
                 )
-
-    # Single-task policy:
-    #   - either use lang_instruction (fixed sentence)
-    #   - or no language embedding at all
     else:
-        # single task에서는 internal_instruction 쓰는 걸 금지(원하면 allow로 바꿔도 됨)
         if args.internal_instruction:
             raise ValueError(
                 "do not use internal_instruction for Single-task. "
@@ -739,7 +682,7 @@ if __name__ == "__main__":
     envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
 
-    #Hayden - eval envs for each task
+    #eval envs for each task
     envs_by_task = None
     if is_multi_task:
         envs_by_task = {}
@@ -758,7 +701,6 @@ if __name__ == "__main__":
     sampler = RandomSampler(dataset, replacement=False)
     batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
     batch_sampler = IterationBasedBatchSampler(batch_sampler, args.total_iters)
-    #Hayden
     train_dataloader = DataLoader(
         dataset,
         batch_sampler=batch_sampler,
@@ -792,9 +734,7 @@ if __name__ == "__main__":
 
     # agent setup
     agent = Agent(envs, args, is_multi_task).to(device)
-    #agent = torch.compile(agent) #Hayden
 
-    #Hayden
     # optimizer setup
     # param_dicts = [
     #     {"params": [p for n, p in agent.named_parameters() if "backbone" not in n and p.requires_grad]},
@@ -836,7 +776,6 @@ if __name__ == "__main__":
 
     # Evaluation
     
-    #Hayden
     eval_stats = None
     if dataset.norm_stats is not None:
         eval_stats = {k: (v.to(device) if torch.is_tensor(v) else v)
@@ -852,7 +791,6 @@ if __name__ == "__main__":
     #    max_timesteps=args.max_episode_steps, device=device, sim_backend=args.sim_backend
     #)
     
-    #Hayden
     eval_kwargs = dict(
         stats=eval_stats,
         num_queries=args.num_queries,
@@ -899,7 +837,7 @@ if __name__ == "__main__":
         timings["update"] += time.time() - last_tick
 
         #Evaluation
-        if cur_iter % args.eval_freq == 0:
+        if cur_iter % args.eval_freq == 0 and not args.real:
             last_tick = time.time()
             ema.copy_to(ema_agent.parameters())
 
