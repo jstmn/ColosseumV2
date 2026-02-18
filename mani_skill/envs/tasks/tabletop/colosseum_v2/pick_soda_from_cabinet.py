@@ -32,7 +32,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
 
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
@@ -162,15 +161,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             "success": success
         }
         
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                soda_pose=self.soda.pose.raw_pose,
-                tcp_to_soda_pos=self.soda.pose.p - self.agent.tcp.pose.p,
-            )
-        return obs
-
 
     def _check_robocasa_dataset(self):
         """

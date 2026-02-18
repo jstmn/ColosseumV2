@@ -592,18 +592,3 @@ class HammerNailEnv(ColosseumV2Env):
             >= 0
         ).all(dim=1)
         return {"success": success}
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            nail_centers = torch.stack(
-                [nail.pose.p for nail in self.nails], dim=1
-            )  # (num_envs, num_nails, 3)
-            flat_centers = nail_centers.reshape(nail_centers.shape[0], -1)
-            target_depth = self._nail_success_threshold.to(self.device).unsqueeze(0).expand(
-                nail_centers.shape[0], -1
-            )
-            hammer_pose = self.hammer.pose.raw_pose
-            task_state = torch.hstack([flat_centers, target_depth, hammer_pose])
-            obs["task_state"] = task_state
-        return obs

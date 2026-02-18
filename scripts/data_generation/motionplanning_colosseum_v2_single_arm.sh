@@ -4,30 +4,41 @@ DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 ENVS=(
-    "RaiseCube-v1"
     "PickSodaFromCabinet-v1"
     "PickDishFromRack-v1"
-    "StackCube-v1"
-    "PlaceBookInShelf-v1"
+    "StackCubeColosseumV2-v1"
     "PlaceDishInRack-v1"
-    "LiftPegUpright-v1"
+    "LiftPegUprightColosseumV2-v1"
     "RotateArrow-v1"
-    "PegInsertionSide-v2"
-    "PlugCharger-v1"
+    "PegInsertionSideColosseumV2-v1"
+    "PlugChargerColosseumV2-v1"
     "HammerNail-v1"
     "ScoopBanana-v1"
     "OpenDrawer-v1"
     "OpenCabinet-v1"
     "PlaceCubeInDrawer-v1"
+    "PlaceBookInShelf-v1"
     "CookItemInPan-v1"
+    "RaiseCube-v1"
 )
-NUM_PROCS=15
+NUM_PROCS=10
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_ee_delta_pose
 OBS_MODE=rgb
 REWARD_MODE=none
 
 for ENV_ID in "${ENVS[@]}"; do
+
+    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+    TRAJ_PATH_ALT=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.0.h5
+    TRANSLATED_TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}.physx_cpu.h5
+
+    if [ -f "$TRANSLATED_TRAJ_PATH" ]; then
+        echo -e "\033[1;33m Converted trajectory file $TRANSLATED_TRAJ_PATH already exists\033[0m"
+        continue
+    else
+        echo -e "\033[1;33m Converted trajectory file $TRANSLATED_TRAJ_PATH does not exist\033[0m"
+    fi
 
     echo ""
     echo "----------------------------------------------------------------"
@@ -36,20 +47,24 @@ for ENV_ID in "${ENVS[@]}"; do
     echo "            ---  ENV_ID: $ENV_ID ---"
     echo ""
 
-    python mani_skill/examples/motionplanning/panda/run.py \
-        --env-id ${ENV_ID} \
-        --num-traj ${N_TRAJ} \
-        --distraction-set ${DISTRACTION_SET} \
-        --num-procs ${NUM_PROCS} \
-        --obs-mode "rgb" \
-        --reward-mode ${REWARD_MODE} \
-        --random-seed \
-        --only-count-success \
-        --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
+    if [ ! -f "$TRAJ_PATH_ALT" ] && [ ! -f "$TRAJ_PATH" ]; then
 
-    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+        python mani_skill/examples/motionplanning/panda/run.py \
+            --env-id ${ENV_ID} \
+            --num-traj ${N_TRAJ} \
+            --distraction-set ${DISTRACTION_SET} \
+            --num-procs ${NUM_PROCS} \
+            --obs-mode "rgb" \
+            --reward-mode ${REWARD_MODE} \
+            --random-seed \
+            --only-count-success \
+            --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
+    else
+        echo -e "\033[1;33mTrajectory file $TRAJ_PATH or $TRAJ_PATH_ALT already exists\033[0m"
+    fi
+
+    # Use alternate trajectory file if original trajectory file does not exist
     if [ ! -f "$TRAJ_PATH" ]; then
-        TRAJ_PATH_ALT=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.0.h5
         if [ -f "$TRAJ_PATH_ALT" ]; then
             echo -e "\033[1;33mUsing alternate trajectory file $TRAJ_PATH_ALT\033[0m"
             TRAJ_PATH=$TRAJ_PATH_ALT
@@ -59,6 +74,7 @@ for ENV_ID in "${ENVS[@]}"; do
             exit 1
         fi
     fi
+
 
     echo ""
     echo "----------------------------------------------------------------"
@@ -85,7 +101,7 @@ for ENV_ID in "${ENVS[@]}"; do
 
 
     N_DEMOS_0=$(h5ls -r ${TRAJ_PATH} | grep -c "/actions")
-    N_DEMOS_TRANSLATED=$(h5ls -r demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}*.h5 | grep -c "/actions")
+    N_DEMOS_TRANSLATED=$(h5ls -r ${TRANSLATED_TRAJ_PATH} | grep -c "/actions")
     echo -e "${ENV_ID}:\tNumber of demonstrations original, translated: ${N_DEMOS_0}, ${N_DEMOS_TRANSLATED}"
 done
 

@@ -41,7 +41,6 @@ class RotateArrowEnv(ColosseumV2Env):
     arrow_spawnbox_yoffset = -0.3
     #  end randomizations - rotation around z is simply uniform
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: PandaStick
 
@@ -161,14 +160,3 @@ class RotateArrowEnv(ColosseumV2Env):
         success = (rot_rew >= 0.9)
         return {"success": success}
 
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(
-            tcp_pose=self.agent.tcp.pose.raw_pose,
-        )
-        if self.obs_mode_struct.use_state:
-            # state based gets info on goal position and t full pose - necessary to learn task
-            obs.update(
-                # goal_pos=self.goal_arrow.pose.p,
-                obj_pose=self.arrow.pose.raw_pose,
-            )
-        return obs

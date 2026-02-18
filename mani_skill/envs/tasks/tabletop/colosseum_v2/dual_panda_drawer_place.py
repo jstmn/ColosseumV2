@@ -139,23 +139,6 @@ class DualArmDrawerPlaceEnv(ColosseumV2Env):
         success = above_ground * inside
         return {"above_ground": above_ground, "inside": inside, "success": success}
         
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        
-        # Helper to concatenate Pose p and q while keeping them on the correct device
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-
-        return obs
-    
 
 
 # 2. Main Execution Block

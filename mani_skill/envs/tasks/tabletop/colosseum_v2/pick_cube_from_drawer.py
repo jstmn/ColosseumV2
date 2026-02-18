@@ -341,16 +341,6 @@ class PickCubeFromDrawerEnv(BaseEnv):
             "cube_height": cube_height,
         }
 
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                cube_pose=self.cube.pose.raw_pose,
-                cabinet_qpos=self.cabinet.qpos,
-                handle_pos=info["handle_link_pos"],
-            )
-        return obs
-
     def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
         tcp_pos = self.agent.tcp.pose.p
         handle_pos = info["handle_link_pos"]

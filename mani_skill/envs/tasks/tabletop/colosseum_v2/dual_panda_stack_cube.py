@@ -175,16 +175,6 @@ class TwoRobotStackCube(ColosseumV2Env):
         
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        obs["left_arm_tcp_pose"] = self.agent.tcp_1_pose.raw_pose
-        obs["right_arm_tcp_pose"] = self.agent.tcp_2_pose.raw_pose
-        if "state" in self.obs_mode:
-            obs["cubeA_pose"] = self.cubeA.pose.raw_pose
-            obs["cubeB_pose"] = self.cubeB.pose.raw_pose
-            obs["goal_region_pos"] = self.goal_region.pose.p
-        return obs
-
 
     def evaluate(self):
         # B is on top of A

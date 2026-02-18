@@ -91,24 +91,6 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         qpos = np.array([0.066, 1.571, 0.573, 0, 0.158, 0, -2.084, -2.749, 1.701, 0, 1.763, 2.356, -1.882, 0.785, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["obj_pose"] = self.obj.pose.raw_pose
-        return obs
 
     def evaluate(self):
         pos_1 = self.agent.tcp_1_pose.p

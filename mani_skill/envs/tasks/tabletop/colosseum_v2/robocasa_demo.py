@@ -31,7 +31,6 @@ class RoboCasaDemoEnv(BaseEnv):
 
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
@@ -124,52 +123,3 @@ class RoboCasaDemoEnv(BaseEnv):
         return {
             "success": True
         }
-        
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                # cabinet_pose=self.open_cabinet.pose.raw_pose,
-                # soda_pose=self.soda.pose.raw_pose,
-                # tcp_to_cabinet_pos=self.open_cabinet.pose.p - self.agent.tcp.pose.p,
-                # tcp_to_soda_pos=self.soda.pose.p - self.agent.tcp.pose.p,
-                # book_to_shelf_pos=self.shelf.pose.p - self.book_A.pose.p,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        # rotation reward as cosine similarity between peg direction vectors
-        # peg center of mass to end of peg, (1,0,0), rotated by peg pose rotation
-        # dot product with its goal orientation: (0,0,1) or (0,0,-1)
-        # qmats = rotation_conversions.quaternion_to_matrix(self.soda.pose.q)
-        # vec = torch.tensor([-1.0, 0, 0], device=self.device)
-        # goal_vec = torch.tensor([0, 0, 1.0], device=self.device)
-        # rot_vec = (qmats @ vec).view(-1, 3)
-        # # abs since (0,0,-1) is also valid, values in [0,1]
-        # rot_rew = (rot_vec @ goal_vec).view(-1).abs()
-        # reward = rot_rew
-
-        # position reward using common maniskill distance reward pattern
-        # giving reward in [0,1] for moving center of mass toward half length above table
-        # z_dist = torch.abs(self.soda.pose.p[:, 2] - 0.16)
-        # reward += 1 - torch.tanh(5 * z_dist)
-
-        # small reward to motivate initial reaching
-        # # initially, we want to reach and grip peg
-        # to_grip_vec = self.soda.pose.p - self.agent.tcp.pose.p
-        # to_grip_dist = torch.linalg.norm(to_grip_vec, axis=1)
-        # reaching_rew = 1 - torch.tanh(5 * to_grip_dist)
-        # # reaching reward granted if gripping block
-        # reaching_rew[self.agent.is_grasping(self.soda)] = 1
-        # # weight reaching reward less
-        # reaching_rew = reaching_rew / 5
-        # reward += reaching_rew
-        reward = torch.zeros_like(action[:, 0])
-        reward[info["success"]] = 3
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / 8

@@ -66,7 +66,6 @@ class OpenDrawerEnv(ColosseumV2Env):
         "MO_texture",
         "RO_texture",
         "MO_mass",
-        "RO_mass",
     ]
 
     def __init__(

@@ -126,22 +126,6 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
         # print(success)
         return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
     
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-
-        return obs
-
 
 # 2. Main Execution Block
 if __name__ == "__main__":

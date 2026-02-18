@@ -84,23 +84,6 @@ class DualArmPickCubeEnv(ColosseumV2Env):
         
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["obj_pose"] = self.obj.pose.raw_pose
-        return obs
-
     # Is the object 100 times closer to tcp1 than tcp2?
     def evaluate(self):
         pos_1 = self.agent.tcp_1_pose.p

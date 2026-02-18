@@ -79,21 +79,20 @@ MP_SOLUTIONS = {
 
 """
 # Colosseum v2 single-arm tasks
-ENV_ID="RaiseCube-v1"
 ENV_ID="PickSodaFromCabinet-v1"
 ENV_ID="PickDishFromRack-v1"
-ENV_ID="StackCube-v1"
-ENV_ID="PlaceBookInShelf-v1"
+ENV_ID="StackCubeColosseumV2-v1"
 ENV_ID="PlaceDishInRack-v1"
-ENV_ID="LiftPegUpright-v1"
+ENV_ID="LiftPegUprightColosseumV2-v1"
 ENV_ID="RotateArrow-v1"
-ENV_ID="PegInsertionSide-v2"
+ENV_ID="PegInsertionSideColosseumV2-v1"
 ENV_ID="PlugChargerColosseumV2-v1"
 ENV_ID="HammerNail-v1"
 ENV_ID="ScoopBanana-v1"
 ENV_ID="OpenDrawer-v1"
 ENV_ID="OpenCabinet-v1"
 ENV_ID="PlaceCubeInDrawer-v1"
+ENV_ID="PlaceBookInShelf-v1"
 ENV_ID="CookItemInPan-v1"
 
 # Colosseum v2 bimanual tasks
@@ -109,12 +108,9 @@ ENV_ID="DualArmDrawerPlace-v1"
 ENV_ID="DualArmDrawerOpen-v1"
 ENV_ID="DualArmStackCube-v1"
 ENV_ID="DualArmStack3Cube-v1"
-
-
-
-
-
 ENV_ID="RaiseCube-v1"
+
+
 DISTRACTION_SET=all
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 

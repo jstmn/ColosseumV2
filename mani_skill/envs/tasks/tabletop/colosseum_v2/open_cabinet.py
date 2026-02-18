@@ -137,7 +137,6 @@ class OpenCabinetEnv(ColosseumV2Env):
         "MO_texture",
         "RO_texture",
         "MO_mass",
-        "RO_mass",
     ]
 
 
@@ -423,10 +422,3 @@ class OpenCabinetEnv(ColosseumV2Env):
             "open_enough": open_enough,
             "link_is_static": link_is_static,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs["handle_pos"] = self.handle_link_positions()
-            obs["cabinet_qpos"] = self.cabinet.qpos
-        return obs

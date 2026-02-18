@@ -152,9 +152,11 @@ class DistractionSet:
 
     def disable_variation_factors(self, variation_factors: list[str]):
         for k in variation_factors:
+            current_cfg = getattr(self, f"{k}_cfg")
+            if len(current_cfg) == 0:
+                continue
             setattr(self, f"{k}_cfg", {})
             cprint(f"WARNING: Variation factor {k} is disabled", "yellow")
-            
 
     def __post_init__(self):
 

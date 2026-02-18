@@ -95,19 +95,7 @@ class RaiseCubeEnv(ColosseumV2Env):
 
             #
             self.initialize_episode_hook(env_idx, mo_pose=xyz)
-        
-    def _get_obs_extra(self, info: dict):
-        # in reality some people hack is_grasped into observations by checking if the gripper can close fully or not
-        obs = dict(
-            is_grasped=info["is_grasped"],
-            tcp_pose=self.agent.tcp_pose.raw_pose,
-        )
-        if "state" in self.obs_mode:
-            obs.update(
-                obj_pose=self.cube.pose.raw_pose,
-                tcp_to_obj_pos=self.cube.pose.p - self.agent.tcp_pose.p,
-            )
-        return obs
+
 
     def evaluate(self):
         is_obj_raised = self.cube.pose.p[..., 2] > self.GOAL_HEIGHT

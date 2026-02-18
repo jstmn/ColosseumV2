@@ -353,15 +353,3 @@ class CookItemInPanEnv(ColosseumV2Env):
             "is_pan_grasped": is_pan_grasped,
             "is_food_grasped": is_food_grasped,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                stove_pose=self.stove.pose.raw_pose,
-                pan_pose=self.pan.pose.raw_pose,
-                food_pose=self.food.pose.raw_pose,
-                pan_to_stove_pos=self.stove.pose.p - self.pan.pose.p,
-                food_to_pan_pos=self.pan.pose.p - self.food.pose.p,
-            )
-        return obs

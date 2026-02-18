@@ -104,24 +104,6 @@ class DualArmLiftPotEnv(ColosseumV2Env):
         
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):        
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["pot_pose"] = self.pot.pose.raw_pose
-        return obs
 
     def evaluate(self):
         curr_pose = self.pot.pose
@@ -132,15 +114,6 @@ class DualArmLiftPotEnv(ColosseumV2Env):
         offset_x = torch.abs(offset[..., 2])
         success = offset_x > 0.15
         return {"left_grasped": is_pot_grasped_left, "right_grasped": is_pot_grasped_right, "grasped": is_pot_grasped, "success": success}
-    
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
-
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 
 # 2. Main Execution Block

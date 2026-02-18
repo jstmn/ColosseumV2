@@ -133,26 +133,6 @@ class DualPandaPushBoxEnv(ColosseumV2Env):
         distance_threshold = 0.06
         success = distance < distance_threshold
         return {"success": success}
-        
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["box_pose"] = self.box.pose.raw_pose
-            obs["goal_region_pose"] = self.goal_region.pose.raw_pose
-        return obs
 
 
 

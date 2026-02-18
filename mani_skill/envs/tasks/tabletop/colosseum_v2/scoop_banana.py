@@ -141,19 +141,6 @@ class ScoopBananaEnv(ColosseumV2Env):
 
             self.initialize_episode_hook(env_idx, mo_pose=self.dustpan.pose)
 
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(
-            tcp_pose=self.agent.tcp.pose.raw_pose,
-        )
-
-        if self.obs_mode_struct.use_state:
-            obs.update(
-                banana_pose=self.banana.pose.raw_pose,
-                dustpan_pose=self.dustpan.pose.raw_pose,
-            )
-
-        return obs
-
     def evaluate(self):
         banana_pos = self.banana.pose.p
 

@@ -355,13 +355,3 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
         success, peg_head_pos_at_hole = self.has_peg_inserted()
         return dict(success=success, peg_head_pos_at_hole=peg_head_pos_at_hole)
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if self.obs_mode_struct.use_state:
-            obs.update(
-                peg_pose=self.peg.pose.raw_pose,
-                peg_half_size=self.peg_half_sizes,
-                box_hole_pose=self.box_hole_pose.raw_pose,
-                box_hole_radius=self.box_hole_radii,
-            )
-        return obs

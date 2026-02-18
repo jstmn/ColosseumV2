@@ -120,6 +120,7 @@ class ColosseumV2Env(BaseEnv):
         self._table_scene_builders: list[TableSceneBuilder] = []
         self._table: Actor | None = None
 
+        self._robot_uids = robot_uids
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._load_scene_hool_called = False
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -534,3 +535,12 @@ class ColosseumV2Env(BaseEnv):
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
                 xyz[:, 2] = radius_range[1] + 0.01 # get the maximum radius
                 self._ds._internal["distractor_object_cfg"]["sphere_actors"][i].set_pose(Pose.create_from_pq(p=xyz))
+
+    def _get_obs_extra(self, info: dict):
+        if self._robot_uids == "dual_panda":
+            return dict(
+                left_arm_tcp=self.agent.tcp_1_pose.raw_pose,
+                right_arm_tcp=self.agent.tcp_2_pose.raw_pose,
+            )
+        
+        return dict(tcp_pose=self.agent.tcp_pose.raw_pose)

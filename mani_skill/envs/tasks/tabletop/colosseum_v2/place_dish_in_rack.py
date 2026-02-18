@@ -368,18 +368,3 @@ class PlaceDishInRackEnv(ColosseumV2Env):
             "is_grasped": is_grasped,
             "above_table": above_table,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            plate_pose = self.plate.pose
-            rack_pose = self.dish_rack.pose
-            obs.update(
-                plate_pos=plate_pose.p,
-                plate_quat=plate_pose.q,
-                rack_pos=rack_pose.p,
-                rack_quat=rack_pose.q,
-                plate_to_goal=plate_pose.p - rack_pose.p,
-                tcp_to_plate=plate_pose.p - self.agent.tcp_pose.p,
-            )
-        return obs

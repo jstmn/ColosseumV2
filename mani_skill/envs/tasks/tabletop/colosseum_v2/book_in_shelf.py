@@ -122,19 +122,6 @@ class PlaceBookEnv(ColosseumV2Env):
             "success": success
         }
 
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                shelf_pose=self.shelf.pose.raw_pose,
-                book_pose=self.book_A.pose.raw_pose,
-                tcp_to_shelf_pos=self.shelf.pose.p - self.agent.tcp.pose.p,
-                tcp_to_book_pos=self.book_A.pose.p - self.agent.tcp.pose.p,
-                book_to_shelf_pos=self.shelf.pose.p - self.book_A.pose.p,
-            )
-        return obs
-
-
 
 if __name__ == "__main__":
     # Now you can load this safe environment

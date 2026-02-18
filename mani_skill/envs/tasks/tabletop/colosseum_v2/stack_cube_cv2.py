@@ -30,7 +30,6 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
     - the red cube is not being grasped by the robot (robot must let go of the cube)
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
@@ -142,14 +141,3 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
             "success": success.bool(),
         }
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                cubeA_pose=self.cubeA.pose.raw_pose,
-                cubeB_pose=self.cubeB.pose.raw_pose,
-                tcp_to_cubeA_pos=self.cubeA.pose.p - self.agent.tcp.pose.p,
-                tcp_to_cubeB_pos=self.cubeB.pose.p - self.agent.tcp.pose.p,
-                cubeA_to_cubeB_pos=self.cubeB.pose.p - self.cubeA.pose.p,
-            )
-        return obs

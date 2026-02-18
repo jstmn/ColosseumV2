@@ -358,15 +358,3 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             "drawer_open_pct": drawer_open_pct,
             "handle_link_pos": handle_pos,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = {"tcp_pose": self.agent.tcp.pose.raw_pose}
-        if "state" in self.obs_mode:
-            obs.update(
-                cube_pose=self.cube.pose.raw_pose,
-                cabinet_qpos=self.cabinet.qpos,
-                handle_pos=info["handle_link_pos"],
-                tcp_to_cube_pos=self.cube.pose.p - self.agent.tcp.pose.p,
-                tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
-            )
-        return obs

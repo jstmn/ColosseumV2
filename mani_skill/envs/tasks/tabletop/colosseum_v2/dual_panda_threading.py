@@ -164,25 +164,6 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         qpos = np.array([1.873, -1.094, 0.142, -0.935, -0.409, -2.296, -2.725, -2.236, 0.202, -2.214, 2.852, 1.062, 2.057, -1.205, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
     
-    def _get_obs_extra(self, info: dict):
-        """Return observation data for both arms."""
-        obs = dict()
-        
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        # TCP poses for both arms
-        obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-        obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        
-        # Object poses
-        if "state" in self.obs_mode:
-            obs["needle_pose"] = pose_to_vec(self.needle.pose)
-            obs["ring_tripod_pose"] = pose_to_vec(self.ring_tripod.pose)
-        
-        return obs
     
     
 

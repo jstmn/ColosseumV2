@@ -277,12 +277,4 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
             success=success,
         )
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if self.obs_mode_struct.use_state:
-            obs.update(
-                charger_pose=self.charger.pose.raw_pose,
-                receptacle_pose=self.receptacle.pose.raw_pose,
-                goal_pose=self.goal_pose.raw_pose,
-            )
-        return obs
+

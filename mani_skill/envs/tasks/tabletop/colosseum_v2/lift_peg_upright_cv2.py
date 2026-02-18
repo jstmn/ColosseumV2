@@ -96,13 +96,3 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
         return {
             "success": is_peg_upright & close_to_table,
         }
-
-    def _get_obs_extra(self, info: dict):
-        obs = dict(
-            tcp_pose=self.agent.tcp.pose.raw_pose,
-        )
-        if self.obs_mode_struct.use_state:
-            obs.update(
-                obj_pose=self.peg.pose.raw_pose,
-            )
-        return obs
