@@ -1,0 +1,1 @@
+checkpoint_path,distraction_set,env_id,control_mode,include_depth,num_eval_episodes,max_episode_steps,message,num_sucessful_episodes,success_percent
