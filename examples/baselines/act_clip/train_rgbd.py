@@ -37,6 +37,7 @@ import tyro
 from mani_skill.envs.distraction_set import DISTRACTION_SETS
 from mani_skill.utils.io_utils import load_json
 from collections import Counter
+import json
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
@@ -80,7 +81,7 @@ class Args:
     """ language_instruction for clip embedding"""
     internal_instruction: bool = False
     """ use pre-defiend language_instructions for clip embedding"""
-    is_multi_task: bool = True
+    is_multi_task: bool = False
     """ use multi-task dataset"""
     
     # ACT specific arguments
@@ -189,6 +190,7 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     def observation(self, observation: Dict):
         sensor_data = observation.pop("sensor_data")
         del observation["sensor_param"]
+
 
         if "base_camera" not in sensor_data:
             raise KeyError(f"base_camera not found in available cameras: {list(sensor_data.keys())}")
@@ -414,12 +416,20 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         # get rgbd data
         sensor_data = obs_dict.pop("sensor_data")
         del obs_dict["sensor_param"]
-
-        cam_data = sensor_data["base_camera"]
-        # RGB
-        rgb_tensor = torch.from_numpy(cam_data["rgb"])
-        resized_rgb = self.transforms(rgb_tensor.permute(0, 3, 1, 2))
-        rgb = torch.stack([resized_rgb], dim=1) # (ep_len, 1, 3, 224, 224)
+        if args.real:
+            images_rgb = []
+            #for cam_key in ["eih_camera", "base_camera", "north_camera"]:
+            for cam_key in ["eih_camera", "base_camera"]:
+                curr_cam_data = sensor_data[cam_key]
+                rgb_tensor = torch.from_numpy(curr_cam_data["rgb"])
+                images_rgb.append(self.transforms(rgb_tensor.permute(0, 3, 1, 2)))
+            rgb = torch.stack(images_rgb, dim=1)
+        else:
+            cam_data = sensor_data["base_camera"]
+            # RGB
+            rgb_tensor = torch.from_numpy(cam_data["rgb"])
+            resized_rgb = self.transforms(rgb_tensor.permute(0, 3, 1, 2))
+            rgb = torch.stack([resized_rgb], dim=1) # (ep_len, 1, 3, 224, 224)
 
         # Depth
         if self.include_depth:
@@ -480,11 +490,13 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
 class Agent(nn.Module):
     def __init__(self, env, args, is_multi_task: bool):
         super().__init__()
-        assert len(env.single_observation_space['state'].shape) == 1 # (obs_dim,)
-        assert len(env.single_observation_space['rgb'].shape) == 4 # (num_cams, C, H, W)
-        assert len(env.single_action_space.shape) == 1 # (act_dim,)
-        #assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
+        if env is not None:
+            assert len(env.single_observation_space['state'].shape) == 1 
+            assert len(env.single_observation_space['rgb'].shape) == 4 
+            assert len(env.single_action_space.shape) == 1
 
+
+        self.num_cams = 1
         #real dataset
         if args.real:
             self.state_dim = 18
@@ -494,14 +506,15 @@ class Agent(nn.Module):
             self.act_dim = env.single_action_space.shape[0]
 
 
+
         self.kl_weight = args.kl_weight
         self.normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
         # CNN backbone
         backbones = []
-        backbone = build_backbone(args)
-        backbones.append(backbone)
+        for _ in range(self.num_cams):
+            backbones.append(build_backbone(args))
 
         # CVAE decoder
         transformer = build_transformer(args)
@@ -511,13 +524,12 @@ class Agent(nn.Module):
 
         # ACT ( CVAE encoder + (CNN backbones + CVAE decoder) )
         
-        if args.lang_instruction is not None or args.internal_instruction is not None:
+        if args.lang_instruction is not None or args.internal_instruction:
             use_lang_instruction = True
         else:
             use_lang_instruction = False
         self.internal_instruction = args.internal_instruction
         self.is_multi_task = is_multi_task
-        self.num_cams = 1
         self.model = DETRVAE(
             backbones,
             transformer,
@@ -613,11 +625,6 @@ if __name__ == "__main__":
 
     assert args.sim_backend in ("physx_cpu", "physx_cuda")
 
-    #defensive for multi task
-    demo_json = None
-    is_multi_task = False
-    demo_json = load_json(args.demo_path.replace(".h5", ".json"))
-    is_multi_task = bool(demo_json.get("multi_env", False))
 
     # Multi-task policy:
     #   - either use internal_instruction
@@ -625,15 +632,26 @@ if __name__ == "__main__":
     # Single-task policy:
     #   - either use lang_instruction (fixed sentence)
     #   - or no language embedding at all
+
+    demo_json = load_json(args.demo_path.replace(".h5", ".json"))
+    is_multi_task = bool(demo_json.get("multi_env", False))
+    if args.is_multi_task:
+        assert is_multi_task
+    if args.lang_instruction is not None or args.internal_instruction:
+        use_lang_instruction = True
+    else:
+        use_lang_instruction = False
+        
+
     if is_multi_task:
         if args.internal_instruction:
             if args.lang_instruction is not None:
-                print("[WARN] multi-task + internal_instruction=True: ignoring lang_instruction")
-                args.lang_instruction = None
+                raise ValueError("do not use internal_instruction and lang_instruction at the same time"
+                )
         else:
             if args.lang_instruction is not None:
                 raise ValueError(
-                    "Multi-task에 -> internal_instruction=True or "
+                    "Multi-task -> internal_instruction=True or "
                     "set lang_instruction=None(=no language embedding)"
                 )
     else:
@@ -651,7 +669,6 @@ if __name__ == "__main__":
         run_name = args.exp_name
 
     if args.demo_path.endswith('.h5'):
-        import json
         json_file = args.demo_path[:-2] + 'json'
         with open(json_file, 'r') as f:
             demo_info = json.load(f)
@@ -678,25 +695,34 @@ if __name__ == "__main__":
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
-    wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth,is_multi_task=is_multi_task, target_num_cams=1)]
-    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
-
-    #eval envs for each task
+    envs = None
     envs_by_task = None
-    if is_multi_task:
-        envs_by_task = {}
-        for eid in demo_json.get("env_ids", []):
-            envs_by_task[eid] = make_eval_envs(
-                eid, args.num_eval_envs, args.sim_backend,
-                env_kwargs, other_kwargs,
-                video_dir=f'runs/{run_name}/videos' if args.capture_video else None,
-                wrappers=wrappers
-            )
+
+    if not args.real:
+        wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth,is_multi_task=is_multi_task, target_num_cams=1)]
+        envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
+
+
+        #eval envs for each task
+        if is_multi_task:
+            envs_by_task = {}
+            for eid in demo_json.get("env_ids", []):
+                envs_by_task[eid] = make_eval_envs(
+                    eid, args.num_eval_envs, args.sim_backend,
+                    env_kwargs, other_kwargs,
+                    video_dir=f'runs/{run_name}/videos' if args.capture_video else None,
+                    wrappers=wrappers
+                )
+    else:
+        print("SKIP EVALUATION")
 
 
     # dataloader setup
-    env_state_dim = envs.single_observation_space["state"].shape[0]
+    if args.real:
+        env_state_dim = 18
+    else:
+        env_state_dim = envs.single_observation_space["state"].shape[0]
     dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, include_depth=args.include_depth, internal_instruction=args.internal_instruction, lang_instruction=args.lang_instruction, is_multi_task = is_multi_task, target_state_dim=env_state_dim)
     sampler = RandomSampler(dataset, replacement=False)
     batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
@@ -735,33 +761,46 @@ if __name__ == "__main__":
     # agent setup
     agent = Agent(envs, args, is_multi_task).to(device)
 
-    # optimizer setup
-    # param_dicts = [
-    #     {"params": [p for n, p in agent.named_parameters() if "backbone" not in n and p.requires_grad]},
-    #     {
-    #         "params": [p for n, p in agent.named_parameters() if "backbone" in n and p.requires_grad],
-    #         "lr": args.lr_backbone,
-    #     },
-    # ]
-
-    param_dicts = [
-    {
-        "params": [
-            p for n, p in agent.named_parameters() 
-            if "backbone" not in n and "lang_proj" not in n and p.requires_grad
+    if use_lang_instruction:
+        param_dicts = [
+        {
+            "params": [
+                p for n, p in agent.named_parameters() 
+                if "backbone" not in n and "lang_proj" not in n and p.requires_grad
+            ]
+        },
+        #Backbone
+        {
+            "params": [p for n, p in agent.named_parameters() if "backbone" in n and p.requires_grad],
+            "lr": args.lr_backbone,
+        },
+        #Lang_mlp
+        {
+            "params": [p for n, p in agent.named_parameters() if "lang_proj" in n and p.requires_grad],
+            "lr": args.lr_lang,
+        },
         ]
-    },
-    #Backbone
-    {
-        "params": [p for n, p in agent.named_parameters() if "backbone" in n and p.requires_grad],
-        "lr": args.lr_backbone,
-    },
-    #Lang_mlp
-    {
-        "params": [p for n, p in agent.named_parameters() if "lang_proj" in n and p.requires_grad],
-        "lr": args.lr_lang,
-    },
-]
+
+    else:
+        param_dicts = [
+            {
+                "params": [
+                    p for n, p in agent.named_parameters()
+                    if "backbone" not in n
+                    and "lang_proj" not in n
+                    and p.requires_grad
+                ]
+            },
+            {
+                "params": [
+                    p for n, p in agent.named_parameters()
+                    if "backbone" in n and p.requires_grad
+                ],
+                "lr": args.lr_backbone,
+            },
+        ]
+
+
     optimizer = optim.AdamW(param_dicts, lr=args.lr, weight_decay=1e-4)
 
     # LR drop by a factor of 10 after lr_drop iters
@@ -780,16 +819,6 @@ if __name__ == "__main__":
     if dataset.norm_stats is not None:
         eval_stats = {k: (v.to(device) if torch.is_tensor(v) else v)
                       for k, v in dataset.norm_stats.items()}
-
-    
-    #eval_kwargs = dict(
-    #    stats=dataset.norm_stats, num_queries=args.num_queries, temporal_agg=args.temporal_agg,
-    #    max_timesteps=gym_utils.find_max_episode_steps_value(envs), device=device, sim_backend=args.sim_backend
-    #)
-    #eval_kwargs = dict(
-    #    stats=dataset.norm_stats, num_queries=args.num_queries, temporal_agg=args.temporal_agg,
-    #    max_timesteps=args.max_episode_steps, device=device, sim_backend=args.sim_backend
-    #)
     
     eval_kwargs = dict(
         stats=eval_stats,
@@ -901,7 +930,8 @@ if __name__ == "__main__":
             save_ckpt(run_name, str(cur_iter))
 
 
-    envs.close()
+    if envs is not None:
+        envs.close()
     if envs_by_task is not None:
         for _eid, _env in envs_by_task.items():
             _env.close()

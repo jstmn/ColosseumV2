@@ -164,10 +164,13 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
         sensor_data = observation.pop("sensor_data")
         del observation["sensor_param"]
 
-        if "base_camera" not in sensor_data:
-            raise KeyError(f"base_camera not found in available cameras: {list(sensor_data.keys())}")
-        
-        cam_data = sensor_data["base_camera"]
+        if args.real:
+            cam_data = sensor_data["eih_camera"]
+        else:
+            if "base_camera" not in sensor_data:
+                raise KeyError(f"base_camera not found in available cameras: {list(sensor_data.keys())}")
+            
+            cam_data = sensor_data["base_camera"]
 
         for key in OBS_KEYS_TO_REMOVE:
             try:
@@ -372,8 +375,11 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         # get rgbd data
         sensor_data = obs_dict.pop("sensor_data")
         del obs_dict["sensor_param"]
-
-        cam_data = sensor_data["base_camera"]
+        
+        if args.real:
+            cam_data = sensor_data["eih_camera"]
+        else:
+            cam_data = sensor_data["base_camera"]
         # RGB
         rgb_tensor = torch.from_numpy(cam_data["rgb"])
         resized_rgb = self.transforms(rgb_tensor.permute(0, 3, 1, 2))
