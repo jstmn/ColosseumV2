@@ -12,14 +12,28 @@ def main():
         obs_mode="none",
         control_mode="pd_joint_pos",
         render_mode="rgb_array",
-        reward_mode="dense",
+        reward_mode="none",
     )
     for seed in range(100):
-        res = solve(env, seed=seed, debug=True, vis=True)
+        # res = solve(env, seed=seed, debug=True, vis=True)
+        res = solve(env, seed=seed, debug=False, vis=True)
         print(res)
     env.close()
 
+def move_to_pose(planner: PandaArmMotionPlanningSolver, pose: sapien.Pose, pose_name: str, debug: bool =False):
+    def print_(s, *args, **kwargs):
+        if debug:
+            print(s, *args, **kwargs)
+    res = planner.move_to_pose_with_screw(pose)
+    if res != -1:
+        print_(f"✅ {pose_name} | reached")
+    else:
+        print_(f"❌ {pose_name} | failed to reach: {pose}")
+    return res
+
+
 def solve(env: PlaceBookEnv, seed=None, debug=False, vis=False):
+
     env.reset(seed=seed)
     assert env.unwrapped.control_mode in [
         "pd_joint_pos",
@@ -40,15 +54,8 @@ def solve(env: PlaceBookEnv, seed=None, debug=False, vis=False):
     env = env.unwrapped
     FINGER_LENGTH = 0.025
     obb = get_actor_obb(env.book_A)
-
     approaching = np.array([1, 0, 0])
     target_closing = env.agent.tcp.pose.to_transformation_matrix()[0, :3, 1].cpu().numpy()
-    book_init_pos = env.book_A.pose
-
-    # init_pose = book_init_pos * sapien.Pose([-0.5, 0, 0.0])
-    # res = planner.move_to_pose_with_screw(init_pose)
-    # if res == -1: return res
-
     grasp_info = compute_grasp_info_by_obb(
         obb,
         approaching=approaching,
@@ -57,74 +64,40 @@ def solve(env: PlaceBookEnv, seed=None, debug=False, vis=False):
     )
     closing, center = grasp_info["closing"], grasp_info["center"]
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, center)    
-    grasp_pose = grasp_pose*sapien.Pose([0, 0, 0])  # slightly above the book center
-
+    
     # -------------------------------------------------------------------------- #
     # Reach
     # -------------------------------------------------------------------------- #
-    reach_pose = grasp_pose * sapien.Pose([0.1, 0.0, 0])
-    res = planner.move_to_pose_with_RRTStar(reach_pose)
+    approach_pose = grasp_pose * sapien.Pose([0.05, 0.0, -0.1])  # slightly above the book center
+    # ^ z: +x world
+    # ^ y: -y world
+    # ^ x: +z world
+    res = move_to_pose(planner, approach_pose, "approach_pose", debug)
     if res == -1: return res
 
     # -------------------------------------------------------------------------- #
     # Grasp
     # -------------------------------------------------------------------------- #
-    res = planner.move_to_pose_with_RRTStar(grasp_pose)
-    if res == -1: return res
+    res = move_to_pose(planner, grasp_pose, "grasp_pose", debug)
+    if res == -1: 
+        return res
+
     planner.close_gripper(gripper_state=-0.6)
+    approach_placement_pose = sapien.Pose(p=[-0.053 + env.shelf.pose.p[0,0]-0.293, -0.160+env.shelf.pose.p[0,1]+0.1, 0.2],q=grasp_pose.q)
+    res = move_to_pose(planner, approach_placement_pose, "approach_placement_pose", debug)
+    if res == -1: 
+        return res
 
-    # -------------------------------------------------------------------------- #
-    # Lift
-    # -------------------------------------------------------------------------- #
-    # lift_pose = sapien.Pose([0, 0, 0.30]) * grasp_pose
-    # res = planner.move_to_pose_with_screw(lift_pose)
-    # if res == -1: return res
-
-    # -------------------------------------------------------------------------- #
-    # Rotation about the x axis
-    # -------------------------------------------------------------------------- #
-    # theta = np.pi/2
-    # rotation_quat = np.array([0.5, -0.5, 0.5, 0.5])  
-    
-    # final_pose = lift_pose * sapien.Pose(
-    #     p=[0, 0, 0],
-    #     q=rotation_quat
-    # )
-    # # For such complex motions it is better to use RRTStar
-    # res = planner.move_to_pose_with_RRTStar(final_pose)
-    # if res == -1: return res
-    # -------------------------------------------------------------------------- #
-    # Rotation about the y axis
-    # -------------------------------------------------------------------------- #
-    # rotation_quat = np.array([0, 0, np.cos(theta / 2), np.sin(theta / 2)]) 
-    
-    # final_pose = lift_pose * sapien.Pose(
-    #     p=[0, 0, 0],
-    #     q=rotation_quat
-    # )
-    # res = planner.move_to_pose_with_screw(final_pose)
-    # if res == -1: return res
-    # -------------------------------------------------------------------------- #
-    # Rotation about the y axis and translation along the local z axis
-    # -------------------------------------------------------------------------- #
-    # theta = -np.pi/2
-    # rotation_quat = np.array([np.cos(theta / 2), np.sin(theta / 2), 0.0 , 0.0])
-    # final_pose = final_pose * sapien.Pose(
-    #     p=[0, 0, 0],
-    #     q=rotation_quat
-    # ) * sapien.Pose([0, 0, -0.10])
-    final_pose = sapien.Pose(p=[-0.053+env.shelf.pose.p[0,0]-0.293, -0.160+env.shelf.pose.p[0,1]+0.1, 0.2],q=grasp_pose.q)
-    res = planner.move_to_pose_with_RRTStar(final_pose)
-    if res == -1: return res
     # -------------------------------------------------------------------------- #
     # Lower
     # -------------------------------------------------------------------------- #
-    lower_pose = final_pose * sapien.Pose([0, 0, 0.2])
-    res = planner.move_to_pose_with_RRTStar(lower_pose)
+    placement_pose = approach_placement_pose * sapien.Pose([0, 0, 0.2])
+    res = move_to_pose(planner, placement_pose, "placement_pose", debug)
     if res == -1: return res
 
+    #
     planner.open_gripper()
-    res = planner.move_to_pose_with_screw(final_pose)
+    res = move_to_pose(planner, approach_placement_pose, "approach_placement_pose", debug)
     if res == -1: return res
 
     planner.close()

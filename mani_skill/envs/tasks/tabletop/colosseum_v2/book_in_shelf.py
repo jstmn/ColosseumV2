@@ -38,6 +38,12 @@ class PlaceBookEnv(ColosseumV2Env):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
+        self._book_y_range = (-0.4, -0.2)
+        self._book_x_range = (-0.2, 0.0)
+        self._shelf_y_range = (-0.4, -0.2)
+        self._shelf_dist_origin_to_furtherst_negative_x = 0.2
+        self._book_to_shelf_padding = 0.0
+        # ^ this is the distance from the origin of the shelf to the furthest negative x-axis of the shelf
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
@@ -76,24 +82,25 @@ class PlaceBookEnv(ColosseumV2Env):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # self.table_scene.initialize(env_idx)
 
-            xyz = torch.zeros((b, 3))
-            xyz[:, 2] = 0.089
-            region = [[0.03, -0.25],[0.09, 0]] 
+            book_xyz = torch.zeros((b, 3))
+            book_xyz[:, 2] = 0.089
+            region = [[self._book_x_range[0], self._book_y_range[0]], [self._book_x_range[1], self._book_y_range[1]]] 
             sampler = randomization.UniformPlacementSampler(bounds=region, batch_size=b, device=self.device)
             radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
-            bookA_xy = sampler.sample(radius, 100)
+            bookA_xy = sampler.sample(radius, max_trials=100)
 
-            xyz[:, :2] = bookA_xy
-            self.book_A.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
+            book_xyz[:, :2] = bookA_xy
+            self.book_A.set_pose(Pose.create_from_pq(p=book_xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
 
-            xyz[..., 0] = 0.293 + torch.rand(b, device=self.device)*0.05
-            xyz[..., 1] = -0.1 + torch.rand(b, device=self.device)*0.1            
-            xyz[..., 2] = 0
-            self.shelf.set_pose(Pose.create_from_pq(p=xyz, q=[-0.5, -0.5, 0.5, 0.5]))
+            shelf_xyz = torch.zeros((b, 3))
+            shelf_xyz[..., 0] = self._book_x_range[1] + self._shelf_dist_origin_to_furtherst_negative_x + \
+                (torch.rand(b, device=self.device) * 0.1) + self._book_to_shelf_padding
+            shelf_xyz[..., 1] = self._shelf_y_range[0] + torch.rand(b, device=self.device) * (self._shelf_y_range[1] - self._shelf_y_range[0])
+            shelf_xyz[..., 2] = 0
+            self.shelf.set_pose(Pose.create_from_pq(p=shelf_xyz, q=[-0.5, -0.5, 0.5, 0.5]))
 
-            self.initialize_episode_hook(env_idx, mo_pose=xyz)
+            self.initialize_episode_hook(env_idx, mo_pose=book_xyz)
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -121,37 +128,3 @@ class PlaceBookEnv(ColosseumV2Env):
             "is_book_static": is_book_static,
             "success": success
         }
-
-
-if __name__ == "__main__":
-    # Now you can load this safe environment
-    env = gym.make(
-        "PlaceBookInShelf-v1", 
-        # robot_uids="dual_panda", # Force the dual panda
-        obs_mode="state_dict", 
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
-
-    print("Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    if "agent" in obs:
-        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
-    
-    # NOW you can run your IK loop here
-    # 2. You MUST run a loop, or the window will close immediately
-    while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
-        env.render()  # <--- Updates the GUI
-        
-        # if terminated or truncated:
-        #     obs, _ = env.reset()
-    

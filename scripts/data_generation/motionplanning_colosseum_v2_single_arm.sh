@@ -30,7 +30,6 @@ REWARD_MODE=none
 for ENV_ID in "${ENVS[@]}"; do
 
     TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
-    TRAJ_PATH_ALT=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.0.h5
     TRANSLATED_TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}.physx_cpu.h5
 
     if [ -f "$TRANSLATED_TRAJ_PATH" ]; then
@@ -47,7 +46,7 @@ for ENV_ID in "${ENVS[@]}"; do
     echo "            ---  ENV_ID: $ENV_ID ---"
     echo ""
 
-    if [ ! -f "$TRAJ_PATH_ALT" ] && [ ! -f "$TRAJ_PATH" ]; then
+    if [ ! -f "$TRAJ_PATH" ]; then
 
         python mani_skill/examples/motionplanning/panda/run.py \
             --env-id ${ENV_ID} \
@@ -60,21 +59,8 @@ for ENV_ID in "${ENVS[@]}"; do
             --only-count-success \
             --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
     else
-        echo -e "\033[1;33mTrajectory file $TRAJ_PATH or $TRAJ_PATH_ALT already exists\033[0m"
+        echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
     fi
-
-    # Use alternate trajectory file if original trajectory file does not exist
-    if [ ! -f "$TRAJ_PATH" ]; then
-        if [ -f "$TRAJ_PATH_ALT" ]; then
-            echo -e "\033[1;33mUsing alternate trajectory file $TRAJ_PATH_ALT\033[0m"
-            TRAJ_PATH=$TRAJ_PATH_ALT
-        else
-            echo -e "\033[0;31mTrajectory file $TRAJ_PATH does not exist.\033[0m"
-            echo -e "\033[0;31m(alternate) Trajectory file $TRAJ_PATH_ALT does not exist.\033[0m"
-            exit 1
-        fi
-    fi
-
 
     echo ""
     echo "----------------------------------------------------------------"
@@ -102,7 +88,7 @@ for ENV_ID in "${ENVS[@]}"; do
 
     N_DEMOS_0=$(h5ls -r ${TRAJ_PATH} | grep -c "/actions")
     N_DEMOS_TRANSLATED=$(h5ls -r ${TRANSLATED_TRAJ_PATH} | grep -c "/actions")
-    echo -e "${ENV_ID}:\tNumber of demonstrations original, translated: ${N_DEMOS_0}, ${N_DEMOS_TRANSLATED}"
+    echo -e "${ENV_ID}:\tNumber of demonstrations (original, translated): (${N_DEMOS_0}, ${N_DEMOS_TRANSLATED})"
 done
 
 # Merge trajectories
@@ -115,7 +101,7 @@ OUTPUT_PATH=demos/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
 
 echo "Input directories: ${INPUT_DIRS}"
 echo ""
-python mani_skill/trajectory/merge_trajectory.py \
+python mani_skill/trajectory/merge_multitask_trajectories.py \
     --pattern "trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}*.h5" \
     --input-dirs ${INPUT_DIRS} \
     --output-path ${OUTPUT_PATH}
