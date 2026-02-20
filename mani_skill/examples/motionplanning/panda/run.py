@@ -238,6 +238,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
 
         successes.append(success)
         if args.only_count_success and not success:
+            failed_motion_plans += 1
             seed += 1
             env.flush_trajectory(save=False)
             if args.save_video:

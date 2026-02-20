@@ -5,6 +5,19 @@ from mani_skill.envs.tasks.tabletop.colosseum_v2.place_cube_in_drawer import Pla
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 
 
+
+def move_to_pose(planner: PandaArmMotionPlanningSolver, pose: sapien.Pose, pose_name: str, debug: bool =False):
+    def print_(s, *args, **kwargs):
+        if debug:
+            print(s, *args, **kwargs)
+    res = planner.move_to_pose_with_screw(pose)
+    if res != -1:
+        print_(f"✅ {pose_name} | reached")
+    else:
+        print_(f"❌ {pose_name} | failed to reach: {pose}")
+    return res
+
+
 def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
     """
     Solution for PlaceCubeInDrawer task.
@@ -56,19 +69,14 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
     pre_grasp_pos[1] += 0.05
     pre_grasp_pose = env_inner.agent.build_grasp_pose(handle_approaching, handle_closing, pre_grasp_pos)
 
-    res = planner.move_to_pose_with_screw(pre_grasp_pose)
+    res = move_to_pose(planner, pre_grasp_pose, "pre_grasp_pose", debug)
     if res == -1:
-        res = planner.move_to_pose_with_RRTStar(pre_grasp_pose)
-        if res == -1:
-            if debug:
-                print("Failed to reach pre-grasp pose")
-            planner.close()
-            return -1
+        return res
 
     # Move forward to grasp handle
-    res = planner.move_to_pose_with_screw(grasp_pose)
+    res = move_to_pose(planner, grasp_pose, "grasp_pose", debug)
     if res == -1:
-        planner.move_to_pose_with_RRTStar(grasp_pose)
+        return res
 
     planner.close_gripper()
 
@@ -82,18 +90,19 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
 
     # Pull drawer in +Y direction
     current_pos = grasp_pose.p.copy()
-    step_size = 0.02  # 2cm steps
+    step_size = 0.04  
+    # 4cm steps. Need this to be larger than 2.5 sm, otherwise the screw planner will exit because the motion is too 
+    # small. In general, we do this in steps to ensure that replay_trajectory (for converting to different control 
+    # modes) works. I don't know why this matters, but emprically it is important
     max_steps = 23  # Up to 46cm total
 
-    for i in range(max_steps):
+    for _ in range(max_steps):
         current_pos[1] += step_size
         pull_pose = env_inner.agent.build_grasp_pose(handle_approaching, handle_closing, current_pos)
 
-        res = planner.move_to_pose_with_screw(pull_pose)
+        res = move_to_pose(planner, pull_pose, "pull_pose", debug)
         if res == -1:
-            if debug:
-                print(f"Pull step {i+1} failed at Y={current_pos[1]:.3f}")
-            break
+            return res
 
         # Check if drawer is open enough (70%+)
         qpos = env_inner.handle_link.joint.qpos[0].item()
@@ -117,62 +126,39 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
     retreat_pose = env_inner.agent.build_grasp_pose(handle_approaching, handle_closing, retreat_pos)
     planner.move_to_pose_with_screw(retreat_pose)
 
-    # Lift up
-    lift_pos = retreat_pos.copy()
-    lift_pos[2] = 0.50
-    lift_pose = env_inner.agent.build_grasp_pose(handle_approaching, handle_closing, lift_pos)
-    res = planner.move_to_pose_with_screw(lift_pose)
-    if res == -1:
-        planner.move_to_pose_with_RRTStar(lift_pose)
-
     # ========== PHASE 2: Pick cube from table ==========
-    if debug:
-        print("Phase 2: Picking cube from table...")
-
-    cube_pos = cube.pose.p[0].cpu().numpy()
-
-    if debug:
-        print(f"Cube position: {cube_pos}")
 
     # Use top-down approach for cube
     cube_approaching = np.array([0, 0, -1], dtype=np.float32)
     cube_closing = np.array([1, 0, 0], dtype=np.float32)
 
     # Hover above cube
+    cube_pos = cube.pose.p[0].cpu().numpy()
     hover_pos = np.array([cube_pos[0], cube_pos[1], cube_pos[2] + 0.15])
     hover_pose = env_inner.agent.build_grasp_pose(cube_approaching, cube_closing, hover_pos)
 
-    res = planner.move_to_pose_with_RRTStar(hover_pose)
+    res = move_to_pose(planner, hover_pose, "hover_pose", debug)
     if res == -1:
-        res = planner.move_to_pose_with_screw(hover_pose)
-        if res == -1:
-            if debug:
-                print("Failed to reach hover position above cube")
-            planner.close()
-            return -1
-
+        return res
+    
     # Go down to cube
     cube_pos = cube.pose.p[0].cpu().numpy()  # Refresh position
     grasp_pos = np.array([cube_pos[0], cube_pos[1], cube_pos[2]])
     cube_grasp_pose = env_inner.agent.build_grasp_pose(cube_approaching, cube_closing, grasp_pos)
 
-    res = planner.move_to_pose_with_screw(cube_grasp_pose)
+    res = move_to_pose(planner, cube_grasp_pose, "cube_grasp_pose", debug)
     if res == -1:
-        planner.move_to_pose_with_RRTStar(cube_grasp_pose)
-
+        return res
     planner.close_gripper()
-
-    if debug:
-        print("Cube grasped")
-
-    # Lift cube up first 
-    planner.move_to_pose_with_screw(sapien.Pose(p=[0, 0, 0.1] + cube_grasp_pose.p, q=cube_grasp_pose.q))
 
     # Lift cube
     tcp = env_inner.agent.tcp.pose
-    lift_pos = np.array([tcp.sp.p[0], tcp.sp.p[1], tcp.sp.p[2] + 0.25])
+    lift_pos = np.array([tcp.sp.p[0], tcp.sp.p[1] - 0.1, tcp.sp.p[2] + 0.4])
+    # lift_pos = np.array([tcp.sp.p[0], tcp.sp.p[1], tcp.sp.p[2] + 0.25])
     lift_pose = env_inner.agent.build_grasp_pose(cube_approaching, cube_closing, lift_pos)
-    planner.move_to_pose_with_screw(lift_pose)
+    res = move_to_pose(planner, lift_pose, "lift_pose", debug)
+    if res == -1:
+        return res
 
     # ========== PHASE 3: Place cube in drawer ==========
     if debug:
@@ -194,23 +180,18 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
     above_drawer[2] += 0.25  # Above drawer
     above_drawer_pose = env_inner.agent.build_grasp_pose(cube_approaching, cube_closing, above_drawer)
 
-    res = planner.move_to_pose_with_RRTStar(above_drawer_pose)
+    res = move_to_pose(planner, above_drawer_pose, "above_drawer_pose", debug)
     if res == -1:
-        res = planner.move_to_pose_with_screw(above_drawer_pose)
-        if res == -1:
-            if debug:
-                print("Failed to reach above drawer position")
-            planner.close()
-            return -1
+        return res
 
     # Lower into drawer
     place_pos = drawer_interior.copy()
     place_pos[2] += 0.02  # Slightly above drawer floor
     place_pose = env_inner.agent.build_grasp_pose(cube_approaching, cube_closing, place_pos)
 
-    res = planner.move_to_pose_with_screw(place_pose)
+    res = move_to_pose(planner, place_pose, "place_pose", debug)
     if res == -1:
-        planner.move_to_pose_with_RRTStar(place_pose)
+        return res
 
     # Release cube
     planner.open_gripper()
@@ -247,12 +228,13 @@ if __name__ == "__main__":
         obs_mode="none",
         control_mode="pd_joint_pos",
         render_mode="rgb_array",
-        reward_mode="dense",
+        reward_mode="none",
     )
     for seed in range(10):
-        res = solve(env, seed=seed, debug=True, vis=False)
+        # res = solve(env, seed=seed, debug=True, vis=True)
+        res = solve(env, seed=seed, debug=False, vis=True)
         if res != -1:
-            print(f"Seed {seed}: Success={res[-1]['success']}")
+            print(f"Seed {seed}: success={res[-1]['success']}")
         else:
             print(f"Seed {seed}: Failed")
     env.close()
