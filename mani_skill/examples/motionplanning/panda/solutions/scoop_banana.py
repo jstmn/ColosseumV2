@@ -73,16 +73,16 @@ def solve(env: ScoopBananaEnv, seed=None, debug=False, vis=False):
     # res = planner.move_to_pose_with_screw(lift_pose)
     # if res == -1: return res
 
-    ball_pos = env.ball.pose.sp.p
+    banana_pos = env.banana.pose.sp.p
     
     approach_offset = sapien.Pose([-0.07, 0, 0.0])
-    approach_pose = sapien.Pose(ball_pos)*approach_offset
+    approach_pose = sapien.Pose(banana_pos)*approach_offset
     approach_pose.set_q(grasp_pose.q)
     res = planner.move_to_pose_with_screw(approach_pose)
     if res == -1: return res
     
     approach_offset = sapien.Pose([-0.03, 0, 0.0])
-    approach_pose = sapien.Pose(ball_pos)*approach_offset
+    approach_pose = sapien.Pose(banana_pos)*approach_offset
     approach_pose.set_q(grasp_pose.q)
     res = planner.move_to_pose_with_screw(approach_pose)
     if res == -1: return res
@@ -102,42 +102,6 @@ def solve(env: ScoopBananaEnv, seed=None, debug=False, vis=False):
     res = planner.move_to_pose_with_RRTStar(lift_pose)
     if res == -1: return res
 
-
-    # ball_pos = env.ball.pose.sp.p
-    # approach_offset = sapien.Pose(
-    #     [-(env.hook_length + env.cube_half_size + 0.08),  
-    #     -0.0,  
-    #     lift_height - 0.05]  
-    # )
-    # approach_pose = sapien.Pose(cube_pos) * approach_offset
-    # approach_pose.set_q(grasp_pose.q)
-    
-    # res = planner.move_to_pose_with_screw(approach_pose)
-    # if res == -1: return res
-
-    # # -------------------------------------------------------------------------- #
-    # # Lower tool behind cube
-    # # -------------------------------------------------------------------------- #
-    # behind_offset = sapien.Pose(
-    #     [-(env.hook_length + env.cube_half_size),  
-    #     -0.067,  
-    #     0] 
-    # )
-    # hook_pose = sapien.Pose(cube_pos) * behind_offset
-    # hook_pose.set_q(grasp_pose.q)
-    
-    # res = planner.move_to_pose_with_screw(hook_pose)
-    # if res == -1: return res
-
-    # # -------------------------------------------------------------------------- #
-    # # Pull cube
-    # # -------------------------------------------------------------------------- #
-    # pull_offset = sapien.Pose([-0.35, 0, 0])
-    # target_pose = hook_pose * pull_offset
-    # res = planner.move_to_pose_with_screw(target_pose)
-    # if res == -1: return res
-    # print("\nLift complete. Holding position for 5 seconds...")
-    # time.sleep(5)
     planner.close()
     return res
 

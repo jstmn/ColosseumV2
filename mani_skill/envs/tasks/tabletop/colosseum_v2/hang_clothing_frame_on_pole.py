@@ -17,7 +17,7 @@ from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
 from math import fabs
 from mani_skill.utils.geometry import rotation_conversions
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
 class HangClothingFrameOnPoleEnv(BaseEnv):
@@ -36,7 +36,6 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
 
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/StackCube-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
@@ -55,7 +54,7 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[-0.1, 0, -0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -97,19 +96,19 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         # If environment uses multiple envs, repeat build for each environment index you care about.
         # Optionally keep a handle:
         # self.open_cabinet = built
-        self.clothing_frame = self.load_glb_as_actor(self.scene, 
+        self.clothing_frame = self.add_glb_asset_to_scene(self.scene, 
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
             sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
             name="soda_can",
             scale=[1,1,1],
             type="dynamic")
-        self.stand1 = self.load_glb_as_actor(self.scene,
+        self.stand1 = self.add_glb_asset_to_scene(self.scene,
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand1",
             scale=[0.01,0.004,0.005],
             type="static")
-        self.stand2 = self.load_glb_as_actor(self.scene,
+        self.stand2 = self.add_glb_asset_to_scene(self.scene,
             os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
             sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
             name="stand2",
@@ -117,11 +116,11 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
             type="static")
         
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
         """Load GLB file as a static actor in the scene"""
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
+        builder.add_visual_from_file(glb_filepath, scale=scale)
+        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
         builder.set_initial_pose(pose)
         if type=="dynamic":
             actor = builder.build_dynamic(name)
@@ -193,52 +192,3 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
             "is_frame_static": is_soda_static,
             "success": success
         }
-        
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                cabinet_pose=self.stand1.pose.raw_pose,
-                soda_pose=self.clothing_frame.pose.raw_pose,
-                tcp_to_cabinet_pos=self.stand1.pose.p - self.agent.tcp.pose.p,
-                tcp_to_soda_pos=self.clothing_frame.pose.p - self.agent.tcp.pose.p,
-                # book_to_shelf_pos=self.shelf.pose.p - self.book_A.pose.p,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        # rotation reward as cosine similarity between peg direction vectors
-        # peg center of mass to end of peg, (1,0,0), rotated by peg pose rotation
-        # dot product with its goal orientation: (0,0,1) or (0,0,-1)
-        qmats = rotation_conversions.quaternion_to_matrix(self.clothing_frame.pose.q)
-        vec = torch.tensor([-1.0, 0, 0], device=self.device)
-        goal_vec = torch.tensor([0, 0, 1.0], device=self.device)
-        rot_vec = (qmats @ vec).view(-1, 3)
-        # abs since (0,0,-1) is also valid, values in [0,1]
-        rot_rew = (rot_vec @ goal_vec).view(-1).abs()
-        reward = rot_rew
-
-        # position reward using common maniskill distance reward pattern
-        # giving reward in [0,1] for moving center of mass toward half length above table
-        z_dist = torch.abs(self.clothing_frame.pose.p[:, 2] - 0.16)
-        reward += 1 - torch.tanh(5 * z_dist)
-
-        # small reward to motivate initial reaching
-        # initially, we want to reach and grip peg
-        to_grip_vec = self.clothing_frame.pose.p - self.agent.tcp.pose.p
-        to_grip_dist = torch.linalg.norm(to_grip_vec, axis=1)
-        reaching_rew = 1 - torch.tanh(5 * to_grip_dist)
-        # reaching reward granted if gripping block
-        reaching_rew[self.agent.is_grasping(self.clothing_frame)] = 1
-        # weight reaching reward less
-        reaching_rew = reaching_rew / 5
-        reward += reaching_rew
-
-        reward[info["success"]] = 3
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / 8

@@ -34,10 +34,12 @@ from act.detr.detr_vae import build_encoder, DETRVAE
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 import tyro
-from mani_skill.envs.distraction_set import DISTRACTION_SETS
+import wandb
 from mani_skill.utils.io_utils import load_json
-from collections import Counter
 import json
+from collections import Counter
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop import *
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
@@ -83,6 +85,8 @@ class Args:
     """ use pre-defiend language_instructions for clip embedding"""
     is_multi_task: bool = False
     """ use multi-task dataset"""
+    target_num_cams: int = 1
+    """ num of cameras"""
     
     # ACT specific arguments
     lr: float = 1e-4
@@ -190,13 +194,6 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     def observation(self, observation: Dict):
         sensor_data = observation.pop("sensor_data")
         del observation["sensor_param"]
-
-
-        if "base_camera" not in sensor_data:
-            raise KeyError(f"base_camera not found in available cameras: {list(sensor_data.keys())}")
-        
-        cam_data = sensor_data["base_camera"]
-
         for key in OBS_KEYS_TO_REMOVE:
             try:
                 del observation["agent"][key]
@@ -205,41 +202,40 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
         images_rgb = []
         images_depth = []
-        # for cam_data in sensor_data.values():
-        #     if self.include_rgb:
-        #         resized_rgb = self.transforms(
-        #             cam_data["rgb"].permute(0, 3, 1, 2)
-        #         )  # (1, 3, 224, 224)
-        #         images_rgb.append(resized_rgb)
-        #     if self.include_depth:
-        #         depth = (cam_data["depth"].to(torch.float32) / 1024).to(torch.float16)
-        #         resized_depth = self.transforms(
-        #             depth.permute(0, 3, 1, 2)
-        #         )  # (1, 1, 224, 224)
-        #         images_depth.append(resized_depth)
-
-        #cam_data = sensor_data["base_camera"]
+  
+        if self.target_num_cams == 1:
+            cam_data = sensor_data["base_camera"]
+            if self.include_rgb:
+                resized_rgb = self.transforms(
+                    cam_data["rgb"].permute(0, 3, 1, 2)
+                )
+                images_rgb.append(resized_rgb)
             
-        if self.include_rgb:
-            resized_rgb = self.transforms(
-                cam_data["rgb"].permute(0, 3, 1, 2)
-            )
-            images_rgb.append(resized_rgb)
-        
-        if self.include_depth:
-            depth = (cam_data["depth"].to(torch.float32) / 1024).to(torch.float16)
-            resized_depth = self.transforms(
-                depth.permute(0, 3, 1, 2)
-            )
-            images_depth.append(resized_depth)
+            if self.include_depth:
+                depth = (cam_data["depth"].to(torch.float32) / 1024).to(torch.float16)
+                resized_depth = self.transforms(
+                    depth.permute(0, 3, 1, 2)
+                )
+                images_depth.append(resized_depth)
+        else:   
+            for cam_data in sensor_data.values():
+                if self.include_rgb:
+                    resized_rgb = self.transforms(
+                        cam_data["rgb"].permute(0, 3, 1, 2)
+                    )  # (1, 3, 224, 224)
+                    images_rgb.append(resized_rgb)
+                if self.include_depth:
+                    depth = (cam_data["depth"].to(torch.float32) / 1024).to(torch.float16)
+                    resized_depth = self.transforms(
+                        depth.permute(0, 3, 1, 2)
+                    )  # (1, 1, 224, 224)
+                    images_depth.append(resized_depth)
 
         rgb = torch.stack(images_rgb, dim=1) # (1, num_cams, C, 224, 224), uint8
-
         if self.include_depth:
             depth = torch.stack(images_depth, dim=1) # (1, num_cams, C, 224, 224), float16
 
         # flatten the rest of the data which should just be state data
-        
         observation = common.flatten_state_dict(observation, use_torch=True)
 
         ret = dict()
@@ -256,7 +252,8 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
 
 class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
-    def __init__(self, data_path, num_queries, num_traj, internal_instruction, lang_instruction, include_depth, is_multi_task, target_state_dim):
+    def __init__(self, data_path, num_queries, num_traj, internal_instruction, lang_instruction, is_multi_task, include_depth=True, args=None):
+        self.args = args
         if data_path[-4:] == '.pkl':
             raise NotImplementedError()
         else:
@@ -274,12 +271,11 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             ]
         )  # pre-trained models from torchvision.models expect input image to be at least 224x224
 
+
         self.internal_instruction = internal_instruction
         self.lang_instruction = lang_instruction
         self.is_multi_task = is_multi_task
-        self.target_state_dim = target_state_dim
-        self.target_num_cams = 1
-
+        self.target_num_cams = args.target_num_cams
 
         # Pre-process the observations, make them align with the obs returned by the FlattenRGBDObservationWrapper
         obs_traj_dict_list = []
@@ -287,9 +283,9 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
             obs_traj_dict = self.process_obs(obs_traj_dict)
             obs_traj_dict_list.append(obs_traj_dict)
         trajectories['observations'] = obs_traj_dict_list
+        self.obs_keys = list(obs_traj_dict.keys())
 
-
-        #multi-task
+        #multi-task envs
         if self.is_multi_task:
             self.json_data = load_json(data_path.replace(".h5", ".json"))
             self.episode_env_ids = []
@@ -297,29 +293,9 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
                 eid = ep.get("env_id", args.env_id)
                 self.episode_env_ids.append(eid)
 
-            dims = [o["state"].shape[1] for o in trajectories["observations"]]
-            
-            if self.target_state_dim is None:
-                self.target_state_dim = max(dims)
-            print("[STATE DIM COUNTS]", Counter(dims))
-            print("[STATE TARGET DIM]", self.target_state_dim )
-
-            for o in trajectories["observations"]:
-                s = o["state"]
-                d = s.shape[1]
-                if d < self.target_state_dim:
-                    pad = torch.zeros((s.shape[0], self.target_state_dim  - d), dtype=s.dtype)
-                    o["state"] = torch.cat([s, pad], dim=1)
-                elif d > self.target_state_dim:
-                    o["state"] = s[:, :self.target_state_dim ]
-
-        #     #--------------------------
-
         # Pre-process the actions
         for i in tqdm.tqdm(range(len(trajectories['actions'])), desc='Pre-processing actions'):
-            current_act = torch.Tensor(trajectories['actions'][i])
-
-            trajectories['actions'][i] = current_act
+            trajectories['actions'][i] = torch.Tensor(trajectories['actions'][i])
         print('Obs/action pre-processing is done.')
 
         # When the robot reaches the goal state, its joints and gripper fingers need to remain stationary
@@ -345,17 +321,10 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         self.delta_control = 'delta' in args.control_mode
         self.norm_stats = self.get_norm_stats() if not self.delta_control else None
 
-
-        #multi-task
-        if self.is_multi_task:
-            #self.json_data = load_json(data_path.replace(".h5", ".json"))
-            #self.episode_env_ids = [ep.get("env_id", "Unknown-v1") for ep in self.json_data["episodes"]]
-
-            print("[EP ENV_ID COUNTS]", Counter(self.episode_env_ids))
-
     def __getitem__(self, index):
         traj_idx, ts = self.slices[index]
 
+        #language conditioning
         if self.internal_instruction:
             env_id = self.episode_env_ids[traj_idx]
             assert env_id in TASK_TEXT_MAP, f"Task '{env_id}' not in TASK_TEXT_MAP"
@@ -416,40 +385,31 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         # get rgbd data
         sensor_data = obs_dict.pop("sensor_data")
         del obs_dict["sensor_param"]
-        if args.real:
-            images_rgb = []
-            #for cam_key in ["eih_camera", "base_camera", "north_camera"]:
-            for cam_key in ["eih_camera", "base_camera"]:
-                curr_cam_data = sensor_data[cam_key]
-                rgb_tensor = torch.from_numpy(curr_cam_data["rgb"])
-                images_rgb.append(self.transforms(rgb_tensor.permute(0, 3, 1, 2)))
-            rgb = torch.stack(images_rgb, dim=1)
+        images_rgb = []
+        images_depth = []
+
+        if self.target_num_cams == 1:
+            cam_list = [sensor_data["base_camera"]]
         else:
-            cam_data = sensor_data["base_camera"]
-            # RGB
-            rgb_tensor = torch.from_numpy(cam_data["rgb"])
-            resized_rgb = self.transforms(rgb_tensor.permute(0, 3, 1, 2))
-            rgb = torch.stack([resized_rgb], dim=1) # (ep_len, 1, 3, 224, 224)
+            cam_list = sensor_data.values()
 
-        # Depth
+        for cam_data in cam_list:
+            rgb = torch.from_numpy(cam_data["rgb"])
+            resized_rgb = self.transforms(rgb.permute(0, 3, 1, 2))
+            images_rgb.append(resized_rgb)
+            if self.include_depth:
+                depth = torch.from_numpy(cam_data["depth"].astype(np.float32) / 1024).to(torch.float16)
+                resized_depth = self.transforms(depth.permute(0, 3, 1, 2))
+                images_depth.append(resized_depth)
+        rgb = torch.stack(images_rgb, dim=1) # (ep_len, num_cams, 3, 224, 224) # still uint8
         if self.include_depth:
-            depth_tensor = torch.Tensor(cam_data["depth"].astype(np.float32) / 1024).to(torch.float16)
-            resized_depth = self.transforms(depth_tensor.permute(0, 3, 1, 2))
-            depth = torch.stack([resized_depth], dim=1)
+            depth = torch.stack(images_depth, dim=1) # (ep_len, num_cams, 1, 224, 224) # float16
 
-        if not args.real:
+       # flatten the rest of the data which should just be state data
+        if 'extra' in obs_dict:
             obs_dict['extra'] = {k: v[:, None] if len(v.shape) == 1 else v for k, v in obs_dict['extra'].items()} # dirty fix for data that has one dimension (e.g. is_grasped)
         obs_dict = common.flatten_state_dict(obs_dict, use_torch=True)
-        
-        if self.is_multi_task and (self.target_state_dim is not None):
-            s = obs_dict
-            d = s.shape[1]
-            if d < self.target_state_dim:
-                pad = torch.zeros((s.shape[0], self.target_state_dim - d), dtype=s.dtype)
-                obs_dict = torch.cat([s, pad], dim=1)
-            elif d > self.target_state_dim:
-                obs_dict = s[:, :self.target_state_dim]
-
+    
         processed_obs = dict(state=obs_dict, rgb=rgb, depth=depth) if self.include_depth else dict(state=obs_dict, rgb=rgb)
 
         return processed_obs
@@ -490,13 +450,13 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
 class Agent(nn.Module):
     def __init__(self, env, args, is_multi_task: bool):
         super().__init__()
+        self.args = args
         if env is not None:
-            assert len(env.single_observation_space['state'].shape) == 1 
-            assert len(env.single_observation_space['rgb'].shape) == 4 
+            assert len(env.single_observation_space['state'].shape) == 1 # (obs_dim,)
+            assert len(env.single_observation_space['rgb'].shape) == 4 # (num_cams, C, H, W)
             assert len(env.single_action_space.shape) == 1
+            #assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
 
-
-        self.num_cams = 1
         #real dataset
         if args.real:
             self.state_dim = 18
@@ -504,17 +464,14 @@ class Agent(nn.Module):
         else:
             self.state_dim = env.single_observation_space['state'].shape[0]
             self.act_dim = env.single_action_space.shape[0]
-
-
-
         self.kl_weight = args.kl_weight
         self.normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
         # CNN backbone
         backbones = []
-        for _ in range(self.num_cams):
-            backbones.append(build_backbone(args))
+        backbone = build_backbone(args)
+        backbones.append(backbone)
 
         # CVAE decoder
         transformer = build_transformer(args)
@@ -522,14 +479,16 @@ class Agent(nn.Module):
         # CVAE encoder
         encoder = build_encoder(args)
 
-        # ACT ( CVAE encoder + (CNN backbones + CVAE decoder) )
-        
         if args.lang_instruction is not None or args.internal_instruction:
             use_lang_instruction = True
         else:
             use_lang_instruction = False
         self.internal_instruction = args.internal_instruction
         self.is_multi_task = is_multi_task
+
+
+
+        # ACT ( CVAE encoder + (CNN backbones + CVAE decoder) )
         self.model = DETRVAE(
             backbones,
             transformer,
@@ -573,26 +532,15 @@ class Agent(nn.Module):
         obs['rgb'] = self.normalize(obs['rgb'])
 
         # depth data
-        if args.include_depth:
+        if self.args.include_depth:
             obs['depth'] = obs['depth'].float()
 
-        #multi-task padding
-        if self.is_multi_task:
-            current_dim = obs['state'].shape[-1]
-            if current_dim < self.state_dim:
-                pad_size = self.state_dim - current_dim
-                padding = torch.zeros(
-                    (*obs['state'].shape[:-1], pad_size), 
-                    device=obs['state'].device, 
-                    dtype=obs['state'].dtype
-                )
-                obs['state'] = torch.cat([obs['state'], padding], dim=-1)
-
+        # forward pass
         a_hat, (_, _) = self.model(
             obs=obs, 
             lang_instruction=lang_instruction
         )
-        
+
         return a_hat
 
 
@@ -699,8 +647,9 @@ if __name__ == "__main__":
     envs = None
     envs_by_task = None
 
+    #Real tasks do not need eval_envs
     if not args.real:
-        wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth,is_multi_task=is_multi_task, target_num_cams=1)]
+        wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
         envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
 
@@ -719,11 +668,7 @@ if __name__ == "__main__":
 
 
     # dataloader setup
-    if args.real:
-        env_state_dim = 18
-    else:
-        env_state_dim = envs.single_observation_space["state"].shape[0]
-    dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, include_depth=args.include_depth, internal_instruction=args.internal_instruction, lang_instruction=args.lang_instruction, is_multi_task = is_multi_task, target_state_dim=env_state_dim)
+    dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, internal_instruction=args.internal_instruction, lang_instruction=args.lang_instruction, is_multi_task = is_multi_task, include_depth=args.include_depth, args=args)
     sampler = RandomSampler(dataset, replacement=False)
     batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
     batch_sampler = IterationBasedBatchSampler(batch_sampler, args.total_iters)
@@ -739,7 +684,6 @@ if __name__ == "__main__":
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     if args.track:
-        import wandb
         config = vars(args)
         config["eval_env_cfg"] = dict(**env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps)
         wandb.init(

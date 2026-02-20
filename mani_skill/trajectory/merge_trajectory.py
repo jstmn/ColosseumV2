@@ -73,12 +73,12 @@ def merge_trajectories(output_path: str, traj_paths: list, recompute_id: bool = 
         print(f"{task_name:<35} | {count:<10}")
     print("-" * 60)
     print(f"{'Total Merged Episodes':<35} | {cnt:<10}")
-    print(f"{'Max Episode Length (Steps)':<35} | {max_episode_length:<10}") # 가장 긴 에피소드 출력
+    print(f"{'Max Episode Length (Steps)':<35} | {max_episode_length:<10}")
     print("="*60 + "\n")
 
     merged_json_data["multi_env"] = True
     merged_json_data["env_ids"] = sorted(list(all_env_ids))
-    merged_json_data["max_episode_length"] = max_episode_length # JSON 결과에도 저장
+    merged_json_data["max_episode_length"] = max_episode_length 
 
     merged_h5_file.close()
     dump_json(merged_json_path, merged_json_data, indent=2)

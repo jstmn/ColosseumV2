@@ -1,24 +1,20 @@
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
-from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
+from mani_skill.agents.robots.panda.dual_panda import DualPanda
 from mani_skill.utils.building import articulations
 import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-import os
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.utils.structs.articulation import Articulation
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
-# 1. Define the Empty Environment
 
 @register_env("DualArmDrawerOpen-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
-class DualArmDrawerOpenEnv(BaseEnv):
+class DualArmDrawerOpenEnv(ColosseumV2Env):
     """
     Two hold the handles of drawer and open the doors.
     Uses PartNet-Mobility dataset (ID 1005).
@@ -27,18 +23,23 @@ class DualArmDrawerOpenEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+
+    IGNORED_VARIATION_FACTORS = [
+        "MO_color_cfg",
+        "MO_texture_cfg",
+        "RO_color_cfg",
+        "RO_texture_cfg",
+        "table_color_cfg",
+        "table_texture_cfg",
+    ]
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        if self.scene is not None:
-            print(f"Is GPU simulation enabled for this scene? {self.scene.gpu_sim_enabled}")
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -48,7 +49,8 @@ class DualArmDrawerOpenEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -57,20 +59,26 @@ class DualArmDrawerOpenEnv(BaseEnv):
         
 
     def _load_scene(self, options: dict):
-        # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
-        model_id = "1005"
-        builder = articulations.get_articulation_builder(
-            self.scene, f"partnet-mobility:{model_id}"
-        )
-        
-        # Set initial pose to match the previous drawer's location
-        # Position: [0.25, 0, 1.256] (0.456 + 0.8)
-        # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
-        builder.initial_pose = sapien.Pose(
-            p=[0.25, 0, 0.456+0.8], 
-            q=[0.7071, 0, 0, -0.7071]
-        )
-        self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        def get_builder_fn():
+            # Load PartNet-Mobility Drawer (ID 1005 is a standard table with drawer)
+            model_id = "1005"
+            builder = articulations.get_articulation_builder(
+                self.scene, f"partnet-mobility:{model_id}"
+            )
+            # Set initial pose to match the previous drawer's location
+            # Position: [0.25, 0, 1.256] (0.456 + 0.8)
+            # Orientation: 90 degree rotation around X (q=[0.7071, 0, 0, -0.7071])
+            builder.initial_pose = sapien.Pose(
+                p=[0.25, 0, 0.456+0.8], 
+                q=[0.7071, 0, 0, -0.7071]
+            )
+            return builder
+
+        # self.open_cabinet = builder.build(name=f"drawer-{model_id}")
+        self.open_cabinet = self.add_asset_to_scene(get_builder_fn, name="drawer", physics_type="articulation", object_type="MO")
+        assert isinstance(self.open_cabinet, Articulation), "open_cabinet must be an articulation"
+
+        self.load_scene_hook(manipulation_objects=[self.open_cabinet])
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
@@ -98,6 +106,8 @@ class DualArmDrawerOpenEnv(BaseEnv):
             # Close the drawer (reset joint positions to 0)
             self.open_cabinet.set_qpos(torch.zeros((b, dof), device=self.device))
             self.open_cabinet.set_qvel(torch.zeros((b, dof), device=self.device))
+
+            self.initialize_episode_hook(env_idx)
         self._initialize_agent()
         
     def _initialize_agent(self):
@@ -116,29 +126,6 @@ class DualArmDrawerOpenEnv(BaseEnv):
         # print(success)
         return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
     
-    def _get_obs_extra(self, info: dict):
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-
-        return obs
-
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
 # 2. Main Execution Block
 if __name__ == "__main__":

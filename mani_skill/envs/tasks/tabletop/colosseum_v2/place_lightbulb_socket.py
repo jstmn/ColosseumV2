@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.agents.robots import Panda, Fetch
 import os
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("PickLightbulbPlaceSocket-v1", max_episode_steps=100000)
@@ -53,11 +53,11 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
     
     @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, body_type="dynamic"):
+    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, body_type="dynamic"):
         builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path)
+        builder.add_visual_from_file(glb_filepath)
         builder.add_multiple_convex_collisions_from_file(
-            glb_file_path, 
+            glb_filepath, 
             decomposition="coacd"
         )
         builder.initial_pose = pose
@@ -77,7 +77,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
         
         lightbulb_path = "/mnt/user-data/uploads/Lightbulb.glb"
         if os.path.exists(lightbulb_path):
-            self.lightbulb = self.load_glb_as_actor(
+            self.lightbulb = self.add_glb_asset_to_scene(
                 self.scene,
                 lightbulb_path,
                 sapien.Pose(p=[0.2, 0, 0.1]),
@@ -189,15 +189,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
             "xy_dist": xy_dist,
             "z_diff": z_diff,
         }
-    
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                lightbulb_pose=self.lightbulb.pose.raw_pose,
-                socket_position=self.socket_pos_tensor,
-            )
-        return obs
+
     
     def compute_normalized_dense_reward(self, obs: Any, action: np.ndarray, info: Dict):
         xy_dist = info["xy_dist"]

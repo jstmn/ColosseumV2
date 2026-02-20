@@ -14,7 +14,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Actor, Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 def _build_box_with_hole(
     scene: ManiSkillScene, inner_radius, outer_radius, depth, center=(0, 0)
@@ -47,8 +47,8 @@ def _build_box_with_hole(
     return builder
 
 
-@register_env("PegInsertionSide-v2", max_episode_steps=100)
-class PegInsertionSideV2Env(BaseEnv):
+@register_env("PegInsertionSideColosseumV2-v1", max_episode_steps=100)
+class PegInsertionSideColosseumV2(ColosseumV2Env):
     """
     **Task Description:**
     Pick up a orange-white peg and insert the orange end into the box with a hole in it.
@@ -78,8 +78,6 @@ class PegInsertionSideV2Env(BaseEnv):
         reconfiguration_freq=None,
         **kwargs,
     ):
-        distraction_set: Union[DistractionSet, dict] = kwargs.pop("distraction_set")
-        self._distraction_set: DistractionSet = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         if reconfiguration_freq is None:
             if num_envs == 1:
                 reconfiguration_freq = 1
@@ -100,7 +98,7 @@ class PegInsertionSideV2Env(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.35, 0.0, 0.3], target=[0, 0, 0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -112,8 +110,6 @@ class PegInsertionSideV2Env(BaseEnv):
 
     def _load_scene(self, options: dict):
         with torch.device(self.device):
-            self.table_scene = TableSceneBuilder(self)
-            self.table_scene.build()
 
             lengths = self._batched_episode_rng.uniform(0.085, 0.125)
             radii = self._batched_episode_rng.uniform(0.015, 0.025)
@@ -135,11 +131,66 @@ class PegInsertionSideV2Env(BaseEnv):
             self.box_hole_radii = common.to_tensor(radii + self._clearance)
 
             # in each parallel env we build a different box with a hole and peg (the task is meant to be quite difficult)
-            pegs = []
-            boxes = []
+            # pegs = []
+            # boxes = []
 
-            for i in range(self.num_envs):
-                scene_idxs = [i]
+            # for i in range(self.num_envs):
+            #     scene_idxs = [i]
+            #     length = lengths[i]
+            #     radius = radii[i]
+            #     builder = self.scene.create_actor_builder()
+            #     builder.add_box_collision(half_size=[length, radius, radius])
+            #     # peg head
+            #     mat = sapien.render.RenderMaterial(
+            #         base_color=sapien_utils.hex2rgba("#EC7357"),
+            #         roughness=0.5,
+            #         specular=0.5,
+            #     )
+            #     builder.add_box_visual(
+            #         sapien.Pose([length / 2, 0, 0]),
+            #         half_size=[length / 2, radius, radius],
+            #         material=mat,
+            #     )
+            #     # peg tail
+            #     mat = sapien.render.RenderMaterial(
+            #         base_color=sapien_utils.hex2rgba("#EDF6F9"),
+            #         roughness=0.5,
+            #         specular=0.5,
+            #     )
+            #     builder.add_box_visual(
+            #         sapien.Pose([-length / 2, 0, 0]),
+            #         half_size=[length / 2, radius, radius],
+            #         material=mat,
+            #     )
+            #     builder.initial_pose = sapien.Pose(p=[0, 0, 0.1])
+            #     builder.set_scene_idxs(scene_idxs)
+            #     peg = builder.build(f"peg_{i}")
+            #     self.remove_from_state_dict_registry(peg)
+            #     # box with hole
+
+            #     inner_radius, outer_radius, depth = (
+            #         radius + self._clearance,
+            #         length,
+            #         length,
+            #     )
+            #     builder = _build_box_with_hole(
+            #         self.scene, inner_radius, outer_radius, depth, center=centers[i]
+            #     )
+            #     builder.initial_pose = sapien.Pose(p=[0, 1, 0.1])
+            #     builder.set_scene_idxs(scene_idxs)
+            #     box = builder.build_kinematic(f"box_with_hole_{i}")
+            #     self.remove_from_state_dict_registry(box)
+            #     pegs.append(peg)
+            #     boxes.append(box)
+            # self.peg = Actor.merge(pegs, "peg")
+            # self.box = Actor.merge(boxes, "box_with_hole")
+
+            # # to support heterogeneous simulation state dictionaries we register merged versions
+            # # of the parallel actors
+            # self.add_to_state_dict_registry(self.peg)
+            # self.add_to_state_dict_registry(self.box)
+
+            def _get_peg_builder(i):
                 length = lengths[i]
                 radius = radii[i]
                 builder = self.scene.create_actor_builder()
@@ -167,11 +218,16 @@ class PegInsertionSideV2Env(BaseEnv):
                     material=mat,
                 )
                 builder.initial_pose = sapien.Pose(p=[0, 0, 0.1])
-                builder.set_scene_idxs(scene_idxs)
-                peg = builder.build(f"peg_{i}")
-                self.remove_from_state_dict_registry(peg)
                 # box with hole
+                return builder
+            
+            def _get_box_builder(i):
+                length = lengths[i]
+                radius = radii[i]
+                builder = self.scene.create_actor_builder()
+                builder.add_box_collision(half_size=[length, radius, radius])
 
+                # box with hole
                 inner_radius, outer_radius, depth = (
                     radius + self._clearance,
                     length,
@@ -181,23 +237,30 @@ class PegInsertionSideV2Env(BaseEnv):
                     self.scene, inner_radius, outer_radius, depth, center=centers[i]
                 )
                 builder.initial_pose = sapien.Pose(p=[0, 1, 0.1])
-                builder.set_scene_idxs(scene_idxs)
-                box = builder.build_kinematic(f"box_with_hole_{i}")
-                self.remove_from_state_dict_registry(box)
-                pegs.append(peg)
-                boxes.append(box)
-            self.peg = Actor.merge(pegs, "peg")
-            self.box = Actor.merge(boxes, "box_with_hole")
+                return builder
 
-            # to support heterogeneous simulation state dictionaries we register merged versions
-            # of the parallel actors
-            self.add_to_state_dict_registry(self.peg)
-            self.add_to_state_dict_registry(self.box)
+
+            peg_builder_counter = -1
+            def get_peg_builder():
+                nonlocal peg_builder_counter
+                peg_builder_counter += 1
+                return _get_peg_builder(peg_builder_counter)
+
+            box_builder_counter = -1
+            def get_box_builder():
+                nonlocal box_builder_counter
+                box_builder_counter += 1
+                return _get_box_builder(box_builder_counter)
+
+            self.peg = self.add_asset_to_scene(get_peg_builder, name="peg", physics_type="dynamic", object_type="MO")
+            self.box = self.add_asset_to_scene(get_box_builder, name="box_with_hole", physics_type="kinematic", object_type="RO")
+            self.load_scene_hook(manipulation_objects=[self.peg], receiving_objects=[self.box])
+
+
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
 
             # initialize the box and peg
             xy = randomization.uniform(
@@ -251,6 +314,8 @@ class PegInsertionSideV2Env(BaseEnv):
             self.agent.robot.set_qpos(qpos)
             self.agent.robot.set_pose(sapien.Pose([-0.615, 0, 0]))
 
+            self.initialize_episode_hook(env_idx, mo_pose=self.peg.pose)
+
     # save some commonly used attributes
     @property
     def peg_head_pos(self):
@@ -290,75 +355,3 @@ class PegInsertionSideV2Env(BaseEnv):
         success, peg_head_pos_at_hole = self.has_peg_inserted()
         return dict(success=success, peg_head_pos_at_hole=peg_head_pos_at_hole)
 
-    def _get_obs_extra(self, info: dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if self.obs_mode_struct.use_state:
-            obs.update(
-                peg_pose=self.peg.pose.raw_pose,
-                peg_half_size=self.peg_half_sizes,
-                box_hole_pose=self.box_hole_pose.raw_pose,
-                box_hole_radius=self.box_hole_radii,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: dict):
-        # Stage 1: Encourage gripper to be rotated to be lined up with the peg
-
-        # Stage 2: Encourage gripper to move close to peg tail and grasp it
-        gripper_pos = self.agent.tcp.pose.p
-        tgt_gripper_pose = self.peg.pose
-        offset = sapien.Pose(
-            [-0.06, 0, 0]
-        )  # account for panda gripper width with a bit more leeway
-        tgt_gripper_pose = tgt_gripper_pose * (offset)
-        gripper_to_peg_dist = torch.linalg.norm(
-            gripper_pos - tgt_gripper_pose.p, axis=1
-        )
-
-        reaching_reward = 1 - torch.tanh(4.0 * gripper_to_peg_dist)
-
-        # check with max_angle=20 to ensure gripper isn't grasping peg at an awkward pose
-        is_grasped = self.agent.is_grasping(self.peg, max_angle=20)
-        reward = reaching_reward + is_grasped
-
-        # Stage 3: Orient the grasped peg properly towards the hole
-
-        # pre-insertion award, encouraging both the peg center and the peg head to match the yz coordinates of goal_pose
-        peg_head_wrt_goal = self.goal_pose.inv() * self.peg_head_pose
-        peg_head_wrt_goal_yz_dist = torch.linalg.norm(
-            peg_head_wrt_goal.p[:, 1:], axis=1
-        )
-        peg_wrt_goal = self.goal_pose.inv() * self.peg.pose
-        peg_wrt_goal_yz_dist = torch.linalg.norm(peg_wrt_goal.p[:, 1:], axis=1)
-
-        pre_insertion_reward = 3 * (
-            1
-            - torch.tanh(
-                0.5 * (peg_head_wrt_goal_yz_dist + peg_wrt_goal_yz_dist)
-                + 4.5 * torch.maximum(peg_head_wrt_goal_yz_dist, peg_wrt_goal_yz_dist)
-            )
-        )
-        reward += pre_insertion_reward * is_grasped
-        # stage 3 passes if peg is correctly oriented in order to insert into hole easily
-        pre_inserted = (peg_head_wrt_goal_yz_dist < 0.01) & (
-            peg_wrt_goal_yz_dist < 0.01
-        )
-
-        # Stage 4: Insert the peg into the hole once it is grasped and lined up
-        peg_head_wrt_goal_inside_hole = self.box_hole_pose.inv() * self.peg_head_pose
-        insertion_reward = 5 * (
-            1
-            - torch.tanh(
-                5.0 * torch.linalg.norm(peg_head_wrt_goal_inside_hole.p, axis=1)
-            )
-        )
-        reward += insertion_reward * (is_grasped & pre_inserted)
-
-        reward[info["success"]] = 10
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: dict
-    ):
-        return self.compute_dense_reward(obs, action, info) / 10

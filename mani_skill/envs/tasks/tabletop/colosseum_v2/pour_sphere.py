@@ -15,7 +15,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("PourSphere-v1", max_episode_steps=200)
@@ -85,7 +85,7 @@ class PourSphereEnv(BaseEnv):
     def _default_sensor_configs(self):
         # Sensor camera with view of robot arm and cups (matching OpenCabinet setup)
         pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -95,7 +95,7 @@ class PourSphereEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -286,49 +286,3 @@ class PourSphereEnv(BaseEnv):
         return {
             "success": success,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-
-        if "state" in self.obs_mode:
-            cup1_pose = self.cup1.pose
-            cup2_pose = self.cup2.pose
-            sphere_pose = self.sphere.pose
-            obs.update(
-                cup1_pos=cup1_pose.p,
-                cup1_quat=cup1_pose.q,
-                cup2_pos=cup2_pose.p,
-                cup2_quat=cup2_pose.q,
-                sphere_pos=sphere_pose.p,
-                tcp_to_cup1=cup1_pose.p - self.agent.tcp_pose.p,
-                sphere_to_cup2=cup2_pose.p - sphere_pose.p,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict) -> torch.Tensor:
-        """Compute dense reward for the task."""
-        cup1_pos = self.cup1.pose.p
-        cup2_pos = self.cup2.pose.p
-        sphere_pos = self.sphere.pose.p
-        tcp_pos = self.agent.tcp_pose.p
-
-        # Reward for reaching cup1
-        tcp_to_cup1_dist = torch.linalg.norm(tcp_pos - cup1_pos, dim=1)
-        reach_cup1_reward = 1.0 - torch.tanh(3.0 * tcp_to_cup1_dist)
-
-        # Reward for grasping cup1
-        is_grasping_cup1 = self.agent.is_grasping(self.cup1)
-        grasp_reward = is_grasping_cup1.float() * 2.0
-
-        # Reward for getting sphere close to cup2
-        sphere_to_cup2_dist = torch.linalg.norm(sphere_pos - cup2_pos, dim=1)
-        sphere_to_cup2_reward = (1.0 - torch.tanh(2.0 * sphere_to_cup2_dist)) * 3.0
-
-        # Bonus for sphere in cup2
-        success_reward = info["success"].float() * 5.0
-
-        return reach_cup1_reward + grasp_reward + sphere_to_cup2_reward + success_reward
-
-    def compute_normalized_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict) -> torch.Tensor:
-        """Compute normalized dense reward."""
-        return self.compute_dense_reward(obs, action, info) / 11.0

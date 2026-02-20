@@ -21,7 +21,7 @@ from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
 
@@ -189,7 +189,7 @@ class ObjectInCabinetEnv(BaseEnv):
     def _default_sensor_configs(self):
         # Sensor camera with view of robot arm and cabinet handle
         pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.1])
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -199,7 +199,7 @@ class ObjectInCabinetEnv(BaseEnv):
                 near=0.01,
                 far=100,
             )
-        ]
+        ])
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
@@ -470,47 +470,3 @@ class ObjectInCabinetEnv(BaseEnv):
             "handle_link_pos": self.handle_link_positions(),
             "success": success,
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                obj_pose=self.obj.pose.raw_pose,
-                tcp_to_obj_pos=self.obj.pose.p - self.agent.tcp.pose.p,
-                tcp_to_handle_pos=info["handle_link_pos"] - self.agent.tcp.pose.p,
-                target_link_qpos=self.handle_link.joint.qpos.unsqueeze(-1),
-                target_handle_pos=info["handle_link_pos"],
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        reward = torch.zeros(self.num_envs, device=self.device)
-
-        tcp_pos = self.agent.tcp.pose.p
-        obj_pos = self.obj.pose.p
-
-        # Door opening reward
-        door_progress = self.handle_link.joint.qpos / (self.target_qpos + 1e-6)
-        door_reward = torch.clamp(door_progress.squeeze(-1), 0, 1)
-        reward += door_reward
-
-        # Reaching reward for object
-        tcp_to_obj_dist = torch.linalg.norm(tcp_pos - obj_pos, axis=1)
-        reaching_reward = 1 - torch.tanh(5 * tcp_to_obj_dist)
-        is_grasping = info["is_obj_grasped"]
-        reaching_reward[is_grasping] = 1.0
-        reward += reaching_reward
-
-        # Grasp reward
-        grasp_reward = is_grasping.float() * 0.5
-        reward += grasp_reward
-
-        reward[info["success"]] = 5.0
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 5.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward

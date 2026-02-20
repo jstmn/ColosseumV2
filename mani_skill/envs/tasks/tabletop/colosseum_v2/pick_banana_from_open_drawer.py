@@ -12,7 +12,7 @@ from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 CABINET_COLLISION_BIT = 29
@@ -48,11 +48,11 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.0, 0, 0.8], target=[0.15, 0, 0.2])
-        pose2 = sapien_utils.look_at(eye=[-0.3, 0.3, 0.6], target=[0.15, 0, 0.2])
-        return [
+        # pose2 = sapien_utils.look_at(eye=[-0.3, 0.3, 0.6], target=[0.15, 0, 0.2])
+            # CameraConfig("side_camera", pose2, 128, 128, np.pi / 2, 0.01, 100)
+        return self.update_camera_configs([
             CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100),
-            CameraConfig("side_camera", pose2, 128, 128, np.pi / 2, 0.01, 100)
-        ]
+        ])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -182,45 +182,3 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
             "is_banana_static": is_banana_static,
             "success": success.bool(),
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                banana_pose=self.banana.pose.raw_pose,
-                tcp_to_banana_pos=self.banana.pose.p - self.agent.tcp.pose.p,
-                cabinet_pose=self.cabinet.pose.raw_pose,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        reward = torch.zeros(self.num_envs, device=self.device)
-
-        tcp_pos = self.agent.tcp.pose.p
-        banana_pos = self.banana.pose.p
-
-        tcp_to_banana_dist = torch.linalg.norm(tcp_pos - banana_pos, axis=1)
-        reaching_reward = 1 - torch.tanh(5 * tcp_to_banana_dist)
-        
-        is_grasping = self.agent.is_grasping(self.banana)
-        reaching_reward[is_grasping] = 1.0
-        reward += reaching_reward
-
-        grasp_reward = is_grasping.float() * 0.5
-        reward += grasp_reward
-
-        banana_height = banana_pos[:, 2]
-        lift_progress = torch.clamp((banana_height - self.drawer_top_height) / 0.15, 0.0, 1.0)
-        lift_reward = lift_progress * is_grasping.float() * 2.0
-        reward += lift_reward
-
-        reward[info["success"]] = 5.0
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 5.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
-        

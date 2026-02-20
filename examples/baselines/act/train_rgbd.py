@@ -34,10 +34,11 @@ from act.detr.detr_vae import build_encoder, DETRVAE
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 import tyro
-from mani_skill.envs.distraction_set import DISTRACTION_SETS
 import wandb
 from mani_skill.utils.io_utils import load_json
 from collections import Counter
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop import *
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
 # convenience feature. We remove it here because it isn't included in the default ACT method. Additionally, it 
@@ -129,6 +130,11 @@ class Args:
     is_multi_task: bool = False
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
+
+    checkpoint_path: str | None = None
+    """the path to the checkpoint to load"""
+    results_path: str | None = None
+    """the path to save results to"""
 
 
 
@@ -229,7 +235,8 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
 
 class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
-    def __init__(self, data_path, num_queries, num_traj, include_depth, is_multi_task, target_state_dim):
+    def __init__(self, data_path, num_queries, num_traj, is_multi_task, target_state_dim, include_depth=True, args=None):
+        self._args = args
         if data_path[-4:] == '.pkl':
             raise NotImplementedError()
         else:
@@ -332,7 +339,7 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
 
         # Pad after the trajectory, so all the observations are utilized in training
         if action_len < self.num_queries:
-            if 'delta_pos' in args.control_mode or args.control_mode == 'base_pd_joint_vel_arm_pd_joint_vel':
+            if 'delta_pos' in self._args.control_mode or self._args.control_mode == 'base_pd_joint_vel_arm_pd_joint_vel':
                 gripper_action = act_seq[-1, -1]
                 pad_action = torch.cat((self.pad_action_arm, gripper_action[None]), dim=0)
                 act_seq = torch.cat([act_seq, pad_action.repeat(self.num_queries-action_len, 1)], dim=0)
@@ -483,6 +490,7 @@ class Agent(nn.Module):
             action_dim=self.act_dim,
             num_queries=args.num_queries,
         )
+        self._args = args
 
     def compute_loss(self, obs, action_seq):
         # normalize rgb data
@@ -490,7 +498,7 @@ class Agent(nn.Module):
         obs['rgb'] = self.normalize(obs['rgb'])
 
         # depth data
-        if args.include_depth:
+        if self._args.include_depth:
             obs['depth'] = obs['depth'].float()
 
         # forward pass
@@ -514,7 +522,7 @@ class Agent(nn.Module):
         obs['rgb'] = self.normalize(obs['rgb'])
 
         # depth data
-        if args.include_depth:
+        if self._args.include_depth:
             obs['depth'] = obs['depth'].float()
 
         if self.is_multi_task:
@@ -623,8 +631,7 @@ if __name__ == "__main__":
 
     # dataloader setup
     env_state_dim = envs.single_observation_space["state"].shape[0]
-    dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, include_depth=args.include_depth, is_multi_task = is_multi_task, target_state_dim = env_state_dim)
-    sampler = RandomSampler(dataset, replacement=False)
+    dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, internal_instruction=args.internal_instruction, lang_instruction=args.lang_instruction, is_multi_task = is_multi_task, target_state_dim=env_state_dim, include_depth=args.include_depth, args=args)
     batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
     batch_sampler = IterationBasedBatchSampler(batch_sampler, args.total_iters)
     train_dataloader = DataLoader(

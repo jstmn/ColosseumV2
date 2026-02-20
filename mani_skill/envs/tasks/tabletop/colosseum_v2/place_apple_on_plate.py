@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
 
 
 @register_env("PlaceAppleOnPlate-v1", max_episode_steps=50)
@@ -35,7 +35,7 @@ class PlaceAppleOnPlateEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[-0.1, 0, 0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):
@@ -132,55 +132,3 @@ class PlaceAppleOnPlateEnv(BaseEnv):
             "is_apple_static": is_apple_static,
             "success": success.bool(),
         }
-
-    def _get_obs_extra(self, info: Dict):
-        obs = dict(tcp_pose=self.agent.tcp.pose.raw_pose)
-        if "state" in self.obs_mode:
-            obs.update(
-                apple_pose=self.apple.pose.raw_pose,
-                plate_pose=self.plate.pose.raw_pose,
-                tcp_to_apple_pos=self.apple.pose.p - self.agent.tcp.pose.p,
-                tcp_to_plate_pos=self.plate.pose.p - self.agent.tcp.pose.p,
-                apple_to_plate_pos=self.plate.pose.p - self.apple.pose.p,
-            )
-        return obs
-
-    def compute_dense_reward(self, obs: Any, action: torch.Tensor, info: Dict):
-        reward = torch.zeros(self.num_envs, device=self.device)
-
-        tcp_pos = self.agent.tcp.pose.p
-        apple_pos = self.apple.pose.p
-        plate_pos = self.plate.pose.p
-
-        tcp_to_apple_dist = torch.linalg.norm(tcp_pos - apple_pos, axis=1)
-        reaching_reward = 1 - torch.tanh(5 * tcp_to_apple_dist)
-        
-        is_grasping = self.agent.is_grasping(self.apple)
-        reaching_reward[is_grasping] = 1.0
-        reward += reaching_reward
-
-        grasp_reward = is_grasping.float() * 0.5
-        reward += grasp_reward
-
-        apple_to_plate_dist = torch.linalg.norm(
-            apple_pos[:, :2] - plate_pos[:, :2], axis=1
-        )
-        placing_reward = 1 - torch.tanh(5 * apple_to_plate_dist)
-        placing_reward = placing_reward * is_grasping.float()
-        reward += placing_reward
-
-        target_z = self.PLATE_HEIGHT + self.APPLE_RADIUS
-        z_dist = torch.abs(apple_pos[:, 2] - target_z)
-        height_reward = 1 - torch.tanh(5 * z_dist)
-        height_reward = height_reward * (apple_to_plate_dist < self.PLATE_RADIUS).float()
-        reward += height_reward * 0.5
-
-        reward[info["success"]] = 5.0
-
-        return reward
-
-    def compute_normalized_dense_reward(
-        self, obs: Any, action: torch.Tensor, info: Dict
-    ):
-        max_reward = 5.0
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward

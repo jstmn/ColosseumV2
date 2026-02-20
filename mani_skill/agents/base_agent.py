@@ -174,6 +174,7 @@ class BaseAgent:
             loader.fix_root_link = self.fix_root_link
             loader.load_multiple_collisions_from_file = self.load_multiple_collisions
             loader.disable_self_collisions = self.disable_self_collisions
+            # loader.scale = 2.0
 
             if self.urdf_config is not None:
                 urdf_config = sapien_utils.parse_urdf_config(self.urdf_config)

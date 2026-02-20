@@ -19,12 +19,13 @@ def get_intrinsic_resized(cam_info, target_size=(128, 128), original_size=(640, 
     return intrinsic_resized
 
 def convert():
-    # --- 설정 영역 ---
-    data_dir = "new_demos_all/hyeonho_feb17_all_cameras/raise_cube_50_3camera"
-    output_dir = "new_demos_all/real_data/processed/2camera/raise_cube_50"
+    # --- set up ---
+    data_dir = "new_demos_all/real_data/hyeonho_feb17_all_cameras/lift_peg_50_4camera"
+    output_dir = "new_demos_all/real_data/processed/3camera/lift_peg_50"
     
-    # 처리하고 싶은 카메라 목록을 여기에 넣으세요
-    cameras = ["eih_camera", "base_camera"] 
+    # put your cameras what you want
+    cameras = ["eih_camera", "base_camera", "north_camera"] 
+    #cameras = ["eih_camera", "base_camera"] 
     target_size = (128, 128)
     # -----------------
 
@@ -105,7 +106,7 @@ def convert():
     # JSON 결과 저장
     json_data = {
         "env_info": {
-            "env_id": "RaiseCube-v1",
+            "env_id": "LiftPegUpright-v1",
             "env_kwargs": {"obs_mode": "rgb", "control_mode": "pd_joint_pos", "cameras": list(cam_configs.keys())}
         },
         "episodes": episodes

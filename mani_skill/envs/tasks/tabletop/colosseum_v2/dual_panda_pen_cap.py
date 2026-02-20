@@ -6,24 +6,20 @@ pm = importlib.import_module("mani_skill.utils.building.articulations.partnet_mo
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
-from mani_skill.utils.building import articulations
 from mani_skill import PACKAGE_ASSET_DIR
 import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 # 1. Define the Empty Environment
 @register_env("DualArmPenCap-v1", max_episode_steps=1000)
-class DualArmPenCapEnv(BaseEnv):
+class DualArmPenCapEnv(ColosseumV2Env):
     """
     A minimal environment for Dual Panda motion planning.
     No cubes, no tasks, just the robot.
@@ -31,15 +27,18 @@ class DualArmPenCapEnv(BaseEnv):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
+    IGNORED_VARIATION_FACTORS = [
+        "table_color",
+        "table_texture",
+    ]
+    
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
     
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.3 + 0.83]) # 0.83: height of the table
-        return [
+        return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
                 pose=pose,
@@ -49,7 +48,8 @@ class DualArmPenCapEnv(BaseEnv):
                 near=0.01,
                 far=10,
             )
-        ]
+        ])
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
@@ -57,33 +57,24 @@ class DualArmPenCapEnv(BaseEnv):
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_scene(self, options: dict):
-        self.cap = self.load_glb_as_actor(self.scene, 
+        cap_builder_fn = lambda: self.get_glb_asset_builder(
                                         os.path.join(PACKAGE_ASSET_DIR,"pen_in_cap/cap.glb"),
-                                        sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-                                        name="cap",
+                                        initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
                                         scale=[0.3,0.3,0.2],
-                                        type="dynamic")
+                                        object_type="RO",
+                                        )
         
-        self.pen = self.load_glb_as_actor(self.scene,
-                                          os.path.join(PACKAGE_ASSET_DIR, "pen_in_cap/pen.glb"),
-                                          sapien.Pose(p=[0.055, -0.158, 0.5], q=[0.854,0.471,0.212,0.068]),
-                                          name="pen",
-                                          scale=[0.19,0.19,0.2],
-                                          type="dynamic")
+        pen_builder_fn = lambda: self.get_glb_asset_builder(os.path.join(PACKAGE_ASSET_DIR, "pen_in_cap/pen.glb"),
+                                          initial_pose=sapien.Pose(p=[0.055, -0.158, 0.5], q=[0.854,0.471,0.212,0.068]),
+                                          scale=(0.19,0.19,0.2),
+                                          object_type="MO",
+                                          )
+
+        self.cap = self.add_asset_to_scene(cap_builder_fn, name="cap", physics_type="dynamic", object_type="RO")
+        self.pen = self.add_asset_to_scene(pen_builder_fn, name="pen", physics_type="dynamic", object_type="MO")
+        self.load_scene_hook(manipulation_objects=[self.pen], receiving_objects=[self.cap])
+
         
-    @staticmethod
-    def load_glb_as_actor(scene, glb_file_path, pose, name, scale, type="static"):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_file_path, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_file_path, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
-    
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
@@ -98,6 +89,7 @@ class DualArmPenCapEnv(BaseEnv):
             pen_xyz[..., 2] = 0.84
             q = [0, 0, 0.707, 0.707]
             self.pen.set_pose(Pose.create_from_pq(p=pen_xyz, q=q))
+            self.initialize_episode_hook(env_idx, mo_pose=self.pen.pose)
         # self._initialize_agent()
         
     def _initialize_agent(self):
@@ -112,34 +104,7 @@ class DualArmPenCapEnv(BaseEnv):
         
         self.agent.reset(qpos)
 
-    def _get_obs_extra(self, info: dict):        
-        obs = dict()
-        # Helper to convert sapien.Pose to numpy array (Pos + Quat)
-        def pose_to_vec(pose):
-            # p and q are already tensors on the correct device (GPU)
-            # We just need to concatenate them using torch instead of numpy
-            return torch.cat([pose.p, pose.q], dim=-1)
-        
-        if hasattr(self.agent, "tcp_pose"):
-             obs["tcp_pose"] = self.agent.tcp_pose.raw_pose
-        else:
-            # Fallback for the error you saw
-            # We construct the 14D array manually if needed, or just return separate ones
-            obs["left_arm_tcp"] = pose_to_vec(self.agent.tcp_1_pose)
-            obs["right_arm_tcp"] = pose_to_vec(self.agent.tcp_2_pose)
-        if "state" in self.obs_mode:
-            obs["pen_pose"] = self.pen.pose.raw_pose
-            obs["cap_pose"] = self.cap.pose.raw_pose
-        return obs
 
-    def compute_dense_reward(self, obs, action, info):
-        # Return 0 since we are not training RL
-        return 0.0
-
-
-    def compute_normalized_dense_reward(self, obs, action, info):
-        # Return 0 to bypass the NotImplementedError
-        return 0.0
 
     def evaluate(self):
         """

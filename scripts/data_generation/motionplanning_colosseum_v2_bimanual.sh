@@ -17,13 +17,24 @@ ENVS=(
     "DualArmStackCube-v1"
     "DualArmStack3Cube-v1"
 )
-NUM_PROCS=15
+NUM_PROCS=12
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_joint_pos
 OBS_MODE=rgb
 REWARD_MODE=none
 
 for ENV_ID in "${ENVS[@]}"; do
+
+    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+    TRAJ_PATH_ALT=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.0.h5
+    if [ -f "$TRAJ_PATH" ]; then
+        echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
+        continue
+    fi
+    if [ -f "$TRAJ_PATH_ALT" ]; then
+        echo -e "\033[1;33mAlternate trajectory file $TRAJ_PATH_ALT already exists\033[0m"
+        continue
+    fi
 
     echo ""
     echo "----------------------------------------------------------------"
