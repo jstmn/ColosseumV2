@@ -17,7 +17,7 @@ ENVS=(
     "DualArmStackCube-v1"
     "DualArmStack3Cube-v1"
 )
-NUM_PROCS=12
+NUM_PROCS=10
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_joint_pos
 OBS_MODE=rgb
@@ -26,13 +26,8 @@ REWARD_MODE=none
 for ENV_ID in "${ENVS[@]}"; do
 
     TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
-    TRAJ_PATH_ALT=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.0.h5
     if [ -f "$TRAJ_PATH" ]; then
         echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
-        continue
-    fi
-    if [ -f "$TRAJ_PATH_ALT" ]; then
-        echo -e "\033[1;33mAlternate trajectory file $TRAJ_PATH_ALT already exists\033[0m"
         continue
     fi
 
@@ -65,7 +60,7 @@ OUTPUT_PATH=demos/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
 
 echo "Input directories: ${INPUT_DIRS}"
 echo ""
-python mani_skill/trajectory/merge_trajectory.py \
+python mani_skill/trajectory/merge_multitask_trajectories.py \
     --pattern "trajectory__pd_joint_pos__${N_TRAJ}.h5" \
     --input-dirs ${INPUT_DIRS} \
     --output-path ${OUTPUT_PATH}

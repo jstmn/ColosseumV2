@@ -90,7 +90,10 @@ def solve(env: PlaceCubeInDrawerEnv, seed=None, debug=False, vis=False):
 
     # Pull drawer in +Y direction
     current_pos = grasp_pose.p.copy()
-    step_size = 0.3  # 2cm steps
+    step_size = 0.04  
+    # 4cm steps. Need this to be larger than 2.5 sm, otherwise the screw planner will exit because the motion is too 
+    # small. In general, we do this in steps to ensure that replay_trajectory (for converting to different control 
+    # modes) works. I don't know why this matters, but emprically it is important
     max_steps = 23  # Up to 46cm total
 
     for _ in range(max_steps):
