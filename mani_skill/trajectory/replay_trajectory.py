@@ -268,7 +268,7 @@ def replay_cpu_sim(
         reset_kwargs = episode["reset_kwargs"]
         ori_control_mode = episode["control_mode"]
         if pbar is not None:
-            pbar.set_description(f"Replaying {traj_id}, Number successful replays: {successful_replays}/{len(episodes)}")
+            pbar.set_description(f"Replaying {traj_id}, Num. (successful, failed) replays: ({successful_replays}, {failed_replays}) of {len(episodes)}")
         if traj_id not in trajectories:
             tqdm.write(f"{traj_id} does not exist in {args.traj_path}")
             continue
@@ -385,6 +385,7 @@ def replay_cpu_sim(
         else:
             env.flush_video(save=False)
             tqdm.write(f"Episode {episode_id} is not replayed successfully. Skipping")
+            failed_replays += 1
 
     return ReplayResult(
         num_replays=len(episodes), successful_replays=successful_replays

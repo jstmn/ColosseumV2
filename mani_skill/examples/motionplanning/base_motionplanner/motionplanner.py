@@ -33,6 +33,8 @@ class BaseMotionPlanningSolver:
         self.control_mode = self.base_env.control_mode
 
         self.debug = debug
+        if self.debug:
+            print("Press [c] to continue")
         self.vis = vis
         self.print_env_info = print_env_info
         
@@ -45,7 +47,6 @@ class BaseMotionPlanningSolver:
     def render_wait(self):
         if not self.vis or not self.debug:
             return
-        print("Press [c] to continue")
         viewer = self.base_env.render_human()
         while True:
             if viewer.window.key_down("c"):

@@ -145,6 +145,7 @@ class Args:
 
         
 TASK_TEXT_MAP = {
+    #Single_arm
     "PickSodaFromCabinet-v1": "pick up the soda can from the cabinet",
     "PlaceBookInShelf-v1": "place the book into the bookshelf",
     "HammerNail-v1": "use the hammer to hit the nail into the wood",
@@ -160,7 +161,26 @@ TASK_TEXT_MAP = {
     "PlugCharger-v1": "plug the charger into the wall outlet",
     "RaiseCube-v1": "lift the cube up to a certain height",
     "RotateArrow-v1": "rotate the arrow lever to the target direction",
-    "StackCube-v1": "stack red cube on top of green cube"
+    "StackCube-v1": "stack red cube on top of green cube",
+    "StackCubeColosseumV2-v1": "stack red cube on top of green cube",
+    "LiftPegUprightColosseumV2-v1": "lift the peg and stand it upright on the table",
+    "PegInsertionSideColosseumV2-v1": "insert the peg into the hole from the side",
+    "PlugChargerColosseumV2-v1": "plug the charger into the wall outlet",
+
+    #Bimanual
+    "DualArmPickCube-v1": "use both arms to pick up the cube",
+    "DualArmPickBottle-v1": "use both arms to pick up the bottle",
+    "DualArmLiftPot-v1": "grasp the pot with both hands and lift it up",
+    "DualArmLiftTray-v1": "grasp the tray with both hands and lift it up",
+    "DualArmPushBox-v1": "use both hands to push the box to the target location",
+    "DualArmPourPot-v1": "lift the pot with both hands and pour its contents into the target container",
+    "DualArmThreading-v1": "use both hands to thread the object through the target opening",
+    "DualArmPenCap-v1": "hold the pen with one hand and remove the cap with the other hand",
+    "DualArmDrawerPlace-v1": "open the drawer with one hand and place the object inside with the other hand",
+    "DualArmDrawerOpen-v1": "use both hands to grasp and pull the drawer open",
+    "DualArmStackCube-v1": "use both hands to stack one cube on top of another",
+    "DualArmStack3Cube-v1": "use both hands to stack three cubes into a tower",
+
 }
 
 class FlattenRGBDObservationWrapper(gym.ObservationWrapper):

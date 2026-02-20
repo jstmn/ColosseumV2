@@ -5,9 +5,7 @@ import sapien
 import torch
 import trimesh
 
-from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
@@ -15,7 +13,6 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
 
 CABINET_COLLISION_BIT = 29
@@ -63,20 +60,15 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 45427  # Same cabinet as PickCubeFromDrawer
 
+        self._cube_x_range = (-0.1, 0.1)
+        self._cube_y_range = (0.4, 0.6)
+        self._cabinet_x_range = (-0.1, 0.1)
+        self._cabinet_y_range = (-0.6, -0.4)
+
         super().__init__(
             *args,
             robot_uids=robot_uids,
             **kwargs,
-        )
-
-    @property
-    def _default_sim_config(self):
-        return SimConfig(
-            sim_freq=100,
-            control_freq=20,
-            gpu_memory_config=GPUMemoryConfig(
-                found_lost_pairs_capacity=2**23, max_rigid_patch_count=2**17
-            ),
         )
 
     @property
@@ -88,7 +80,7 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.15, 0.5, 0.8], target=[-0.1, 0.0, 0.1])
+        pose = sapien_utils.look_at(eye=[0.3, 0.1, 0.6], target=[-0.1, 0.0, 0.1])
         return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
@@ -242,8 +234,8 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             # Robot is at Y=-0.615, cabinet rotated so drawer faces -Y (towards robot)
             # Swapped: cabinet now on the right side
             cabinet_pos = torch.zeros((b, 3))
-            cabinet_pos[:, 0] = torch.rand(b) * 0.2 - 0.1     # X position (right side)
-            cabinet_pos[:, 1] = (torch.rand(b) * 0.2 - 0.1) - 0.5    # Y position
+            cabinet_pos[:, 0] = self._cabinet_x_range[0] + (torch.rand(b) - 0.5) * (self._cabinet_x_range[1] - self._cabinet_x_range[0])     # X position (right side)
+            cabinet_pos[:, 1] = self._cabinet_y_range[0] + (torch.rand(b) - 0.5) * (self._cabinet_y_range[1] - self._cabinet_y_range[0])    # Y position
             cabinet_pos[:, 2] = self.cabinet_zs[env_idx]
 
             # Rotate 90° clockwise around Z so drawer faces -Y
@@ -295,8 +287,8 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             # Robot is at Y=-0.615, cabinet at X=0.10
             # Swapped: cube now on the left side
             cube_xyz = torch.zeros((b, 3))
-            cube_xyz[:, 0] = -0.30 + (torch.rand(b) - 0.5) * 0.08  # X: to the left
-            cube_xyz[:, 1] = 0.30 + (torch.rand(b) - 0.5) * 0.08  # Y: between robot and cabinet
+            cube_xyz[:, 0] = self._cube_x_range[0] + (torch.rand(b) - 0.5) * (self._cube_x_range[1] - self._cube_x_range[0])  # X: to the left
+            cube_xyz[:, 1] = self._cube_y_range[0] + (torch.rand(b) - 0.5) * (self._cube_y_range[1] - self._cube_y_range[0])  # Y: between robot and cabinet
             cube_xyz[:, 2] = self.CUBE_HALF_SIZE
 
             self.cube.set_pose(Pose.create_from_pq(p=cube_xyz))
