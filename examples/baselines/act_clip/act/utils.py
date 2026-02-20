@@ -96,28 +96,13 @@ TARGET_KEY_TO_SOURCE_KEY = {
     # 'rewards': 'rewards',
     'actions': 'actions',
 }
-
-def load_content_from_h5_file(file, prefix = ""):
+def load_content_from_h5_file(file):
     if isinstance(file, (File, Group)):
-        out = {}
-        for key in list(file.keys()):
-            child_path = f"{prefix}/{key}" if prefix else key
-            out[key] = load_content_from_h5_file(file[key], child_path)
-        return out
-
+        return {key: load_content_from_h5_file(file[key]) for key in list(file.keys())}
     elif isinstance(file, Dataset):
-        try:
-            return file[()]
-        except OSError as e:
-            print(f"[H5 WARN] read failed -> replacing with zeros")
-            print(f"  dataset: {prefix}")
-            print(f"  shape={file.shape}, dtype={file.dtype}, compression={file.compression}, chunks={file.chunks}")
-            print(f"  err: {e}")
-            return np.zeros(file.shape, dtype=file.dtype)
-
+        return file[()]
     else:
         raise NotImplementedError(f"Unspported h5 file type: {type(file)}")
-
 
 def load_hdf5(path, ):
     print('Loading HDF5 file', path)
@@ -135,11 +120,8 @@ def load_traj_hdf5(path, num_traj=None):
         assert num_traj <= len(keys), f"num_traj: {num_traj} > len(keys): {len(keys)}"
         keys = sorted(keys, key=lambda x: int(x.split('_')[-1]))
         keys = keys[:num_traj]
-    # ret = {
-    #     key: load_content_from_h5_file(file[key]) for key in keys
-    # }
     ret = {
-    key: load_content_from_h5_file(file[key], key) for key in keys
+        key: load_content_from_h5_file(file[key]) for key in keys
     }
     file.close()
     print('Loaded')
