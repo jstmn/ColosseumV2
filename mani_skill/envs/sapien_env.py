@@ -208,6 +208,7 @@ class BaseEnv(gym.Env):
         render_backend: str = "gpu",
         parallel_in_single_scene: bool = False,
         enhanced_determinism: bool = False,
+        **kwargs
     ):
         self._enhanced_determinism = enhanced_determinism
 
