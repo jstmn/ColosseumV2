@@ -21,30 +21,7 @@ from mani_skill.envs.tasks.tabletop import *
 
 """
 # Run on a single task
-python examples/baselines/act/eval_rgbd.py \
-    --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
-    --distraction-set "none" \
-    --env-id "DualArmPickCube-v1" \
-    --control-mode "pd_joint_pos" \
-    --no-include-depth \
-    --sim-backend "physx_cuda" \
-    --capture-video \
-    --num-eval-episodes 100 \
-    --num-eval-envs 50 \
-    --max-episode-steps 200
 
-# Run on all tasks x variation factors
-python examples/baselines/act/eval_rgbd.py \
-    --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
-    --control-mode "pd_joint_pos" \
-    --no-include-depth \
-    --sim-backend "physx_cuda" \
-    --capture-video \
-    --num-eval-episodes 100 \
-    --num-eval-envs 50 \
-    --max-episode-steps 500 \
-    --distraction-set "BLANK" \
-    --results-path logs/results_bimanual.csv
 """
 
 ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (

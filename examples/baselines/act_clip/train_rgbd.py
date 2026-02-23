@@ -143,6 +143,12 @@ class Args:
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
 
+    checkpoint_path: str | None = None
+    """the path to the checkpoint to load"""
+    results_path: str | None = None
+    """the path to save results to"""
+
+
         
 TASK_TEXT_MAP = {
     #Single_arm

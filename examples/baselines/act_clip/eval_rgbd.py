@@ -21,11 +21,11 @@ from mani_skill.envs.tasks.tabletop import *
 
 """
 # Run on a single task
-python examples/baselines/act/eval_rgbd.py \
-    --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
+python examples/baselines/act_clip/eval_rgbd.py \
+    --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
     --distraction-set "none" \
-    --env-id "DualArmPickCube-v1" \
-    --control-mode "pd_joint_pos" \
+    --env-id "OpenDrawer-v1" \
+    --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
     --capture-video \
@@ -34,7 +34,7 @@ python examples/baselines/act/eval_rgbd.py \
     --max-episode-steps 200
 
 # Run on all tasks x variation factors
-python examples/baselines/act/eval_rgbd.py \
+python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/best_eval_success_once__BIMANUAL_JAN30.pt \
     --control-mode "pd_joint_pos" \
     --no-include-depth \
