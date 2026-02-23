@@ -28,6 +28,8 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
+    --is-multi-task True \
+    --target-num-cams 1 \
     --capture-video \
     --num-eval-episodes 100 \
     --num-eval-envs 50 \
@@ -134,7 +136,9 @@ if __name__ == "__main__":
 
     assert args.sim_backend in ("physx_cpu", "physx_cuda")
     assert args.checkpoint_path is not None
-    assert os.path.exists(args.checkpoint_path)
+    assert os.path.exists(args.checkpoint_path), f"Checkpoint not found: {args.checkpoint_path}"
+    assert args.is_multi_task is not None, "is_multi_task must be set for evaluation"
+    assert args.target_num_cams is not None, "target_num_cams must be set for evaluation"
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -155,15 +159,15 @@ if __name__ == "__main__":
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
-    wrappers = [partial(FlattenRGBDObservationWrapper, depth=args.include_depth)]
+    wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=args.is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
     video_dir = args.checkpoint_path.replace('.pt', '__videos')
     envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers)
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     # agent setup
-    agent = Agent(envs, args).to(device)
+    agent = Agent(envs, args, is_multi_task=args.is_multi_task).to(device)
     ema = EMAModel(parameters=agent.parameters(), power=0.75)
-    ema_agent = Agent(envs, args).to(device)
+    ema_agent = Agent(envs, args, is_multi_task=args.is_multi_task).to(device)
 
     checkpoint = torch.load(args.checkpoint_path)
     agent.load_state_dict(checkpoint['agent'])
