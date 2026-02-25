@@ -16,6 +16,7 @@ Key behavior:
 # Example usage:
 
 python scripts/parse_colosseum_v2_logs.py --results-path logs/results_bimanual.csv
+python scripts/parse_colosseum_v2_logs.py --results-path logs/results_single_arm.csv
 """
 
 import argparse

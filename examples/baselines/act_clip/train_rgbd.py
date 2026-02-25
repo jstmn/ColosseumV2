@@ -143,7 +143,16 @@ class Args:
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
 
-        
+    checkpoint_path: str | None = None
+    """the path to the checkpoint to load"""
+    results_path: str | None = None
+    """the path to save results to"""
+    is_multi_task: bool | None = None
+    """whether the dataset is multi-task. Must be set for evaluation"""
+    target_num_cams: int | None = None
+    """the number of cameras to use for the evaluation environments. Must be set for evaluation"""
+
+
 TASK_TEXT_MAP = {
     #Single_arm
     "PickSodaFromCabinet-v1": "pick up the soda can from the cabinet",

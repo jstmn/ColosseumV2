@@ -52,4 +52,3 @@ checkpoints/
 logs/
 
 *.ply
-bpe_simple_vocab_16e6.txt.gz
