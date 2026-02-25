@@ -30,9 +30,9 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --sim-backend "physx_cuda" \
     --is-multi-task True \
     --target-num-cams 1 \
-    --num-eval-episodes 100 \
+    --num-eval-episodes 11 \
     --num-eval-envs 10 \
-    --max-episode-steps 200 \
+    --max-episode-steps 20 \
     --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     --internal-instruction --capture-video # <- gpu intensive, so won't work past a certain number of environments
 
@@ -211,7 +211,8 @@ if __name__ == "__main__":
     other_kwargs = None
     wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=args.is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
     video_dir = args.checkpoint_path.replace('.pt', '__videos')
-    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers)
+    video_filename = f"{args.env_id}__{args.distraction_set}"
+    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     # agent setup

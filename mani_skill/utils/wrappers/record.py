@@ -233,6 +233,7 @@ class RecordEpisode(gym.Wrapper):
         avoid_overwriting_video: bool = False,
         source_type: Optional[str] = None,
         source_desc: Optional[str] = None,
+        video_filename: Optional[str] = None,
     ) -> None:
         super().__init__(env)
 
@@ -245,7 +246,7 @@ class RecordEpisode(gym.Wrapper):
         self._video_id = -1
         self._video_steps = 0
         self._closed = False
-
+        self._video_filename = video_filename
         self.save_video_trigger = save_video_trigger
 
         self._trajectory_buffer: Step = None
@@ -785,7 +786,11 @@ class RecordEpisode(gym.Wrapper):
         if save:
             self._video_id += 1
             if name is None:
-                video_name = "{}".format(self._video_id)
+                if self._video_filename is not None:
+                    video_name = f"{self._video_filename}__{self._video_id}"
+                else:
+                    video_name = str(self._video_id)
+
                 if suffix:
                     video_name += "_" + suffix
                 if self._avoid_overwriting_video:
