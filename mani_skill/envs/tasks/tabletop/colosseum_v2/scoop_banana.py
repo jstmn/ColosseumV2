@@ -5,16 +5,13 @@ import sapien
 import torch
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 @register_env("ScoopBanana-v1", max_episode_steps=100)
 class ScoopBananaEnv(ColosseumV2Env):
@@ -44,6 +41,9 @@ class ScoopBananaEnv(ColosseumV2Env):
     height = 0.15
     cube_size = 0.02
     arm_reach = 0.35
+
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors()
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -107,7 +107,6 @@ class ScoopBananaEnv(ColosseumV2Env):
         self.dustpan = self.add_asset_to_scene(dustpan_builder, name="dustpan", physics_type="dynamic", object_type="MO")
         self.wall = self.add_asset_to_scene(wall_builder, name="wall", physics_type="kinematic", object_type="BACKGROUND")
         self.load_scene_hook(manipulation_objects=[self.dustpan], receiving_objects=[self.banana])
-
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

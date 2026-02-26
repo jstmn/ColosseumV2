@@ -1,7 +1,6 @@
-ALGO_NAME = 'BC_ACT_rgbd'
-
 import os
-from dataclasses import dataclass
+from termcolor import cprint
+from pathlib import Path
 import random
 from functools import partial
 import numpy as np
@@ -16,6 +15,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from train_rgbd import Agent, FlattenRGBDObservationWrapper, Args
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import VariationFactorDisabledError
 from mani_skill.envs.tasks.tabletop import *
 
 
@@ -31,10 +31,41 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --is-multi-task True \
     --target-num-cams 1 \
     --num-eval-episodes 100 \
-    --num-eval-envs 20 \
+    --num-eval-envs 50 \
     --max-episode-steps 350 \
-    --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
-    --internal-instruction --capture-video # <- gpu intensive, so won't work past a certain number of environments
+    --internal-instruction
+
+
+# Run on a single task and save video (single arm)
+python examples/baselines/act_clip/eval_rgbd.py \
+    --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
+    --distraction-set "distractor_object" \
+    --env-id "RotateArrow-v1" \
+    --control-mode "pd_ee_delta_pose" \
+    --no-include-depth \
+    --sim-backend "physx_cuda" \
+    --is-multi-task True \
+    --target-num-cams 1 \
+    --num-eval-episodes 6 --num-eval-envs 6 --max-episode-steps 10 \
+    --internal-instruction --capture-video
+    # --capture-video is gpu intensive, so need to limit the number of environments
+
+
+# Run on a single task and save video (bimanual)
+python examples/baselines/act_clip/eval_rgbd.py \
+    --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
+    --distraction-set "all" \
+    --env-id "DualArmPickCube-v1" \
+    --control-mode "pd_joint_pos" \
+    --no-include-depth \
+    --sim-backend "physx_cuda" \
+    --is-multi-task True \
+    --target-num-cams 1 \
+    --internal-instruction \
+    --num-eval-episodes 6 --num-eval-envs 6 --max-episode-steps 10 --capture-video 
+    # --capture-video is gpu intensive, so need to limit the number of environments
+
+
 
 # Run on all tasks x variation factors
 python examples/baselines/act_clip/eval_rgbd.py \
@@ -47,7 +78,6 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --num-eval-episodes 100 \
     --num-eval-envs 50 \
     --max-episode-steps 200 \
-    --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     --internal-instruction \
     --distraction-set "BLANK" \
     --results-path logs/results_single_arm.csv
@@ -57,13 +87,13 @@ ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (
     "RaiseCube-v1",
     "PickSodaFromCabinet-v1",
     "PickDishFromRack-v1",
-    "StackCube-v1",
+    "StackCubeColosseumV2-v1",
     "PlaceBookInShelf-v1",
     "PlaceDishInRack-v1",
-    "LiftPegUpright-v1",
+    "LiftPegUprightColosseumV2-v1",
     "RotateArrow-v1",
-    "PegInsertionSide-v2",
-    "PlugCharger-v1",
+    "PegInsertionSideColosseumV2-v1",
+    "PlugChargerColosseumV2-v1",
     "HammerNail-v1",
     "ScoopBanana-v1",
     "OpenDrawer-v1",
@@ -135,8 +165,11 @@ def update_args_from_results(args: Args):
     expected_columns = [
         "checkpoint_path","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
     ]
-    results = read_csv(args.results_path)
-    assert results.columns.tolist() == expected_columns
+    if not Path(args.results_path).exists():
+        results_df = DataFrame(columns=expected_columns)
+    else:
+        results_df = read_csv(args.results_path)
+    assert results_df.columns.tolist() == expected_columns
 
     if "bimanual" in args.results_path:
         tasks = ALL_COLOSSEUM_V2_BIMANUAL_TASKS
@@ -150,14 +183,14 @@ def update_args_from_results(args: Args):
 
     for task in tasks:
         for distraction_set in DISTRACTION_SETS.keys():
-            result_found = results[
-                (results["env_id"] == task)
-                & (results["distraction_set"].str.lower() == distraction_set.lower())
+            result_found = results_df[
+                (results_df["env_id"] == task)
+                & (results_df["distraction_set"].str.lower() == distraction_set.lower())
             ]
             if len(result_found) > 0:
                 print(f"Found existing result for task {task} and distraction set {distraction_set}")
                 continue
-            print(f"Starting evaluation for {task=} and {distraction_set=}")
+            cprint(f"Starting evaluation for '{task}' with '{distraction_set}'", "green")
             args.env_id = task
             args.distraction_set = distraction_set
 
@@ -173,8 +206,8 @@ def update_args_from_results(args: Args):
                 -1,
                 -1,
             ]
-            results.loc[len(results)] = row
-            results.to_csv(args.results_path, index=False)
+            results_df.loc[len(results_df)] = row
+            results_df.to_csv(args.results_path, index=False)
             return args
 
     raise Exception("No result found for any task and distraction set")
@@ -212,7 +245,13 @@ if __name__ == "__main__":
     wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=args.is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
     video_dir = args.checkpoint_path.replace('.pt', '__videos')
     video_filename = f"{args.env_id}___ds:{args.distraction_set}"
-    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
+    try:
+        envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
+    except VariationFactorDisabledError as e:
+        cprint(f"Variation factor disabled error: {e}", "red")
+        exit(0)
+    except Exception as e:
+        raise e
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     # agent setup
@@ -256,7 +295,7 @@ if __name__ == "__main__":
     envs.close()
 
     if args.results_path is not None:
-        results = read_csv(args.results_path)
+        results_df = read_csv(args.results_path)
         new_row = [
             args.checkpoint_path,
             args.distraction_set.lower(),
@@ -265,10 +304,10 @@ if __name__ == "__main__":
             args.include_depth,
             args.num_eval_episodes,
             args.max_episode_steps,
-            "results",
+            "results_df",
             n_success,
             f"{success_percentage:.2f}",
         ]
-        results.loc[len(results)] = new_row
-        results.to_csv(args.results_path, index=False)
-        print(f"Saved results to {args.results_path}")
+        results_df.loc[len(results_df)] = new_row
+        results_df.to_csv(args.results_path, index=False)
+        print(f"Saved results_df to {args.results_path}")

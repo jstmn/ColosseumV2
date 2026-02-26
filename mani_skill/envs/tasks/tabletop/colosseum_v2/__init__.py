@@ -1,9 +1,5 @@
 from .open_drawer import OpenDrawerEnv
 from .raise_cube import RaiseCubeEnv
-from .pick_banana_from_open_drawer import PickBananaFromOpenDrawerEnv
-from .place_apple_on_plate import PlaceAppleOnPlateEnv
-from .place_lightbulb_socket import PickLightbulbPlaceSocketEnv
-from .pick_cube_from_drawer import PickCubeFromDrawerEnv
 from .peg_insertion_side_v2 import PegInsertionSideColosseumV2
 from .dual_panda_stack_cube import TwoRobotStackCube
 from .place_dish_in_rack import PlaceDishInRackEnv
@@ -12,7 +8,6 @@ from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 from .cook_item_in_pan import CookItemInPanEnv
 from .open_cabinet import OpenCabinetEnv
 from .scoop_banana import ScoopBananaEnv
-from .pour_sphere import PourSphereEnv
 from .hammer_nail import HammerNailEnv
 from .dual_panda_pick_cube import DualArmPickCubeEnv
 from .dual_panda_drawer_place import DualArmDrawerPlaceEnv
@@ -24,7 +19,6 @@ from .dual_panda_lift_tray import DualArmLiftTrayEnv
 from .dual_panda_threading import DualPandaThreadingEnv
 from .dual_panda_stack3cubes import TwoRobotStack3Cube
 from .dual_panda_pen_cap import DualArmPenCapEnv
-from .object_in_cabinet import ObjectInCabinetEnv
 from .dual_panda_push_box import DualPandaPushBoxEnv
 from .place_cube_in_drawer import PlaceCubeInDrawerEnv
 from .pick_soda_from_cabinet import PickSodaFromCabinetEnv

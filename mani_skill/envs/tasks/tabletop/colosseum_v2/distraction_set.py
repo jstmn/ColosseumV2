@@ -70,6 +70,22 @@ class DistractionSet:
     def get_partial_copy(self, keys: list[str]) -> "DistractionSet":
         return DistractionSet(**{k: v for k, v in self.__dict__.items() if k in keys})
 
+    def variation_is_enabled(self, variation: str) -> bool:
+        if variation.endswith("_cfg"):
+            variation = variation[:-4]
+        
+        enabled, disabled = self.which_enabled_str()
+        if variation in enabled:
+            return True
+        elif variation in disabled:
+            return False
+        else:
+            raise ValueError(f"Variation {variation} is not found in the distraction set. Enabled: {enabled}, Disabled: {disabled}")
+
+    def all_are_enabled(self) -> bool:
+        _, disabled = self.which_enabled_str()
+        return len(disabled) == 0
+
     @staticmethod
     def merge(distraction_sets: list["DistractionSet"]) -> "DistractionSet":
 
@@ -141,8 +157,9 @@ class DistractionSet:
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
         disabled_strs = []
+        ignored_fns = ["variation_is_enabled", "all_are_enabled"]
         for k in [attr for attr in dir(self) if not attr.startswith('_')]:
-            if k.endswith('_enabled') and hasattr(self, k):
+            if k.endswith('_enabled') and hasattr(self, k) and (not k in ignored_fns):
                 enabled_fn = getattr(self, k)
                 if enabled_fn():
                     enabled_strs.append(k[:-8]) # Remove '_enabled' suffix and append
@@ -158,7 +175,7 @@ class DistractionSet:
             if len(current_cfg) == 0:
                 continue
             setattr(self, f"{k}_cfg", {})
-            cprint(f"WARNING: Variation factor {k} is disabled", "yellow")
+            cprint(f"WARNING: Disabling variation factor: '{k.upper()}'.", "yellow")
 
     def __post_init__(self):
 
@@ -197,50 +214,34 @@ class DistractionSet:
             assert_range_correct(self.camera_pose_cfg["xyz_range"])
 
     def to_dict(self):
-        return dict(
-            MO_color_cfg=self.MO_color_cfg,
-            RO_color_cfg=self.RO_color_cfg,
-            MO_texture_cfg=self.MO_texture_cfg,
-            RO_texture_cfg=self.RO_texture_cfg,
-            MO_size_cfg=self.MO_size_cfg,
-            RO_size_cfg=self.RO_size_cfg,
-            table_color_cfg=self.table_color_cfg,
-            light_color_cfg=self.light_color_cfg,
-            table_texture_cfg=self.table_texture_cfg,
-            distractor_object_cfg=self.distractor_object_cfg,
-            background_texture_cfg=self.background_texture_cfg,
-            camera_pose_cfg=self.camera_pose_cfg,
-        )
+        d = {}
+        for k in self.__dict__.keys():
+            if k.endswith("_cfg"):
+                d[k] = getattr(self, k)
+        return d
 
 
 # mani_skill/agents/base_agent.py
 # ^ can set the scale of the robot here
 all_distractor_set = DistractionSet(
     distractor_object_cfg={
-        "n_spheres": 2,
-        "radius_range": (0.01, 0.03),
-        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
-        "x_lims": (-0.1, 0.1),
-        "y_lims": (-0.1, 0.1),
+        "n_distractors": 2,
+        "x_lims": (-0.4, 0.4),
+        "y_lims": (-0.4, 0.4),
     },
-    MO_color_cfg ={
-        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
-    },
-    MO_texture_cfg = {
-        "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
-    },
-    RO_color_cfg ={
-        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
-    },
-    RO_texture_cfg = {
-        "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
-    },
-    table_color_cfg = {
-        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
-    },
-    table_texture_cfg = {
-        "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
-    },
+    MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
+    MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
+    MO_mass_cfg = {"mass_scale_range": (2, 5),},
+    MO_size_cfg = {"scale_range": (1.9, 2.1)},
+    # MO_size_cfg = {"scale_range": (0.9, 1.1)},
+    # 
+    RO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
+    RO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
+    RO_size_cfg = {"scale_range": (1.9, 2.1)},
+    # RO_size_cfg = {"scale_range": (0.9, 1.1)},
+    # 
+    table_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
+    table_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     camera_pose_cfg = {
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),  # 2.5 cm
@@ -249,34 +250,32 @@ all_distractor_set = DistractionSet(
         "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
     # ^ this works but makes it hard to see the color of the objects
-    MO_size_cfg = {"scale_range": (0.9, 1.1)},
-    RO_size_cfg = {"scale_range": (0.9, 1.1)},
-    background_texture_cfg = {
-        "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
-    },
-    background_color_cfg = {
-        "color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),
-    },
-    MO_mass_cfg = {
-        "mass_scale_range": (2, 5),
-    },
+    background_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
+    background_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),},
 )
 
 DISTRACTION_SETS = {
     "none".upper(): DistractionSet(),
     "all".upper(): all_distractor_set,
+    # Distractor object
     "distractor_object".upper(): all_distractor_set.get_partial_copy(["distractor_object_cfg"]),
+    # MO
     "MO_color".upper(): all_distractor_set.get_partial_copy(["MO_color_cfg"]),
     "MO_texture".upper(): all_distractor_set.get_partial_copy(["MO_texture_cfg"]),
+    "MO_size".upper(): all_distractor_set.get_partial_copy(["MO_size_cfg"]),
+    "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
+    # RO
     "RO_color".upper(): all_distractor_set.get_partial_copy(["RO_color_cfg"]),
     "RO_texture".upper(): all_distractor_set.get_partial_copy(["RO_texture_cfg"]),
+    "RO_size".upper(): all_distractor_set.get_partial_copy(["RO_size_cfg"]),
+    # Table
     "table_color".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
+    # Camera
     "camera_pose".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
+    # Light
     "light_color".upper(): all_distractor_set.get_partial_copy(["light_color_cfg"]),
-    "MO_size".upper(): all_distractor_set.get_partial_copy(["MO_size_cfg"]),
-    "RO_size".upper(): all_distractor_set.get_partial_copy(["RO_size_cfg"]),
+    # Background
     "background_texture".upper(): all_distractor_set.get_partial_copy(["background_texture_cfg"]),
     "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
-    "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
 }

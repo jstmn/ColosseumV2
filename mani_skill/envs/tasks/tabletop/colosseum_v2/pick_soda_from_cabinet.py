@@ -12,7 +12,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 import gymnasium as gym
 
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
@@ -34,6 +34,11 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
 
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
 
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
@@ -82,7 +87,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
         # Optionally keep a handle:
         self.open_cabinet = built
 
-        
         left_builder_fn = lambda: actors.build_box(
             self.scene,
             half_sizes=[0.38/2, 0.01, 0.272],
@@ -111,8 +115,9 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             glb_filepath=os.path.join(PACKAGE_ASSET_DIR, "place_soda_in_cabinet/diet_soda.glb"),
             initial_pose=sapien.Pose(p=[0.055, -0.158, 0.1], q=[0.854,0.471,0.212,0.068]),
             object_type="MO",
-            scale=(0.008,0.008,0.008),
+            scale=(0.008, 0.008, 0.008),
         )
+        # MO_mass is set in add_asset_to_scene(), scale is set in builder_fn() 
         self.left = self.add_asset_to_scene(left_builder_fn, name="left", physics_type="kinematic", object_type="RO")
         self.right = self.add_asset_to_scene(right_builder_fn, name="right", physics_type="kinematic", object_type="RO")
         self.back = self.add_asset_to_scene(back_builder_fn, name="back", physics_type="kinematic", object_type="RO")
@@ -196,33 +201,3 @@ For more information, see:
 ================================================================================
 """
             raise FileNotFoundError(error_msg)
-
-if __name__ == "__main__":
-    # Now you can load this safe environment
-    env = gym.make(
-        "PickSodaFromCabinet-v1", 
-        obs_mode="state_dict", 
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
-
-    print("Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    if "agent" in obs:
-        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
-    
-    # NOW you can run your IK loop here
-    # 2. You MUST run a loop, or the window will close immediately
-    while True:
-        # Create a dummy action (stay still)
-        # action = np.zeros(env.action_space.shape)
-        
-        # # Step the environment
-        # obs, reward, terminated, truncated, info = env.step(action)
-        
-        # Render the frame
-        env.render()  # <--- Updates the GUI
-        
-    

@@ -12,10 +12,8 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.sapien_utils import look_at
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.utils.structs.types import Array
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 @register_env("LiftPegUprightColosseumV2-v1", max_episode_steps=50)
 class LiftPegUprightColosseumV2Env(ColosseumV2Env):
@@ -37,6 +35,12 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
     peg_half_width = 0.025
     peg_half_length = 0.12
 
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
+
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -56,18 +60,21 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
 
-        # the peg that we want to manipulate
-        peg_builder = lambda: actors.build_twocolor_peg(
-            self.scene,
-            length=self.peg_half_length,
-            width=self.peg_half_width,
-            color_1=np.array([176, 14, 14, 255]) / 255,
-            color_2=np.array([12, 42, 160, 255]) / 255,
-            name="peg",
-            body_type="dynamic",
-            initial_pose=sapien.Pose(p=[0, 0, 0.1]),
-            return_builder=True,
-        )
+
+        def peg_builder():
+            MO_scale = self.get_MO_scale()
+            # the peg that we want to manipulate
+            return actors.build_twocolor_peg(
+                self.scene,
+                length=self.peg_half_length * MO_scale[0],
+                width=self.peg_half_width * MO_scale[1],
+                color_1=np.array([176, 14, 14, 255]) / 255,
+                color_2=np.array([12, 42, 160, 255]) / 255,
+                name="peg",
+                body_type="dynamic",
+                initial_pose=sapien.Pose(p=[0, 0, 0.1]),
+                return_builder=True,
+            )
         self.peg = self.add_asset_to_scene(peg_builder, name="peg", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.peg])
 

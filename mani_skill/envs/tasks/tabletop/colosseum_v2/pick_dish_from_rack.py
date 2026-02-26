@@ -14,8 +14,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
-from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +71,11 @@ class PickDishFromRackEnv(ColosseumV2Env):
     # Rack placed either right [-0.25, -0.15] or left [0.15, 0.25], avoiding center
     _rack_y_ranges = [(-0.25, -0.15), (0.15, 0.25)]
 
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
+
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -111,53 +115,32 @@ class PickDishFromRackEnv(ColosseumV2Env):
 
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
-        # builder = self.scene.create_actor_builder()
 
-        physical_material = PhysxMaterial(
-            static_friction=20.0,
-            dynamic_friction=20.0,
-            restitution=0.0,
-        )
-        collision_scale = tuple[float, float, float]([self._plate_outer_radius / self._plate_mesh_source_radius] * 3)
-        density = self._plate_density
-        mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
-
-        # builder.add_multiple_convex_collisions_from_file(
-        #     filename=str(self._plate_visual_mesh_path),
-        #     scale=[collision_scale, collision_scale, collision_scale],
-        #     pose=mesh_pose,
-        #     material=physical_material,
-        #     density=self._plate_density,
-        #     decomposition="coacd",
-        # )
-
-        plate_visual_material = sapien.render.RenderMaterial(
-            base_color=[1.0, 1.0, 1.0, 1.0],
-            specular=0.4,
-            roughness=0.2,
-            metallic=0.0,
-        )
-
-        # builder.add_visual_from_file(
-        #     filename=str(self._plate_visual_mesh_path),
-        #     scale=[collision_scale, collision_scale, collision_scale],
-        #     pose=mesh_pose,
-        #     material=plate_visual_material,
-        # )
-
-        # builder.initial_pose = sapien.Pose()
-        # return builder.build(name="plate")
-
-        build_plate_fn = lambda: self.get_glb_asset_builder(
-            glb_filepath=str(self._plate_visual_mesh_path),
-            object_type="MO",
-            scale=collision_scale,
-            physical_material=physical_material,
-            density=density,
-            visual_material=plate_visual_material,
-            initial_pose=sapien.Pose(),
-            mesh_pose=mesh_pose,
-        )
+        def build_plate_fn(): 
+            physical_material = PhysxMaterial(
+                static_friction=20.0,
+                dynamic_friction=20.0,
+                restitution=0.0,
+            )
+            density = self._plate_density
+            mesh_pose = sapien.Pose(q=self._plate_mesh_flat_quat)
+            plate_visual_material = sapien.render.RenderMaterial(
+                base_color=[1.0, 1.0, 1.0, 1.0],
+                specular=0.4,
+                roughness=0.2,
+                metallic=0.0,
+            )
+            collision_scale = tuple[float, float, float]([self._plate_outer_radius / self._plate_mesh_source_radius] * 3)
+            return self.get_glb_asset_builder(
+                glb_filepath=str(self._plate_visual_mesh_path),
+                object_type="MO",
+                scale=collision_scale,
+                physical_material=physical_material,
+                density=density,
+                visual_material=plate_visual_material,
+                initial_pose=sapien.Pose(),
+                mesh_pose=mesh_pose,
+            )
         return self.add_asset_to_scene(build_plate_fn, name="plate", physics_type="dynamic", object_type="MO")
 
     def _build_rack(self):
@@ -201,8 +184,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
                 scale=[self._rack_scale] * 3,
             )
             builder.initial_pose = sapien.Pose()
-            # return builder.build_kinematic(name="dish_rack")
             return builder
+
         return self.add_asset_to_scene(rack_builder_fn, name="dish_rack", physics_type="kinematic", object_type="RO")
 
 
@@ -232,47 +215,6 @@ class PickDishFromRackEnv(ColosseumV2Env):
                 rack_pos[i, 1] = torch.rand(1, device=device).item() * (y_max - y_min) + y_min
             rack_pos[:, 2] = table_top_z + float(self._rack_extent[2])
 
-
-            # Use IK to find qpos that places EE at target position
-            # Grasp pose: approaching from above (-Z), closing in Y direction
-            # Initialize table scene first with default qpos
-            # self._table_scene_builders[env_idx].initialize(env_idx)
-
-            # Create a temporary planner to compute IK
-            # # Compute EE target position above rack center (for grasp approach)
-            # # EE should be above the plate which is at rack center, at the top of the vertical plate
-            # ee_target_x = rack_pos[0, 0].item()
-            # ee_target_y = rack_pos[0, 1].item()
-            # ee_target_z = table_top_z + self._plate_outer_radius * 2 + 0.25  # Above plate top + higher clearance
-            # try:
-            #     planner = PandaArmMotionPlanningSolver(
-            #         self,
-            #         debug=False,
-            #         vis=False,
-            #         base_pose=self.agent.robot.pose,
-            #         visualize_target_grasp_pose=False,
-            #         print_env_info=False,
-            #     )
-
-            #     # Build target pose above rack
-            #     approaching = np.array([0, 0, -1])
-            #     closing = np.array([0, 1, 0])
-            #     target_pos = np.array([ee_target_x, ee_target_y, ee_target_z])
-            #     target_pose = self.agent.build_grasp_pose(approaching, closing, target_pos)
-
-            #     # Compute IK
-            #     result = planner.planner.IK(target_pose, self.agent.robot.get_qpos()[0, :9].cpu().numpy()[None, :])
-            #     if result["status"] == "Success":
-            #         pregrasp_qpos = np.array(result["position"])
-            #         # Add gripper open position
-            #         pregrasp_qpos = np.append(pregrasp_qpos, [0.04, 0.04])
-            #         # Re-initialize with computed qpos
-            #         self.table_scene_builders[env_idx].initialize(env_idx, qpos_0=pregrasp_qpos)
-
-            #     planner.close()
-            # except Exception as e:
-            #     # If IK fails, just use default initialization
-            #     pass
 
             rack_pose = Pose.create_from_pq(p=rack_pos)
             self.dish_rack.set_pose(rack_pose)

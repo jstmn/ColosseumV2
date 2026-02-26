@@ -44,7 +44,7 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
 
     CUBE_HALF_SIZE = 0.035
 
-    IGNORED_VARIATION_FACTORS = [
+    DISABLED_VARIATION_FACTORS = [
         "MO_color",
         "MO_texture",
         "MO_mass",

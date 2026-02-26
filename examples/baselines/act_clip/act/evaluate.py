@@ -115,7 +115,6 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name=
             eval_envs.flush_video(name=save_name)
             print(f"[DEBUG] Video saved as {save_name}.mp4")
         else:
-            print(f"eval_envs has no attr flush_video")
             eval_envs.call("flush_video", save_name)
 
         print(f"[DEBUG] Video flush successful.")

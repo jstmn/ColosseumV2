@@ -11,10 +11,9 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 
 @register_env("PlugChargerColosseumV2-v1", max_episode_steps=200)
@@ -46,6 +45,11 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda_wristcam"]
     agent: Union[PandaWristCam]
     SUPPORTED_REWARD_MODES = ["none", "sparse"]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
 
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs

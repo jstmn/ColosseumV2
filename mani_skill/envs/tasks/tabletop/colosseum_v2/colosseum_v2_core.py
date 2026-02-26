@@ -1,5 +1,7 @@
 from typing import Callable
 import os
+import random
+from dataclasses import dataclass
 
 from termcolor import cprint
 from sapien.physx import PhysxMaterial
@@ -20,48 +22,127 @@ from mani_skill.utils.building.articulation_builder import ArticulationBuilder
 from mani_skill.utils.structs.articulation import Articulation
 from mani_skill.utils.io_utils import load_json
 from sapien.render import RenderBodyComponent
-from transforms3d.euler import euler2quat
+from mani_skill.utils.geometry.rotation_conversions import euler_angles_to_matrix, matrix_to_quaternion
 from mani_skill.utils.structs.actor import Actor
 from mani_skill import ASSET_DIR
 
-FLOOR_HEIGHT = -0.920
 
-def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+class VariationFactorDisabledError(Exception):
+    """
+    Raised when a variation factor is disabled but is enabled in the distraction set.
+    """
+    pass
 
-    assert actor is not None, "actor must be provided, got None"
 
+@dataclass
+class DisabledVariationFactors:
+    """
+    Stores which variation factors are disabled.
+    """
+    MO_color: bool = False
+    MO_texture: bool = False
+    MO_size: bool = False
+    MO_mass: bool = False
+    RO_color: bool = False
+    RO_texture: bool = False
+    RO_size: bool = False
+    table_color: bool = False
+    light_color: bool = False
+    table_texture: bool = False
+    distractor_object: bool = False
+    background_texture: bool = False
+    background_color: bool = False
+    camera_pose: bool = False
+
+    def to_list(self):
+        return [k for k, v in self.__dict__.items() if v]
+
+
+def _warn_or_raise_if_shared_materials(objs: list, actor_name: str, *, set_color: bool, set_texture: bool):
+    """
+    Heuristic guard for a common domain-randomization footgun:
+    if parallel env instances share the same RenderMaterial, then per-env randomization
+    becomes "last write wins" and all envs may look identical.
+
+    This check errors out immediately when shared materials are detected.
+    """
     if not set_color and not set_texture:
         return
 
-    # If using a single texture / color for the entire actor, decide the color/texture here.
-    if use_single_texture_or_texture:
-        if set_texture:
-            assert texture_cfg is not None, "texture_cfg is not set"
-            texture = _get_random_texture(texture_cfg["textures_directory"])
-        if set_color:
-            assert color_cfg is not None, "color_cfg is not set"
-            color = color_cfg["color_range"].sample_rgba()
-        if set_color and set_texture:
-            if np.random.random() < 0.5:
-                use_color = True
-            else:
-                use_color = False
+    # Some actors (e.g. cabinets/shelves) store per-env objects as nested lists.
+    # Flatten defensively so this check never crashes.
+    flat_objs = []
+    for o in objs:
+        if isinstance(o, (list, tuple)):
+            flat_objs.extend(o)
+        else:
+            flat_objs.append(o)
 
-    objs = []
-    if isinstance(actor, OpenCabinet):
-        for shelf in actor.shelves:
-            objs.append(shelf._objs)
-    elif isinstance(actor, Articulation):
-        for obj in actor._objs:
-            for link in obj.links:
-                objs.append(link.entity)
-        raise ValueError(f"Articulation {actor.name} is not supported for color/texture randomization")
-    else:
-        objs = actor._objs
+    # NOTE: `part.material` returns a fresh Python wrapper frequently, so `id(part.material)`
+    # is NOT stable and can produce false positives. SAPIEN's RenderMaterial implements `==`
+    # to compare underlying materials, so we use that to group materials robustly.
+    material_groups: list[tuple[sapien.render.RenderMaterial, set[int]]] = []
+    for obj_i, obj in enumerate(flat_objs):
+        render_body_component = obj.find_component_by_type(RenderBodyComponent)
+        if not isinstance(render_body_component, RenderBodyComponent):
+            continue
+        for render_shape in render_body_component.render_shapes:
+            for part in render_shape.parts:
+                m = part.material
+                found = False
+                for rep, obj_is in material_groups:
+                    if m == rep:
+                        obj_is.add(obj_i)
+                        found = True
+                        break
+                if not found:
+                    material_groups.append((m, {obj_i}))
+
+    shared = [(repr(rep), sorted(list(obj_is))) for rep, obj_is in material_groups if len(obj_is) > 1]
+    if not shared:
+        return
+
+    msg = (
+        f"[ColosseumV2][MaterialUniqueness] Actor '{actor_name}' appears to share one or more "
+        f"RenderMaterial instances across parallel env objects. This can make per-env color/texture "
+        f"randomization collapse to identical visuals (last assignment wins). "
+        f"Example shared materials/obj indices: {shared[:3]}{' ...' if len(shared) > 3 else ''}. "
+        f"Fix by creating a fresh RenderMaterial per env instance (e.g., inside builder_fn) or cloning "
+        f"materials per render part before mutation. "
+    )
+    raise RuntimeError(msg)
+
+
+def _set_color_or_texture_objs(objs: list, actor_name: str, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+    if not set_color and not set_texture:
+        return
+
+    # Some call sites provide nested lists (e.g., cabinets/shelves). Flatten defensively.
+    flat_objs = []
+    for o in objs:
+        if isinstance(o, (list, tuple)):
+            flat_objs.extend(o)
+        else:
+            flat_objs.append(o)
+
+    _warn_or_raise_if_shared_materials(flat_objs, actor_name, set_color=set_color, set_texture=set_texture)
 
     # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
-    for obj in objs:
+    for obj in flat_objs:
+
         # modify the i-th object which is in parallel environment i
+        if use_single_texture_or_texture:
+            # Pick one color/texture per parallel env instance (obj), and apply it to all
+            # render parts of that env instance.
+            if set_texture:
+                assert texture_cfg is not None, "texture_cfg is not set"
+                texture = _get_random_texture(texture_cfg["textures_directory"])
+            if set_color:
+                assert color_cfg is not None, "color_cfg is not set"
+                color = color_cfg["color_range"].sample_rgba()
+            if set_color and set_texture:
+                use_color = np.random.random() < 0.5
+
         render_body_component: RenderBodyComponent = obj.find_component_by_type(RenderBodyComponent)
         assert isinstance(render_body_component, RenderBodyComponent), f"render_body_component must be a RenderBodyComponent, got {type(render_body_component)}"
         for render_shape in render_body_component.render_shapes:
@@ -76,14 +157,54 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
                         color = color_cfg["color_range"].sample_rgba()
 
                 if set_color and not set_texture:
+                    # If a GLB came with a base-color texture, setting only base_color often
+                    # won't visually change anything (the texture dominates). Clear textures
+                    # so "color randomization" actually produces a solid color.
+                    part.material.set_base_color_texture(None)
+                    part.material.set_diffuse_texture(None)
                     part.material.set_base_color(color)
                 elif not set_color and set_texture:
+                    # Avoid accidental tinting from a previously set base_color.
+                    part.material.set_base_color([1, 1, 1, 1])
                     part.material.set_base_color_texture(texture)
                 elif set_color and set_texture:
                     if (use_single_texture_or_texture and use_color) or (not use_single_texture_or_texture and (np.random.random() < 0.5)):
+                        part.material.set_base_color_texture(None)
+                        part.material.set_diffuse_texture(None)
                         part.material.set_base_color(color)
                     else:
+                        part.material.set_base_color([1, 1, 1, 1])
                         part.material.set_base_color_texture(texture)
+
+
+def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+
+    assert actor is not None, "actor must be provided, got None"
+
+    if not set_color and not set_texture:
+        return
+
+    objs = []
+    if isinstance(actor, OpenCabinet):
+        for shelf in actor.shelves:
+            objs.append(shelf._objs)
+    elif isinstance(actor, Articulation):
+        for obj in actor._objs:
+            for link in obj.links:
+                objs.append(link.entity)
+        raise ValueError(f"Articulation {actor.name} is not supported for color/texture randomization")
+    else:
+        objs = actor._objs
+
+    _set_color_or_texture_objs(
+        objs=objs,
+        actor_name=getattr(actor, "name", str(actor)),
+        color_cfg=color_cfg,
+        texture_cfg=texture_cfg,
+        set_color=set_color,
+        set_texture=set_texture,
+        use_single_texture_or_texture=use_single_texture_or_texture,
+    )
 
 
 
@@ -109,8 +230,24 @@ class ColosseumV2Env(BaseEnv):
             self._ds = distraction_set
         else:
             raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
-        self.ignored_variation_factors = kwargs.pop("ignored_variation_factors", [])
-        self._ds.disable_variation_factors(self.ignored_variation_factors)
+
+        # Verify that the variation factors are consistent
+        if hasattr(self, "DISABLED_VARIATION_FACTORS"):
+            dvf = self.DISABLED_VARIATION_FACTORS
+            assert isinstance(dvf, DisabledVariationFactors)
+            all_enabled = self._ds.all_are_enabled()
+            for disabled in dvf.to_list():
+                var_is_enabled = self._ds.variation_is_enabled(disabled)
+                if all_enabled:
+                    msg = (
+                        f"Warning: variation '{disabled.upper()}' is disabled by the env, but enabled in the "
+                        "distraction_set. However, 'all' variation factors are enabled, so this variation is disabled."
+                    )
+                    cprint(msg, "yellow")
+                    self._ds.disable_variation_factors([disabled])
+                else:
+                    if var_is_enabled:
+                        raise VariationFactorDisabledError(f"Variation {disabled} is enabled in distraction_set but is disabled by env")
 
         # 
         self._human_render_shader = kwargs.pop("human_render_shader", "default")
@@ -175,17 +312,20 @@ class ColosseumV2Env(BaseEnv):
         xyz_range = self._ds.camera_pose_cfg["xyz_range"]
 
         for cfg in cfgs:
-            rpy = np.random.uniform(*rpy_range)
-            xyz = np.random.uniform(*xyz_range)
-            delta_quat = euler2quat(rpy[0], rpy[1], rpy[2]).astype(np.float32)
-            delta_pose = sapien.Pose(p=xyz, q=delta_quat)
-            cfg.pose *= delta_pose
+            rpy_low = torch.tensor(rpy_range[0], device=self.device, dtype=torch.float32)
+            rpy_high = torch.tensor(rpy_range[1], device=self.device, dtype=torch.float32)
+            rpy = torch.rand((self.num_envs, 3), device=self.device) * (rpy_high - rpy_low) + rpy_low            
+            delta_quat = matrix_to_quaternion(euler_angles_to_matrix(rpy, convention="XYZ"))
+            xyz_low = torch.tensor(xyz_range[0], device=self.device, dtype=torch.float32)
+            xyz_high = torch.tensor(xyz_range[1], device=self.device, dtype=torch.float32)
+            delta_xyz = torch.rand((self.num_envs, 3), device=self.device) * (xyz_high - xyz_low) + xyz_low
+            cfg.pose = cfg.pose * Pose.create_from_pq(p=delta_xyz, q=delta_quat)
 
         return cfgs
 
     def _add_articulation_to_scene(self, get_builder_fn: Callable[[], ArticulationBuilder], name: str, physics_type: str, object_type: str) -> Articulation:
         assert physics_type == "articulation", "physics_type must be articulation"
-        
+
         articulations = []
         for i in range(self.num_envs):
             name_i = f"{name}_env:{i}"
@@ -292,13 +432,17 @@ class ColosseumV2Env(BaseEnv):
         self,
         ycb_id: str,
         object_type: str,
+        physical_material: PhysxMaterial | None = None,
+        density: float | None = None,
+        initial_pose: sapien.Pose | None = None,
     ):
         assert "ycb:" not in ycb_id, "ycb_id shouldn't contain 'ycb:'. Remove that substring if it does"
         builder = self.scene.create_actor_builder()
 
         model_db = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
         metadata = model_db[ycb_id]
-        density = metadata.get("density", 1000)
+        if density is None:
+            density = metadata.get("density", 1000)
         model_scales = metadata.get("scales", [1.0])
         model_scale = model_scales[0]
         scale = (model_scale, model_scale, model_scale)
@@ -312,7 +456,6 @@ class ColosseumV2Env(BaseEnv):
             scale_multiplier = np.random.uniform(*self._ds.RO_size_cfg["scale_range"])
             scale = (scale_multiplier * model_scale, scale_multiplier * model_scale, scale_multiplier * model_scale)
 
-        physical_material = None
         model_dir = ASSET_DIR / "assets/mani_skill2_ycb/models" / ycb_id
         collision_file = str(model_dir / "collision.ply")
         builder.add_multiple_convex_collisions_from_file(
@@ -323,6 +466,8 @@ class ColosseumV2Env(BaseEnv):
         )
         visual_file = str(model_dir / "textured.obj")
         builder.add_visual_from_file(filename=visual_file, scale=scale)
+        if initial_pose is not None:
+            builder.set_initial_pose(initial_pose)
         return builder
 
     def get_glb_asset_builder(
@@ -360,6 +505,7 @@ class ColosseumV2Env(BaseEnv):
                 np.random.uniform(*scale_multiplier) * scale[1],
                 np.random.uniform(*scale_multiplier) * scale[2],
             )
+        
         builder = self.scene.create_actor_builder()
         builder.set_initial_pose(initial_pose)
 
@@ -406,6 +552,13 @@ class ColosseumV2Env(BaseEnv):
             self._table = self._table_scene_builders[0].table
 
 
+    def get_MO_scale(self) -> tuple[float, float, float]:
+        if self._ds.MO_size_enabled():
+            scale_multiplier = self._ds.MO_size_cfg["scale_range"]
+            scale = np.random.uniform(*scale_multiplier)
+            return (scale, scale, scale)
+        return (1.0, 1.0, 1.0)
+
     def load_scene_hook(self, manipulation_objects: list[Actor] = [], receiving_objects: list[Actor] = [], add_table_to_scene: bool = True):
         """
         This function is called when the scene is loaded.
@@ -413,37 +566,66 @@ class ColosseumV2Env(BaseEnv):
             manipulation_objects (list[Actor]): The manipulation objects to modify.
             receiving_objects (list[Actor]): The receiving objects to modify.
         """
+        # First verify that the variation factors match
+        mo_variation_enabled = self._ds.MO_color_enabled() or self._ds.MO_texture_enabled() or self._ds.MO_size_enabled()
+        ro_variation_enabled = self._ds.RO_color_enabled() or self._ds.RO_texture_enabled() or self._ds.RO_size_enabled()
+        if mo_variation_enabled and len(manipulation_objects) == 0:
+            raise VariationFactorDisabledError("MO variation factors are enabled, but no manipulation_objects is provided.")
+        if ro_variation_enabled and len(receiving_objects) == 0:
+            raise VariationFactorDisabledError("RO variation factors are enabled, but no receiving_objects is provided.")
+
+        # 
         self._load_scene_hool_called = True
 
-        # New distractor spheres
+        # New distractor objs
         # TODO: Add YCB objects
         if self._ds.distractor_object_enabled():
-            n_spheres = self._ds.distractor_object_cfg["n_spheres"]
-            radius_range = self._ds.distractor_object_cfg["radius_range"]
-            color_range = self._ds.distractor_object_cfg["color_range"]
-            self._ds._internal["distractor_object_cfg"]["sphere_actors"] = []
-
-            for i in range(n_spheres):
-                def get_sphere_builder():
-                    builder: ActorBuilder = self.scene.create_actor_builder()
-                    builder.add_sphere_collision(
-                        radius=np.random.uniform(*radius_range),
+            ycb_ids = (
+                "006_mustard_bottle", 
+                "022_windex_bottle",
+                "037_scissors",
+                "042_adjustable_wrench",
+                "050_medium_clamp",
+                "052_extra_large_clamp",
+                "053_mini_soccer_ball",
+                "054_softball",
+                "055_baseball",
+                "056_tennis_ball",
+                "062_dice"
+            )
+            n_distractors = self._ds.distractor_object_cfg["n_distractors"]
+            self._ds._internal["distractor_object_cfg"]["actors"] = []
+            for i in range(n_distractors):
+                def get_ycb_builder():
+                    return self.get_ycb_asset_builder(
+                        ycb_id=ycb_ids[random.randint(0, len(ycb_ids) - 1)],
+                        object_type="DISTRACTOR",
+                        initial_pose=sapien.Pose(),
                     )
-                    builder.add_sphere_visual(
-                        radius=np.random.uniform(*radius_range),
-                        material=sapien.render.RenderMaterial(
-                        base_color=color_range.sample_rgba(),
-                        ),
-                    )
-                    builder.set_initial_pose(sapien.Pose())
-                    return builder
 
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(
-                    self.add_asset_to_scene(get_sphere_builder, name=f"distractor_sphere_{i}", physics_type="dynamic", object_type="DISTRACTOR")
+                self._ds._internal["distractor_object_cfg"]["actors"].append(
+                    self.add_asset_to_scene(get_ycb_builder, name=f"distractor_obj_{i}", physics_type="dynamic", object_type="DISTRACTOR")
                 )
+
 
         if add_table_to_scene:
             self._add_table_to_scene()
+
+        # DualPanda includes a `table` link inside its URDF (`dual_panda_table.urdf`).
+        # If users enable table color/texture randomization, apply it to that link's visuals as well.
+        if self._robot_uids == "dual_panda" and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
+            table_link = self.agent.robot.links_map.get("table", None)
+            # PhysX link components have an `.entity` that holds render components.
+            table_entities = [o.entity for o in table_link._objs]
+            _set_color_or_texture_objs(
+                objs=table_entities,
+                actor_name="dual_panda:table_link",
+                color_cfg=self._ds.table_color_cfg,
+                texture_cfg=self._ds.table_texture_cfg,
+                set_color=self._ds.table_color_enabled(),
+                set_texture=self._ds.table_texture_enabled(),
+                use_single_texture_or_texture=True,
+            )
 
         # Manipulation object
         for mo in manipulation_objects:
@@ -457,46 +639,48 @@ class ColosseumV2Env(BaseEnv):
 
         if self._ds.background_texture_enabled() or self._ds.background_color_enabled():
 
-            # Build a single static "compound" wall actor (with 4 box segments) so we only
-            # have one wall actor to manage/texture/etc. The actor itself is placed at the
-            # origin; each segment uses a local pose.
-            builder_wall = self.scene.create_actor_builder()
-            dist_from_world = 1.5
-            height = 2
-            width = 0.1
-            length = dist_from_world*2
-            z = FLOOR_HEIGHT + (height / 2)
-            material = sapien.render.RenderMaterial()
-            material.roughness = 0.5
-            material.metallic = 0.5 # < these don't seem to do anything
+            def get_builder_fn():
+                # Build a single static "compound" wall actor (with 4 box segments) so we only
+                # have one wall actor to manage/texture/etc. The actor itself is placed at the
+                # origin; each segment uses a local pose.
+                builder_wall = self.scene.create_actor_builder()
+                dist_from_world = 1.5
+                height = 2
+                width = 0.1
+                length = dist_from_world*2
+                FLOOR_HEIGHT = -0.920
+                z = FLOOR_HEIGHT + (height / 2)
 
-            # Left
-            builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
-            builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
-            # Right
-            builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
-            builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
-            # Back
-            builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
-            builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
-            # Front
-            builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
-            builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
+                # Left
+                builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
+                builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, dist_from_world, z]))
+                # Right
+                builder_wall.add_box_collision(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
+                builder_wall.add_box_visual(half_size=(length / 2, width / 2, height / 2), pose=sapien.Pose(p=[0.0, -dist_from_world, z]))
+                # Back
+                builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
+                builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[-dist_from_world, 0.0, z]))
+                # Front
+                builder_wall.add_box_collision(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
+                builder_wall.add_box_visual(half_size=(width / 2, length / 2, height / 2), pose=sapien.Pose(p=[dist_from_world, 0.0, z]))
 
-            # Add
-            builder_wall.set_initial_pose(sapien.Pose(p=[0.0, 0.0, 0.0]))
-            wall = builder_wall.build_static(name="walls")
+                # Add
+                builder_wall.set_initial_pose(sapien.Pose(p=[0.0, 0.0, 0.0]))
+                return builder_wall
+            
+            self._background_wall = self.add_asset_to_scene(get_builder_fn, name="background_wall", physics_type="static", object_type="BACKGROUND")
+            assert isinstance(self._background_wall, Actor), "self._background_wall must be an Actor"
             _set_color_or_texture(
-                actor=wall,
+                actor=self._background_wall,
                 color_cfg=self._ds.background_color_cfg,
                 texture_cfg=self._ds.background_texture_cfg,
-                set_color=self._ds.background_color_enabled(),
+                set_color=self._ds.background_color_enabled(), 
                 set_texture=self._ds.background_texture_enabled(),
                 use_single_texture_or_texture=True,
             )
 
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
+    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | sapien.Pose | Pose | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
         
         assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
 
@@ -520,21 +704,27 @@ class ColosseumV2Env(BaseEnv):
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():
 
-            radius_range = self._ds.distractor_object_cfg["radius_range"]
             x_lims = self._ds.distractor_object_cfg["x_lims"]
             y_lims = self._ds.distractor_object_cfg["y_lims"]
             x_range = x_lims[1] - x_lims[0]
             y_range = y_lims[1] - y_lims[0]
 
 
-            for i in range(self._ds.distractor_object_cfg["n_spheres"]):
-                # What happens if you set the poses such that the spheres collide with one another?
-                # for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["sphere_actors"]):
+            for i in range(self._ds.distractor_object_cfg["n_distractors"]):
+                # What happens if you set the poses such that the objs collide with one another?
+                # for i, obj in enumerate(self._ds._internal["distractor_object_cfg"]["obj_actors"]):
                 xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
                 xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
-                xyz[:, 2] = radius_range[1] + 0.01 # get the maximum radius
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"][i].set_pose(Pose.create_from_pq(p=xyz))
+                xyz[:, 2] = 0.25 # 
+                if mo_pose is not None:
+                    if isinstance(mo_pose, torch.Tensor):
+                        xyz[:, 2] += mo_pose[:, 2] # add the height of the MO
+                    elif isinstance(mo_pose, (sapien.Pose, Pose)):
+                        xyz[:, 2] += mo_pose.p[:, 2] # add the height of the MO
+                    else:
+                        raise ValueError(f"mo_pose must be a torch.Tensor or sapien.Pose, got {type(mo_pose)}")
+                self._ds._internal["distractor_object_cfg"]["actors"][i].set_pose(Pose.create_from_pq(p=xyz))
 
     def _get_obs_extra(self, info: dict):
         if self._robot_uids == "dual_panda":

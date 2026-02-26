@@ -11,7 +11,7 @@ from mani_skill.agents.robots.panda.dual_panda import DualPanda
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 
 # 1. Define the Empty Environment
@@ -27,13 +27,10 @@ class DualArmPourPotEnv(ColosseumV2Env):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
-    
+
+
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
@@ -58,24 +55,6 @@ class DualArmPourPotEnv(ColosseumV2Env):
 
     
     def _load_scene(self, options: dict):
-        # self.ball = self.add_glb_asset_to_scene(self.scene,
-        #                                    os.path.join(PACKAGE_ASSET_DIR, "pour_pot/tomato.glb"),
-        #                                    sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),
-        #                                    name="tomato",
-        #                                    scale=[1,1,1],
-        #                                    type="dynamic")
-        # self.pot = self.add_glb_asset_to_scene(self.scene, 
-        #                                 os.path.join(PACKAGE_ASSET_DIR,"pour_pot/pot.glb"),
-        #                                 sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-        #                                 name="pot",
-        #                                 scale=[1,1,1],
-        #                                 type="dynamic", color=np.array((129/255, 133/255, 137/255, 1)))
-        # self.tray = self.add_glb_asset_to_scene(self.scene,
-        #                                    os.path.join(PACKAGE_ASSET_DIR, "pour_pot/plastic_tray.glb"),
-        #                                    sapien.Pose(),
-        #                                    name="tray",
-        #                                    scale=[0.4,0.4,0.4],
-        #                                    type="dynamic", color=np.array([48/255, 49/255, 51/255, 1]))
         ball_builder = lambda: self.get_glb_asset_builder(
                                            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/tomato.glb"),
                                            initial_pose=sapien.Pose(p=[-0.2, -0.141, 0.83+self.cube_half_size]),

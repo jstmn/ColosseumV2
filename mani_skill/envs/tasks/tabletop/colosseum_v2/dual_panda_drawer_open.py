@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.articulation import Articulation
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 
 @register_env("DualArmDrawerOpen-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
@@ -24,18 +24,18 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
 
-    IGNORED_VARIATION_FACTORS = [
-        "MO_color_cfg",
-        "MO_texture_cfg",
-        "RO_color_cfg",
-        "RO_texture_cfg",
-        "table_color_cfg",
-        "table_texture_cfg",
-    ]
-    
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_color=True,
+        MO_texture=True,
+        MO_size=True,
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
+
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
-    
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
@@ -74,7 +74,6 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
             )
             return builder
 
-        # self.open_cabinet = builder.build(name=f"drawer-{model_id}")
         self.open_cabinet = self.add_asset_to_scene(get_builder_fn, name="drawer", physics_type="articulation", object_type="MO")
         assert isinstance(self.open_cabinet, Articulation), "open_cabinet must be an articulation"
 

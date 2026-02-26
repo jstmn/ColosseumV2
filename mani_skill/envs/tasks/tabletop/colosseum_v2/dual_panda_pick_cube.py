@@ -8,7 +8,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 import torch
 
 # 1. Define the Empty Environment
@@ -21,13 +21,15 @@ class DualArmPickCubeEnv(ColosseumV2Env):
     cube_half_size = 0.02
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
     
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
     
     @property
     def _default_sensor_configs(self):
@@ -96,29 +98,3 @@ class DualArmPickCubeEnv(ColosseumV2Env):
         grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)
         success = torch.logical_and(dist_2 <= dist_1, grasped_2)
         return {"grasping_cube": grasped_2, "success": success}
-    
-
-# 2. Main Execution Block
-if __name__ == "__main__":
-    # Now you can load this safe environment
-    env = gym.make(
-        "DualArmPickCube-v1", 
-        robot_uids="dual_panda", # Force the dual panda
-        obs_mode="state_dict", 
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
-
-    print("Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    if "agent" in obs:
-        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
-    
-    # NOW you can run your IK loop here
-    # 2. You MUST run a loop, or the window will close immediately
-    while True:
-        env.render()  # <--- Updates the GUI
-    
-    env.close()

@@ -15,34 +15,55 @@ from mani_skill.utils.wrappers import RecordEpisode
 
 
 """
+# ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS
 ENV_ID="RaiseCube-v1"
-# ENV_ID="PickSodaFromCabinet-v1"
-# ENV_ID="PickDishFromRack-v1"
-# ENV_ID="StackCube-v1"
-# ENV_ID="PlaceBookInShelf-v1"
-# ENV_ID="PlaceDishInRack-v1"
-# ENV_ID="LiftPegUpright-v1"
-# ENV_ID="RotateArrow-v1"
-# ENV_ID="PegInsertionSide-v2"
-# ENV_ID="PlugCharger-v1"
-# ENV_ID="HammerNail-v1"
-# ENV_ID="ScoopBanana-v1"
-# ENV_ID="OpenDrawer-v1"
-# ENV_ID="OpenCabinet-v1"
-# ENV_ID="PlaceCubeInDrawer-v1"
-# ENV_ID="CookItemInPan-v1"
+ENV_ID="PickSodaFromCabinet-v1"
+ENV_ID="PickDishFromRack-v1"
+ENV_ID="StackCube-v1"
+ENV_ID="PlaceBookInShelf-v1"
+ENV_ID="PlaceDishInRack-v1"
+ENV_ID="LiftPegUpright-v1"
+ENV_ID="RotateArrow-v1"
+ENV_ID="PegInsertionSide-v2"
+ENV_ID="PlugCharger-v1"
+ENV_ID="HammerNail-v1"
+ENV_ID="ScoopBanana-v1"
+ENV_ID="OpenDrawer-v1"
+ENV_ID="OpenCabinet-v1"
+ENV_ID="PlaceCubeInDrawer-v1"
+ENV_ID="CookItemInPan-v1"
+
+
+# ALL_COLOSSEUM_V2_BIMANUAL_TASKS
+ENV_ID="DualArmPickCube-v1"
+ENV_ID="DualArmPickBottle-v1"
+ENV_ID="DualArmLiftPot-v1"
+ENV_ID="DualArmLiftTray-v1"
+ENV_ID="DualArmPushBox-v1"
+ENV_ID="DualArmPourPot-v1"
+ENV_ID="DualArmThreading-v1"
+ENV_ID="DualArmPenCap-v1"
+ENV_ID="DualArmDrawerPlace-v1"
+ENV_ID="DualArmDrawerOpen-v1"
+ENV_ID="DualArmStackCube-v1"
+ENV_ID="DualArmStack3Cube-v1"
 
 
 python mani_skill/examples/demo_random_action.py \
     --env-id ${ENV_ID} \
-    --num-envs 5 \
+    --num-envs 1 \
     --obs-mode "rgb" \
-    --reward-mode "sparse" \
-    --sim-backend "cuda" \
+    --reward-mode "none" \
+    --sim-backend "physx_cpu" \
     --record-dir "demos/random_action" \
-    --distraction-set "MO_color" "distractor_object" "MO_mass"
+    --render-mode "human" \
+    --distraction-set "background_color"
 
-    --distraction-set "all"
+
+    --distraction-set "background_texture"
+
+    --num-envs 2 \
+    --sim-backend "cuda" \
 """
 
 

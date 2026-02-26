@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import sapien
@@ -8,7 +8,6 @@ from transforms3d.euler import euler2quat
 
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors, articulations
@@ -16,10 +15,9 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 CABINET_COLLISION_BIT = 29
 
@@ -131,13 +129,17 @@ class OpenCabinetEnv(ColosseumV2Env):
         PACKAGE_ASSET_DIR / "partnet_mobility/meta/info_cabinet_door_train.json"
     )
 
-    IGNORED_VARIATION_FACTORS = [
-        "MO_color",
-        "RO_color",
-        "MO_texture",
-        "RO_texture",
-        "MO_mass",
-    ]
+
+    # No way to change the color / texture / size of the cabinet
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_color=True,
+        MO_texture=True,
+        MO_size=True,
+        MO_mass=True,
+        RO_texture=True,
+        RO_size=True,
+        RO_color=True,
+    )
 
 
     CABINET_X_LIMS = [0.15, 0.22]
@@ -155,12 +157,7 @@ class OpenCabinetEnv(ColosseumV2Env):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         # Cabinet door model - 1027 has revolute door joints (from info_cabinet_door_train.json)
         self._model_id = 1027
-        super().__init__(
-            *args,
-            robot_uids=robot_uids,
-            ignored_variation_factors=self.IGNORED_VARIATION_FACTORS,
-            **kwargs,
-        )
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sim_config(self):

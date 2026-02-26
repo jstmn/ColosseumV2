@@ -42,13 +42,9 @@ class TwoRobotStack3Cube(ColosseumV2Env):
     agent: DualPanda
 
     goal_radius = 0.06
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
@@ -74,27 +70,7 @@ class TwoRobotStack3Cube(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-        # self.cubeA = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=np.array([12, 42, 160, 255]) / 255,
-        #     name="cubeA",
-        #     initial_pose=sapien.Pose(p=[1, 0, 0.02]),
-        # )
-        # self.cubeB = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[0, 1, 0, 1],
-        #     name="cubeB",
-        #     initial_pose=sapien.Pose(p=[-1, 0, 0.02]),
-        # )
-        # self.cubeC = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[1, 0, 0, 1],
-        #     name="cubeC",
-        #     initial_pose=sapien.Pose(p=[-1, 0, 0.02]),
-        # )
+
         goal_region_builder = lambda: actors.build_red_white_target(
             self.scene,
             radius=self.goal_radius,

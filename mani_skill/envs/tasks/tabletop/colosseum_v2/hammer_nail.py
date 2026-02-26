@@ -9,20 +9,16 @@ import torch
 import sapien.physx as physx
 import sapien.render
 from scipy.spatial.transform import Rotation
-import sapien.render
-
-
-from mani_skill import ASSET_DIR, PACKAGE_ASSET_DIR, logger
+from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 YCB_HAMMER_ID = "048_hammer"
 NAIL_HEIGHT = 0.086
@@ -50,6 +46,8 @@ class HammerNailEnv(ColosseumV2Env):
 
     SUPPORTED_ROBOTS = ["panda", "fetch"]
     agent: Union[Panda, Fetch]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(RO_size=True)
 
     def __init__(
         self,
@@ -152,9 +150,7 @@ class HammerNailEnv(ColosseumV2Env):
     @property
     def _default_sensor_configs(self):
         # View from front-right to see sideways hammering action
-        pose = sapien_utils.look_at(
-            eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0]
-        )
+        pose = sapien_utils.look_at(eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0])
         return self.update_camera_configs([
             CameraConfig(
                 "base_camera",
@@ -170,12 +166,8 @@ class HammerNailEnv(ColosseumV2Env):
     @property
     def _default_human_render_camera_configs(self):
         # Better view for sideways hammering - from front-right angle
-        pose = sapien_utils.look_at(
-            [0.4, 0.6, 0.35], [0.05, 0.10, 0.06 + self._hole_center_z]
-        )
-        return CameraConfig(
-            "render_camera", pose=pose, width=512, height=512, fov=1.0, near=0.01, far=10
-        )
+        pose = sapien_utils.look_at([0.4, 0.6, 0.35], [0.05, 0.10, 0.06 + self._hole_center_z])
+        return CameraConfig("render_camera", pose=pose, width=512, height=512, fov=1.0, near=0.01, far=10)
 
     def _load_agent(self, options: dict):
         super()._load_agent(options, sapien.Pose(p=[-0.55, 0.0, 0.0]))
@@ -188,7 +180,7 @@ class HammerNailEnv(ColosseumV2Env):
         self.block = self.add_asset_to_scene(self._load_block, name="block", physics_type="kinematic", object_type="BACKGROUND")
         self.nail = self.add_asset_to_scene(self._load_nails, name="nail", physics_type="dynamic", object_type="MO")
         self.hammer = self.add_asset_to_scene(self._load_hammer, name="hammer", physics_type="dynamic", object_type="MO")
-        self.load_scene_hook(manipulation_objects=[self.nail, self.hammer], receiving_objects=[self.block])
+        self.load_scene_hook(manipulation_objects=[self.hammer], receiving_objects=[self.block])
         self._lock_table()
 
 
@@ -212,7 +204,6 @@ class HammerNailEnv(ColosseumV2Env):
         self._nail_raise_ranges = torch.tensor([self._nail_spec.raise_range], dtype=torch.float32)
 
         # ========== Hammer initialization ==========
-        # self.hammer = builder.build(name="hammer")
         # self.hammer.set_mass(2.0)
         # Keep the hammer from drifting due to tiny numerical vibrations.
         self.hammer.set_linear_damping(10.0)
@@ -221,13 +212,7 @@ class HammerNailEnv(ColosseumV2Env):
         self._choose_hammer_orientation()
         self._apply_hammer_z_rotation(-90.0)
         self._update_hammer_rest_height()
-        # Use underlying SAPIEN object since GPU sim is not yet initialized
-        # self.hammer._objs[0].set_pose(
-        #     sapien.Pose(
-        #         p=self._hammer_rest_center.tolist(),
-        #         q=self._hammer_orientation.tolist(),
-        #     )
-        # )
+
 
 
     def _get_obs_agent(self):
@@ -339,13 +324,6 @@ class HammerNailEnv(ColosseumV2Env):
 
     def _load_nails(self):
         """Load nails that can only move in Y axis (horizontally)"""
-        # self.nails = []
-
-        # Rotate nail to point along the desired Y direction
-        from scipy.spatial.transform import Rotation
-        import sapien.physx as physx
-        import sapien.render
-
         nail_material = physx.PhysxMaterial(
             static_friction=2.5,
             dynamic_friction=2.0,
@@ -355,65 +333,26 @@ class HammerNailEnv(ColosseumV2Env):
         nail_rot = Rotation.from_euler('x', nail_angle, degrees=True).as_quat()  # [x, y, z, w]
         nail_quat = [nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]]  # [w, x, y, z]
 
-        shaft_radius = 0.004
-        head_radius = 0.006
-        head_length = 0.01
-        shaft_length = max(NAIL_HEIGHT - head_length, head_length)
-        shaft_half = shaft_length / 2.0
-        head_half = head_length / 2.0
-        shaft_center_z = -head_half
-        head_center_z = shaft_half
-
         nail_visual = sapien.render.RenderMaterial(
             base_color=[0.75, 0.75, 0.75, 1.0],
             metallic=0.2,
             roughness=0.4,
         )
-
-        use_mesh = self._nail_mesh_path.is_file()
         mesh_scale = NAIL_HEIGHT / 2.0
-
         builder = self.scene.create_actor_builder()
-        if use_mesh:
-            builder.add_multiple_convex_collisions_from_file(
-                filename=str(self._nail_mesh_path),
-                scale=[mesh_scale] * 3,
-                material=nail_material,
-                density=5000,
-                decomposition="coacd",
-            )
-            builder.add_visual_from_file(
-                str(self._nail_mesh_path),
-                scale=[mesh_scale] * 3,
-                material=nail_visual,
-            )
-        else:
-            builder.add_cylinder_collision(
-                radius=shaft_radius,
-                half_length=shaft_half,
-                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                material=nail_material,
-                density=5000,
-            )
-            builder.add_cylinder_collision(
-                radius=head_radius,
-                half_length=head_half,
-                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                material=nail_material,
-                density=5000,
-            )
-            builder.add_cylinder_visual(
-                radius=shaft_radius,
-                half_length=shaft_half,
-                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                material=nail_visual,
-            )
-            builder.add_cylinder_visual(
-                radius=head_radius,
-                half_length=head_half,
-                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                material=nail_visual,
-            )
+        builder.add_multiple_convex_collisions_from_file(
+            filename=str(self._nail_mesh_path),
+            scale=[mesh_scale] * 3,
+            material=nail_material,
+            density=5000,
+            decomposition="coacd",
+        )
+        builder.add_visual_from_file(
+            str(self._nail_mesh_path),
+            scale=[mesh_scale] * 3,
+            material=nail_visual,
+        )
+    
         builder.set_initial_pose(sapien.Pose(q=nail_quat))
         return builder
 
@@ -424,16 +363,11 @@ class HammerNailEnv(ColosseumV2Env):
             dynamic_friction=2.0,
             restitution=0.0
         )
-
-        builder = actors.get_actor_builder(self.scene, id=f"ycb:{YCB_HAMMER_ID}")
-        for record in builder.collision_records:
-            record.material = hammer_material
-            record.density = 2000
-
-        builder.set_initial_pose(sapien.Pose(
+        initial_pose = sapien.Pose(
             p=self._hammer_rest_center.tolist(),
             q=self._hammer_orientation.tolist()
-        ))
+        )
+        builder = self.get_ycb_asset_builder(ycb_id=YCB_HAMMER_ID, object_type="MO", physical_material=hammer_material, density=2000, initial_pose=initial_pose)
         return builder
 
     def _apply_hammer_z_rotation(self, degrees: float):
@@ -545,7 +479,6 @@ class HammerNailEnv(ColosseumV2Env):
             centers[..., 1] = centers[..., 1] - self._nail_dir * lift * raise_ranges.unsqueeze(0)
 
             # Horizontal nail orientation along the selected Y direction
-            from scipy.spatial.transform import Rotation
             nail_angle = -90 if self._nail_dir > 0 else 90
             nail_rot = Rotation.from_euler('x', nail_angle, degrees=True).as_quat()  # [x, y, z, w]
             nail_quat = torch.tensor([nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]],
