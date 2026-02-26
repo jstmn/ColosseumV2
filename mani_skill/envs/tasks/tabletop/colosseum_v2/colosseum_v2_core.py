@@ -276,19 +276,33 @@ class ColosseumV2Env(BaseEnv):
         return CameraConfig("render_camera", pose=pose, width=500, height=500, fov=np.pi / 3, near=0.01, far=100, shader_pack=self._human_render_shader)
 
 
-
     def _load_lighting(self, options: dict):
         if self._ds.light_color_enabled():
+            # self.scene.set_ambient_light([0.3, 0.3, 0.3])
+            # self.scene.add_directional_light(
+            #     [1, 1, -1], [1, 1, 1], shadow=shadow, shadow_scale=5, shadow_map_size=2048
+            # )
+            # self.scene.add_directional_light([0, 0, -1], [1, 1, 1])
+            # ^ maniskill default
             for sub_scene in self.scene.sub_scenes:
-                sub_scene.ambient_light = self._ds.light_color_cfg["color_range"].sample_rgba(include_alpha=False)
+                ambient_light_scales = [
+                    np.random.uniform(*self._ds.light_color_cfg["ambient_light_scale_range"]),
+                    np.random.uniform(*self._ds.light_color_cfg["ambient_light_scale_range"]),
+                    np.random.uniform(*self._ds.light_color_cfg["ambient_light_scale_range"]),
+                ]
+                sub_scene.ambient_light = [
+                    scale * 0.3 for scale in ambient_light_scales
+                ]
+                # ^ 0.3 is the default ambient light color
+
                 theta_rand = np.random.uniform(0, 2*np.pi)
+                color = self._ds.light_color_cfg["color_range"].sample_rgba(include_alpha=False)
                 sub_scene.add_directional_light(
                     direction=[-np.cos(theta_rand), -np.sin(theta_rand), -1],
                     position=[np.cos(theta_rand), np.sin(theta_rand), 1],
-                    color=self._ds.light_color_cfg["color_range"].sample_rgba(include_alpha=False),
+                    color=color,
                     shadow=True,
-                    shadow_scale=5,
-                    shadow_map_size=4096,
+                    shadow_map_size=1024
                 )
                 # maniskill only allows for shadow from one directional light at a time for some reason
         else:

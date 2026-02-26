@@ -231,14 +231,12 @@ all_distractor_set = DistractionSet(
     },
     MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
-    MO_mass_cfg = {"mass_scale_range": (2, 5),},
-    MO_size_cfg = {"scale_range": (1.9, 2.1)},
-    # MO_size_cfg = {"scale_range": (0.9, 1.1)},
+    MO_mass_cfg = {"mass_scale_range": (3, 8),},
+    MO_size_cfg = {"scale_range": (0.8, 1.2)},
     # 
     RO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     RO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
-    RO_size_cfg = {"scale_range": (1.9, 2.1)},
-    # RO_size_cfg = {"scale_range": (0.9, 1.1)},
+    RO_size_cfg = {"scale_range": (0.8, 1.2)},
     # 
     table_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     table_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
@@ -247,7 +245,8 @@ all_distractor_set = DistractionSet(
         "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),  # 2.5 cm
     },
     light_color_cfg = {
-        "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
+        "color_range": ColorRange(low=(0.5, 0.5, 0.5), high=(1, 1, 1)),
+        "ambient_light_scale_range": (0.5, 1.5),
     },
     # ^ this works but makes it hard to see the color of the objects
     background_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},

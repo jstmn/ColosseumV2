@@ -23,8 +23,8 @@ from mani_skill.envs.tasks.tabletop import *
 # Run on a single task
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "distractor_object" \
-    --env-id "OpenDrawer-v1" \
+    --distraction-set "light_color" \
+    --env-id "RaiseCube-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
@@ -39,14 +39,14 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (single arm)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "distractor_object" \
-    --env-id "RotateArrow-v1" \
+    --distraction-set "none" \
+    --env-id "RaiseCube-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
     --is-multi-task True \
     --target-num-cams 1 \
-    --num-eval-episodes 6 --num-eval-envs 6 --max-episode-steps 10 \
+    --num-eval-episodes 25 --num-eval-envs 25 --max-episode-steps 200 \
     --internal-instruction --capture-video
     # --capture-video is gpu intensive, so need to limit the number of environments
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     # env setup
     env_kwargs = dict(
-        control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
+        control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array" if args.capture_video else None,
         distraction_set=DISTRACTION_SETS[args.distraction_set.upper()].to_dict(),
     )
     # ^ distraction_set needs to be pickle-able by ManiSkillVectorEnv, so we convert it to a dictionary
