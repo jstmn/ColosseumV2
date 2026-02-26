@@ -1,4 +1,5 @@
 import os
+from termcolor import cprint
 from pathlib import Path
 import random
 from functools import partial
@@ -14,6 +15,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from train_rgbd import Agent, FlattenRGBDObservationWrapper, Args
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import VariationFactorDisabledError
 from mani_skill.envs.tasks.tabletop import *
 
 
@@ -31,23 +33,38 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --num-eval-episodes 100 \
     --num-eval-envs 50 \
     --max-episode-steps 350 \
-    --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     --internal-instruction
 
 
-# Run on a single task and save video
+# Run on a single task and save video (single arm)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "all" \
-    --env-id "HammerNail-v1" \
+    --distraction-set "distractor_object" \
+    --env-id "RotateArrow-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
     --is-multi-task True \
     --target-num-cams 1 \
     --num-eval-episodes 6 --num-eval-envs 6 --max-episode-steps 10 \
-    --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 --internal-instruction \
-    --capture-video # <- gpu intensive, so won't work past a certain number of environments
+    --internal-instruction --capture-video
+    # --capture-video is gpu intensive, so need to limit the number of environments
+
+
+# Run on a single task and save video (bimanual)
+python examples/baselines/act_clip/eval_rgbd.py \
+    --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
+    --distraction-set "all" \
+    --env-id "DualArmPickCube-v1" \
+    --control-mode "pd_joint_pos" \
+    --no-include-depth \
+    --sim-backend "physx_cuda" \
+    --is-multi-task True \
+    --target-num-cams 1 \
+    --internal-instruction \
+    --num-eval-episodes 6 --num-eval-envs 6 --max-episode-steps 10 --capture-video 
+    # --capture-video is gpu intensive, so need to limit the number of environments
+
 
 
 # Run on all tasks x variation factors
@@ -61,29 +78,28 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --num-eval-episodes 100 \
     --num-eval-envs 50 \
     --max-episode-steps 200 \
-    --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     --internal-instruction \
     --distraction-set "BLANK" \
     --results-path logs/results_single_arm.csv
 """
 
 ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (
-    # "RaiseCube-v1",
-    # "PickSodaFromCabinet-v1",
-    # "PickDishFromRack-v1",
-    # "StackCubeColosseumV2-v1",
-    # "PlaceBookInShelf-v1",
-    # "PlaceDishInRack-v1",
-    # "LiftPegUprightColosseumV2-v1",
-    # "RotateArrow-v1",
-    # "PegInsertionSideColosseumV2-v1",
-    # "PlugChargerColosseumV2-v1",
+    "RaiseCube-v1",
+    "PickSodaFromCabinet-v1",
+    "PickDishFromRack-v1",
+    "StackCubeColosseumV2-v1",
+    "PlaceBookInShelf-v1",
+    "PlaceDishInRack-v1",
+    "LiftPegUprightColosseumV2-v1",
+    "RotateArrow-v1",
+    "PegInsertionSideColosseumV2-v1",
+    "PlugChargerColosseumV2-v1",
     "HammerNail-v1",
-    # "ScoopBanana-v1",
-    # "OpenDrawer-v1",
-    # "OpenCabinet-v1",
-    # "PlaceCubeInDrawer-v1",
-    # "CookItemInPan-v1",
+    "ScoopBanana-v1",
+    "OpenDrawer-v1",
+    "OpenCabinet-v1",
+    "PlaceCubeInDrawer-v1",
+    "CookItemInPan-v1",
 )
 
 ALL_COLOSSEUM_V2_BIMANUAL_TASKS = (
@@ -174,7 +190,7 @@ def update_args_from_results(args: Args):
             if len(result_found) > 0:
                 print(f"Found existing result for task {task} and distraction set {distraction_set}")
                 continue
-            print(f"Starting evaluation for {task=} and {distraction_set=}")
+            cprint(f"Starting evaluation for '{task}' with '{distraction_set}'", "green")
             args.env_id = task
             args.distraction_set = distraction_set
 
@@ -229,7 +245,14 @@ if __name__ == "__main__":
     wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=args.is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
     video_dir = args.checkpoint_path.replace('.pt', '__videos')
     video_filename = f"{args.env_id}___ds:{args.distraction_set}"
-    envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
+    try:
+        envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
+    except VariationFactorDisabledError as e:
+        cprint(f"Variation factor disabled error: {e}", "red")
+        exit(0)
+    except Exception as e:
+        cprint(f"Error: {e}", "red")
+        exit(1)
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     # agent setup

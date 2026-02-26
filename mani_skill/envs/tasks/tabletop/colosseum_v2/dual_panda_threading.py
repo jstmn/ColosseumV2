@@ -10,7 +10,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix,
 from mani_skill.utils import common, sapien_utils
 import sapien.core as sapien
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 
 @register_env("DualArmThreading-v1", max_episode_steps=1000)
@@ -21,12 +21,14 @@ class DualPandaThreadingEnv(ColosseumV2Env):
     """
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
+    
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
+
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
     
     @property
     def _default_sensor_configs(self):

@@ -4,19 +4,12 @@ import numpy as np
 import sapien
 import torch
 
-import mani_skill.envs.utils.randomization as randomization
-from mani_skill.utils.structs import Actor
-from mani_skill.agents.robots import SO100, Fetch, Panda, WidowXAI, XArm6Robotiq
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.tasks.tabletop.pick_cube_cfgs import PICK_CUBE_CONFIGS
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 PICK_CUBE_DOC_STRING = """**Task Description:**
 A simple task where the objective is to grasp a red cube with the {robot_id} robot and move it to a target goal position. This is also the *baseline* task to test whether a robot with manipulation
@@ -41,11 +34,12 @@ class RaiseCubeEnv(ColosseumV2Env):
     """
 
     GOAL_HEIGHT = 0.2
-    IGNORED_VARIATION_FACTORS = [
-        "RO_texture",
-        "RO_color",
-        "RO_size",
-    ]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
 

@@ -1,20 +1,16 @@
-from typing import Any, Dict
 
 import numpy as np
 import sapien
 import torch
-import torch.random
 from mani_skill.utils.geometry.rotation_conversions import euler_angles_to_quaternion, quaternions_to_euler_angles
 import os
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import PandaStick
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 @register_env("RotateArrow-v1", max_episode_steps=50)
 class RotateArrowEnv(ColosseumV2Env):
@@ -44,6 +40,12 @@ class RotateArrowEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: PandaStick
 
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
+
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
@@ -57,7 +59,7 @@ class RotateArrowEnv(ColosseumV2Env):
 
     @property
     def _default_human_render_camera_configs(self):
-        pose = sapien_utils.look_at([-0.6, -0.7, 0.6], [0.0, 0.0, 0.35])
+        pose = sapien_utils.look_at([-0.6, -0.7, 0.6], [0.0, 0.0, 0.15])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_agent(self, options: dict):
@@ -65,16 +67,17 @@ class RotateArrowEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
         # All values obtained carefully from blender
-        custom_material = sapien.render.RenderMaterial()
-        custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
 
-        arrow_builder = lambda: self.get_glb_asset_builder(
-            glb_filepath=os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"),
-            object_type="MO",
-            initial_pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]),
-            visual_material=custom_material,
-        )
-        self.arrow = self.add_asset_to_scene(arrow_builder, name="arrow", physics_type="dynamic", object_type="MO")
+        def arrow_builder_fn():
+            custom_material = sapien.render.RenderMaterial()
+            custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"),
+                object_type="MO",
+                initial_pose=sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]),
+                visual_material=custom_material,
+            )
+        self.arrow = self.add_asset_to_scene(arrow_builder_fn, name="arrow", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.arrow])
 
 

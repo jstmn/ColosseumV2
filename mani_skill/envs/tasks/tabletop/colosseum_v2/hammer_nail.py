@@ -18,7 +18,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 YCB_HAMMER_ID = "048_hammer"
 NAIL_HEIGHT = 0.086
@@ -47,7 +47,7 @@ class HammerNailEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda", "fetch"]
     agent: Union[Panda, Fetch]
 
-    IGNORED_VARIATION_FACTORS = ["RO_size"]
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(RO_size=True)
 
     def __init__(
         self,
@@ -333,65 +333,26 @@ class HammerNailEnv(ColosseumV2Env):
         nail_rot = Rotation.from_euler('x', nail_angle, degrees=True).as_quat()  # [x, y, z, w]
         nail_quat = [nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]]  # [w, x, y, z]
 
-        shaft_radius = 0.004
-        head_radius = 0.006
-        head_length = 0.01
-        shaft_length = max(NAIL_HEIGHT - head_length, head_length)
-        shaft_half = shaft_length / 2.0
-        head_half = head_length / 2.0
-        shaft_center_z = -head_half
-        head_center_z = shaft_half
-
         nail_visual = sapien.render.RenderMaterial(
             base_color=[0.75, 0.75, 0.75, 1.0],
             metallic=0.2,
             roughness=0.4,
         )
-
-        use_mesh = self._nail_mesh_path.is_file()
         mesh_scale = NAIL_HEIGHT / 2.0
-
         builder = self.scene.create_actor_builder()
-        if use_mesh:
-            builder.add_multiple_convex_collisions_from_file(
-                filename=str(self._nail_mesh_path),
-                scale=[mesh_scale] * 3,
-                material=nail_material,
-                density=5000,
-                decomposition="coacd",
-            )
-            builder.add_visual_from_file(
-                str(self._nail_mesh_path),
-                scale=[mesh_scale] * 3,
-                material=nail_visual,
-            )
-        else:
-            builder.add_cylinder_collision(
-                radius=shaft_radius,
-                half_length=shaft_half,
-                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                material=nail_material,
-                density=5000,
-            )
-            builder.add_cylinder_collision(
-                radius=head_radius,
-                half_length=head_half,
-                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                material=nail_material,
-                density=5000,
-            )
-            builder.add_cylinder_visual(
-                radius=shaft_radius,
-                half_length=shaft_half,
-                pose=sapien.Pose(p=[0.0, 0.0, shaft_center_z]),
-                material=nail_visual,
-            )
-            builder.add_cylinder_visual(
-                radius=head_radius,
-                half_length=head_half,
-                pose=sapien.Pose(p=[0.0, 0.0, head_center_z]),
-                material=nail_visual,
-            )
+        builder.add_multiple_convex_collisions_from_file(
+            filename=str(self._nail_mesh_path),
+            scale=[mesh_scale] * 3,
+            material=nail_material,
+            density=5000,
+            decomposition="coacd",
+        )
+        builder.add_visual_from_file(
+            str(self._nail_mesh_path),
+            scale=[mesh_scale] * 3,
+            material=nail_visual,
+        )
+    
         builder.set_initial_pose(sapien.Pose(q=nail_quat))
         return builder
 
@@ -518,7 +479,6 @@ class HammerNailEnv(ColosseumV2Env):
             centers[..., 1] = centers[..., 1] - self._nail_dir * lift * raise_ranges.unsqueeze(0)
 
             # Horizontal nail orientation along the selected Y direction
-            from scipy.spatial.transform import Rotation
             nail_angle = -90 if self._nail_dir > 0 else 90
             nail_rot = Rotation.from_euler('x', nail_angle, degrees=True).as_quat()  # [x, y, z, w]
             nail_quat = torch.tensor([nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]],

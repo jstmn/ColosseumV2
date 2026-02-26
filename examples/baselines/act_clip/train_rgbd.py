@@ -105,10 +105,14 @@ class Args:
     include_depth: bool = False
 
     # Transformer
-    enc_layers: int = 2
-    dec_layers: int = 4
-    dim_feedforward: int = 512
-    hidden_dim: int = 256
+    # enc_layers: int = 2
+    enc_layers: int = 4
+    # dec_layers: int = 4
+    dec_layers: int = 7
+    # dim_feedforward: int = 512
+    dim_feedforward: int = 1600
+    # hidden_dim: int = 256
+    hidden_dim: int = 512
     dropout: float = 0.1
     nheads: int = 8
     num_queries: int = 30

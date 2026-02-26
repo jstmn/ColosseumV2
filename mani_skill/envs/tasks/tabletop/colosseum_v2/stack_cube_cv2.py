@@ -8,11 +8,9 @@ from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 @register_env("StackCubeColosseumV2-v1", max_episode_steps=50)
 class StackCubeColosseumV2Env(ColosseumV2Env):
@@ -32,6 +30,14 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
+
+    # Problem is underspecified if the cubes visual appearance is randomized
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_color=True,
+        MO_texture=True,
+        RO_texture=True,
+        RO_color=True,
+    )
 
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
@@ -55,21 +61,6 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
         self.cube_half_size = common.to_tensor([0.02] * 3, device=self.device)
-    
-        # self.cubeA = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[1, 0, 0, 1],
-        #     name="cubeA",
-        #     initial_pose=sapien.Pose(p=[0, 0, 0.1]),
-        # )
-        # self.cubeB = actors.build_cube(
-        #     self.scene,
-        #     half_size=0.02,
-        #     color=[0, 1, 0, 1],
-        #     name="cubeB",
-        #     initial_pose=sapien.Pose(p=[1, 0, 0.1]),
-        # )
         cubeA_builder = lambda: self.get_box_asset_builder(
             half_size=[0.02] * 3,
             color=[1, 0, 0, 1],
@@ -83,7 +74,7 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
         self.cubeA = self.add_asset_to_scene(cubeA_builder, name="cubeA", physics_type="dynamic", object_type="MO")
         self.cubeB = self.add_asset_to_scene(cubeB_builder, name="cubeB", physics_type="dynamic", object_type="MO")
 
-        self.load_scene_hook(manipulation_objects=[self.cubeA, self.cubeB])
+        self.load_scene_hook(manipulation_objects=[self.cubeA], receiving_objects=[self.cubeB])
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):

@@ -15,7 +15,7 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 # 1. Define the Empty Environment
 @register_env("DualArmPenCap-v1", max_episode_steps=1000)
@@ -27,13 +27,15 @@ class DualArmPenCapEnv(ColosseumV2Env):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
-    
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
+
+
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids,  **kwargs)
     
     @property
     def _default_sensor_configs(self):

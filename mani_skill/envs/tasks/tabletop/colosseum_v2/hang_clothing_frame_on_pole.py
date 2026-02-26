@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Union
 import numpy as np
 import sapien
 import torch
@@ -6,21 +6,15 @@ import trimesh
 import os
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
-from mani_skill.envs.sapien_env import BaseEnv
-from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils import common, sapien_utils
-from mani_skill.utils.building import actors
+from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table.scene_builder import TableSceneBuilder
-from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
-from math import fabs
-from mani_skill.utils.geometry import rotation_conversions
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+
 
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
-class HangClothingFrameOnPoleEnv(BaseEnv):
+class HangClothingFrameOnPoleEnv(ColosseumV2Env):
     """
     **Task Description:**
     The goal is to pick up a book and place it inside a shelf with other books already in it.
@@ -42,13 +36,8 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"
-        if self.scene is not None:
-            print(f"Is GPU simulation enabled for this scene? {self.scene.gpu_sim_enabled}")
 
 
     @property
@@ -62,132 +51,56 @@ class HangClothingFrameOnPoleEnv(BaseEnv):
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[0, 0, 0])) # Loads the panda arm
+        super()._load_agent(options, sapien.Pose(p=[0, 0, 0]))
+
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
-            env=self, robot_init_qpos_noise=self.robot_init_qpos_noise
-        )
-        self.table_scene.build()
+        def clothing_frame_builder():
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
+                object_type="MO",
+                initial_pose=sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
+            )
+        def rack1_builder():
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
+                object_type="RO",
+                initial_pose=sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
+                scale=(0.01,0.004,0.005),
+            )
+
+        def rack2_builder():
+            return self.get_glb_asset_builder(
+                glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
+                object_type="RO",
+                initial_pose=sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
+                scale=(0.01,0.004,0.005),
+            )
         
-        # self.cabinet_scene = RoboCasaSceneBuilder(
-        #     env=self, init_robot_base_pos=sapien.Pose(p=[4, -0.6, 0.94], q=[ 0.7071, 0, 0, 0.7071]) )
-        # self.cabinet_scene.build(build_config_idxs=[1])
-        
-        # If you previously built the full robocasa scene, skip it and use this:
-        # programmatic open cabinet only:
-        # size is width, depth, height (meters)
-        # cab_size = [0.6, 0.4, 0.9]  # adjust to taste
-        # open_cab = OpenCabinet(
-        #     scene=self.scene,
-        #     name="open_cabinet",
-        #     size=cab_size,
-        #     num_shelves=3,
-        #     thickness=0.03,
-        #     texture=None,
-        #     pos=[-0.2, 0.5, 0.2],  # center pos in world coordinates (x,y,z)
-        #     rng=np.random.default_rng(),  # or pass your env rng
-        # )
-        # Build into the scene (for single env index, pass [0]; for batched envs use proper indices):
-        # open_cab.quat = sapien.Pose(q=[0.7071,0,0,-0.7071]).q  # default orientation
-        # open_cab.pos = np.array([0.25, -0.12, 0.456])
-        # # choose scene indices to build into; if you have a batch, build into all relevant indices
-        # built = open_cab.build(scene_idxs=[0])
-        # If environment uses multiple envs, repeat build for each environment index you care about.
-        # Optionally keep a handle:
-        # self.open_cabinet = built
-        self.clothing_frame = self.add_glb_asset_to_scene(self.scene, 
-            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/Chrome_Metal_Hanger.glb'),
-            sapien.Pose(p=[-0.3, -0.4, 0.431], q=[0.548,0.5,0.5,0.453]),
-            name="soda_can",
-            scale=[1,1,1],
-            type="dynamic")
-        self.stand1 = self.add_glb_asset_to_scene(self.scene,
-            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
-            sapien.Pose(p=[-0.1, 0.2, 0.08], q=[0,0,0.7071,0.7071]),
-            name="stand1",
-            scale=[0.01,0.004,0.005],
-            type="static")
-        self.stand2 = self.add_glb_asset_to_scene(self.scene,
-            os.path.join(PACKAGE_ASSET_DIR, 'ClothHangingFrameTransfer/clothes_rack.glb'),
-            sapien.Pose(p=[-0.116, -0.4, 0.08], q=[0,0,0.7071,0.7071]),
-            name="stand2",
-            scale=[0.01,0.004,0.005],
-            type="static")
-        
-    @staticmethod
-    def add_glb_asset_to_scene(scene, glb_filepath, pose, name, scale, type="static"):
-        """Load GLB file as a static actor in the scene"""
-        builder = scene.create_actor_builder()
-        builder.add_visual_from_file(glb_filepath, scale=scale)
-        builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd", scale=scale)
-        builder.set_initial_pose(pose)
-        if type=="dynamic":
-            actor = builder.build_dynamic(name)
-        else:
-            actor = builder.build_static(name)
-        return actor
+        self.clothing_frame = self.add_asset_to_scene(clothing_frame_builder, name="clothing_frame", physics_type="dynamic", object_type="MO")
+        self.rack1 = self.add_asset_to_scene(rack1_builder, name="rack1", physics_type="static", object_type="RO")
+        self.rack2 = self.add_asset_to_scene(rack2_builder, name="rack2", physics_type="static", object_type="RO")
+        self.load_scene_hook(manipulation_objects=[self.clothing_frame], receiving_objects=[self.rack1, self.rack2])
+
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            self.table_scene.initialize(env_idx)
             xyz = torch.zeros((b, 3))
             x = -torch.rand((b, 1))*0.3-0.1
             xyz[:, 0] = x
             xyz[:, 1] = -0.4
             xyz[:, 2] = 0.431
             self.clothing_frame.set_pose(Pose.create_from_pq(p=xyz, q=torch.tensor([0.548,0.5,0.5,0.453]).repeat(b,1)))
-            return
-            # xyz = torch.zeros((b, 3))
-            # xyz[:, 2] = 0.405
-            # # xy = torch.rand((b, 2)) * 0.2 - 0.1
-            # region = [[0.08, -0.26],[0.162, 0.12]]
-            # sampler = randomization.UniformPlacementSampler(
-            #     bounds=region, batch_size=b, device=self.device
-            # )
-            # radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
-            # soda_xy = sampler.sample(radius, 100)
-            # # # cubeB_xy = xy + sampler.sample(radius, 100, verbose=False)
+            self.initialize_episode_hook(env_idx, mo_pose=xyz)
 
-            # xyz[:, :2] = soda_xy
-            # # qs = randomization.random_quaternions(
-            # #     b,
-            # #     lock_x=True,
-            # #     lock_y=True,
-            # #     lock_z=True,
-            # # )
-            # # [0.854,0.471,0.212,0.068] - q for sleeping book
-            # # [0.748, 0.279, -0.464, 0.384] - q for other side facing book
-            # self.soda.set_pose(Pose.create_from_pq(p=xyz.clone(), q=torch.tensor([0.0, 0, 0.7071, 0.7071]).repeat(b,1)))
 
-            # xyz[:, :2] = cubeB_xy
-            # qs = randomization.random_quaternions(
-            #     b,
-            #     lock_x=True,
-            #     lock_y=True,
-            #     lock_z=False,
-            # )
-            # self.cubeB.set_pose(Pose.create_from_pq(p=xyz, q=qs))
-            # return
     def evaluate(self):
-        # pos_shelf = self.shelf.pose.p
-        # pos_book = self.book_A.pose.p
-        # offset = pos_shelf - pos_book
-        # x_flag = torch.abs(offset[..., 0]) <= 0.13 + 0.005
-        # y_flag = (
-        #     torch.abs(offset[..., 1]) <= 0.18 + 0.005
-        # )
-        # z_flag = torch.abs(offset[..., 2]) <= 0.16 + 0.005
-        # is_book_in_shelf = torch.logical_and(torch.logical_and(x_flag, y_flag),  z_flag)
-
         # # NOTE (stao): GPU sim can be fast but unstable. Angular velocity is rather high despite it not really rotating
         is_soda_static = self.clothing_frame.is_static(lin_thresh=1e-1, ang_thresh=1) # Not working well
-        # print(self.clothing_frame.pose.p)
         is_soda_on_table = torch.logical_and(self.clothing_frame.pose.p[:,2] < 0.43,self.clothing_frame.pose.p[:,2] > 0.4)
         success = (is_soda_on_table)
         return {
-            # "is_book_grasped": is_book_grasped,
             "is_frame_on_pole": is_soda_on_table,
             "is_frame_static": is_soda_static,
             "success": success

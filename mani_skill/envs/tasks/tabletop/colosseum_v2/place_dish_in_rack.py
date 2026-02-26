@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 from sapien.physx import PhysxMaterial
 
 
@@ -36,6 +36,11 @@ class PlaceDishInRackEnv(ColosseumV2Env):
     """
 
     agent: Union[Panda, Fetch]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_size=True,
+        RO_size=True,
+    )
 
     _rack_mesh_path = PACKAGE_ASSET_DIR / "dish_into_rack/dish_rack_with_connectors.stl"
     _plate_visual_mesh_path = (
@@ -244,35 +249,10 @@ class PlaceDishInRackEnv(ColosseumV2Env):
             # Randomize plate position within reachable zone - 20cm range (±0.1m)
             plate_x = -0.3 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
             plate_y = -0.2 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
-
-            # Use heuristic-based qpos with base rotation toward plate
-            # plate_x_val = float(plate_x[0].cpu()) if b == 1 else -0.45
-            # plate_y_val = float(plate_y[0].cpu()) if b == 1 else -0.25
-
-            # Compute angle from robot base to plate
-            # Robot base is at (-0.615, 0), plate is at (plate_x_val, plate_y_val)
-            # angle_to_plate = np.arctan2(plate_y_val, plate_x_val + 0.615)
-
-            # Use the default working arm configuration from TableSceneBuilder
-            # but with joint 0 rotated to point toward the plate
-            # Default: [0.0, π/8, 0, -π*5/8, 0, π*3/4, π/4, 0.04, 0.04]
-            # panda_qpos_above_plate = np.array([
-            #     angle_to_plate,        # j0: base rotation toward plate
-            #     np.pi / 8,             # j1: shoulder slightly forward
-            #     0,                     # j2: upper arm
-            #     -np.pi * 5 / 8,        # j3: elbow bent
-            #     0,                     # j4: forearm
-            #     np.pi * 3 / 4,         # j5: wrist 1
-            #     np.pi / 4,             # j6: wrist 2
-            #     0.04,                  # gripper left
-            #     0.04,                  # gripper right
-            # ])
+ 
             panda_qpos_above_plate = np.array(
                 [-1.08, 0, 0.68, -2.64, 0.07, 2.6, -1.25, 0.04, 0.04]
             )
-
-
-            # self.table_scene.initialize(env_idx, qpos_0=panda_qpos_above_plate)
 
             # Compute table top Z for placing objects
             table_p = self.table.pose.p

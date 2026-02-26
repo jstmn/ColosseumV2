@@ -1,6 +1,6 @@
 from typing import Callable
 import os
-
+from dataclasses import dataclass
 from termcolor import cprint
 from sapien.physx import PhysxMaterial
 import numpy as np
@@ -20,36 +20,113 @@ from mani_skill.utils.building.articulation_builder import ArticulationBuilder
 from mani_skill.utils.structs.articulation import Articulation
 from mani_skill.utils.io_utils import load_json
 from sapien.render import RenderBodyComponent
-from mani_skill.utils.geometry.rotation_conversions import (
-    euler_angles_to_matrix,
-    matrix_to_quaternion,
-)
+from mani_skill.utils.geometry.rotation_conversions import euler_angles_to_matrix, matrix_to_quaternion
 from mani_skill.utils.structs.actor import Actor
 from mani_skill import ASSET_DIR
 
-FLOOR_HEIGHT = -0.920
 
-def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+class VariationFactorDisabledError(Exception):
+    """
+    Raised when a variation factor is disabled but is enabled in the distraction set.
+    """
+    pass
 
-    assert actor is not None, "actor must be provided, got None"
 
+@dataclass
+class DisabledVariationFactors:
+    """
+    Stores which variation factors are disabled.
+    """
+    MO_color: bool = False
+    MO_texture: bool = False
+    MO_size: bool = False
+    MO_mass: bool = False
+    RO_color: bool = False
+    RO_texture: bool = False
+    RO_size: bool = False
+    table_color: bool = False
+    light_color: bool = False
+    table_texture: bool = False
+    distractor_object: bool = False
+    background_texture: bool = False
+    background_color: bool = False
+    camera_pose: bool = False
+
+    def to_list(self):
+        return [k for k, v in self.__dict__.items() if v]
+
+
+def _warn_or_raise_if_shared_materials(objs: list, actor_name: str, *, set_color: bool, set_texture: bool):
+    """
+    Heuristic guard for a common domain-randomization footgun:
+    if parallel env instances share the same RenderMaterial, then per-env randomization
+    becomes "last write wins" and all envs may look identical.
+
+    This check errors out immediately when shared materials are detected.
+    """
     if not set_color and not set_texture:
         return
 
-    objs = []
-    if isinstance(actor, OpenCabinet):
-        for shelf in actor.shelves:
-            objs.append(shelf._objs)
-    elif isinstance(actor, Articulation):
-        for obj in actor._objs:
-            for link in obj.links:
-                objs.append(link.entity)
-        raise ValueError(f"Articulation {actor.name} is not supported for color/texture randomization")
-    else:
-        objs = actor._objs
+    # Some actors (e.g. cabinets/shelves) store per-env objects as nested lists.
+    # Flatten defensively so this check never crashes.
+    flat_objs = []
+    for o in objs:
+        if isinstance(o, (list, tuple)):
+            flat_objs.extend(o)
+        else:
+            flat_objs.append(o)
+
+    # NOTE: `part.material` returns a fresh Python wrapper frequently, so `id(part.material)`
+    # is NOT stable and can produce false positives. SAPIEN's RenderMaterial implements `==`
+    # to compare underlying materials, so we use that to group materials robustly.
+    material_groups: list[tuple[sapien.render.RenderMaterial, set[int]]] = []
+    for obj_i, obj in enumerate(flat_objs):
+        render_body_component = obj.find_component_by_type(RenderBodyComponent)
+        if not isinstance(render_body_component, RenderBodyComponent):
+            continue
+        for render_shape in render_body_component.render_shapes:
+            for part in render_shape.parts:
+                m = part.material
+                found = False
+                for rep, obj_is in material_groups:
+                    if m == rep:
+                        obj_is.add(obj_i)
+                        found = True
+                        break
+                if not found:
+                    material_groups.append((m, {obj_i}))
+
+    shared = [(repr(rep), sorted(list(obj_is))) for rep, obj_is in material_groups if len(obj_is) > 1]
+    if not shared:
+        return
+
+    msg = (
+        f"[ColosseumV2][MaterialUniqueness] Actor '{actor_name}' appears to share one or more "
+        f"RenderMaterial instances across parallel env objects. This can make per-env color/texture "
+        f"randomization collapse to identical visuals (last assignment wins). "
+        f"Example shared materials/obj indices: {shared[:3]}{' ...' if len(shared) > 3 else ''}. "
+        f"Fix by creating a fresh RenderMaterial per env instance (e.g., inside builder_fn) or cloning "
+        f"materials per render part before mutation. "
+    )
+    raise RuntimeError(msg)
+
+
+def _set_color_or_texture_objs(objs: list, actor_name: str, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+    if not set_color and not set_texture:
+        return
+
+    # Some call sites provide nested lists (e.g., cabinets/shelves). Flatten defensively.
+    flat_objs = []
+    for o in objs:
+        if isinstance(o, (list, tuple)):
+            flat_objs.extend(o)
+        else:
+            flat_objs.append(o)
+
+    _warn_or_raise_if_shared_materials(flat_objs, actor_name, set_color=set_color, set_texture=set_texture)
 
     # The following code is borrowed from here: https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/domain_randomization.html
-    for obj in objs:
+    for obj in flat_objs:
 
         # modify the i-th object which is in parallel environment i
         if use_single_texture_or_texture:
@@ -78,14 +155,54 @@ def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dic
                         color = color_cfg["color_range"].sample_rgba()
 
                 if set_color and not set_texture:
+                    # If a GLB came with a base-color texture, setting only base_color often
+                    # won't visually change anything (the texture dominates). Clear textures
+                    # so "color randomization" actually produces a solid color.
+                    part.material.set_base_color_texture(None)
+                    part.material.set_diffuse_texture(None)
                     part.material.set_base_color(color)
                 elif not set_color and set_texture:
+                    # Avoid accidental tinting from a previously set base_color.
+                    part.material.set_base_color([1, 1, 1, 1])
                     part.material.set_base_color_texture(texture)
                 elif set_color and set_texture:
                     if (use_single_texture_or_texture and use_color) or (not use_single_texture_or_texture and (np.random.random() < 0.5)):
+                        part.material.set_base_color_texture(None)
+                        part.material.set_diffuse_texture(None)
                         part.material.set_base_color(color)
                     else:
+                        part.material.set_base_color([1, 1, 1, 1])
                         part.material.set_base_color_texture(texture)
+
+
+def _set_color_or_texture(actor: Actor, color_cfg: dict | None, texture_cfg: dict | None, set_color: bool, set_texture: bool, use_single_texture_or_texture: bool = False):
+
+    assert actor is not None, "actor must be provided, got None"
+
+    if not set_color and not set_texture:
+        return
+
+    objs = []
+    if isinstance(actor, OpenCabinet):
+        for shelf in actor.shelves:
+            objs.append(shelf._objs)
+    elif isinstance(actor, Articulation):
+        for obj in actor._objs:
+            for link in obj.links:
+                objs.append(link.entity)
+        raise ValueError(f"Articulation {actor.name} is not supported for color/texture randomization")
+    else:
+        objs = actor._objs
+
+    _set_color_or_texture_objs(
+        objs=objs,
+        actor_name=getattr(actor, "name", str(actor)),
+        color_cfg=color_cfg,
+        texture_cfg=texture_cfg,
+        set_color=set_color,
+        set_texture=set_texture,
+        use_single_texture_or_texture=use_single_texture_or_texture,
+    )
 
 
 
@@ -112,9 +229,23 @@ class ColosseumV2Env(BaseEnv):
         else:
             raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
 
-        if hasattr(self, "IGNORED_VARIATION_FACTORS"):
-            print(f"Ignoring variation factors: {self.IGNORED_VARIATION_FACTORS}")
-            self._ds.disable_variation_factors(self.IGNORED_VARIATION_FACTORS)
+        # Verify that the variation factors are consistent
+        if hasattr(self, "DISABLED_VARIATION_FACTORS"):
+            dvf = self.DISABLED_VARIATION_FACTORS
+            assert isinstance(dvf, DisabledVariationFactors)
+            all_enabled = self._ds.all_are_enabled()
+            for disabled in dvf.to_list():
+                var_is_enabled = self._ds.variation_is_enabled(disabled)
+                if all_enabled:
+                    msg = (
+                        f"Warning: variation '{disabled.upper()}' is disabled by the env, but enabled in the "
+                        "distraction_set. However, 'all' variation factors are enabled, so this variation is disabled."
+                    )
+                    cprint(msg, "yellow")
+                    self._ds.disable_variation_factors([disabled])
+                else:
+                    if var_is_enabled:
+                        raise VariationFactorDisabledError(f"Variation {disabled} is enabled in distraction_set but is disabled by env")
 
         # 
         self._human_render_shader = kwargs.pop("human_render_shader", "default")
@@ -419,6 +550,13 @@ class ColosseumV2Env(BaseEnv):
             self._table = self._table_scene_builders[0].table
 
 
+    def get_MO_scale(self) -> tuple[float, float, float]:
+        if self._ds.MO_size_enabled():
+            scale_multiplier = self._ds.MO_size_cfg["scale_range"]
+            scale = np.random.uniform(*scale_multiplier)
+            return (scale, scale, scale)
+        return (1.0, 1.0, 1.0)
+
     def load_scene_hook(self, manipulation_objects: list[Actor] = [], receiving_objects: list[Actor] = [], add_table_to_scene: bool = True):
         """
         This function is called when the scene is loaded.
@@ -427,17 +565,14 @@ class ColosseumV2Env(BaseEnv):
             receiving_objects (list[Actor]): The receiving objects to modify.
         """
         # First verify that the variation factors match
-        one_MO_enabled = self._ds.MO_color_enabled() or self._ds.MO_texture_enabled() or self._ds.MO_size_enabled() or self._ds.MO_mass_enabled()
-        one_RO_enabled = self._ds.RO_color_enabled() or self._ds.RO_texture_enabled() or self._ds.RO_size_enabled()
-        if one_MO_enabled:
-            assert len(manipulation_objects) > 0, f"MO configuration is enabled but no manipulation objects are provided. All enabled variation factors: {self._ds.which_enabled_str()[0]}"
-        if one_RO_enabled:
-            assert len(receiving_objects) > 0, f"RO configuration is enabled but no receiving objects are provided. All enabled variation factors: {self._ds.which_enabled_str()[0]}"
-        if not one_MO_enabled:
-            assert len(manipulation_objects) == 0, f"MO configuration is disabled but manipulation objects are provided. All enabled variation factors: {self._ds.which_enabled_str()[0]}"
-        if not one_RO_enabled:
-            assert len(receiving_objects) == 0, f"RO configuration is disabled but receiving objects are provided. All enabled variation factors: {self._ds.which_enabled_str()[0]}"
+        mo_variation_enabled = self._ds.MO_color_enabled() or self._ds.MO_texture_enabled() or self._ds.MO_size_enabled()
+        ro_variation_enabled = self._ds.RO_color_enabled() or self._ds.RO_texture_enabled() or self._ds.RO_size_enabled()
+        if mo_variation_enabled and len(manipulation_objects) == 0:
+            raise VariationFactorDisabledError("MO variation factors are enabled, but no manipulation_objects is provided.")
+        if ro_variation_enabled and len(receiving_objects) == 0:
+            raise VariationFactorDisabledError("RO variation factors are enabled, but no receiving_objects is provided.")
 
+        # 
         self._load_scene_hool_called = True
 
         # New distractor spheres
@@ -470,6 +605,22 @@ class ColosseumV2Env(BaseEnv):
         if add_table_to_scene:
             self._add_table_to_scene()
 
+        # DualPanda includes a `table` link inside its URDF (`dual_panda_table.urdf`).
+        # If users enable table color/texture randomization, apply it to that link's visuals as well.
+        if self._robot_uids == "dual_panda" and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
+            table_link = self.agent.robot.links_map.get("table", None)
+            # PhysX link components have an `.entity` that holds render components.
+            table_entities = [o.entity for o in table_link._objs]
+            _set_color_or_texture_objs(
+                objs=table_entities,
+                actor_name="dual_panda:table_link",
+                color_cfg=self._ds.table_color_cfg,
+                texture_cfg=self._ds.table_texture_cfg,
+                set_color=self._ds.table_color_enabled(),
+                set_texture=self._ds.table_texture_enabled(),
+                use_single_texture_or_texture=True,
+            )
+
         # Manipulation object
         for mo in manipulation_objects:
             assert mo is not None, "mo must be provided, got None"
@@ -491,6 +642,7 @@ class ColosseumV2Env(BaseEnv):
                 height = 2
                 width = 0.1
                 length = dist_from_world*2
+                FLOOR_HEIGHT = -0.920
                 z = FLOOR_HEIGHT + (height / 2)
 
                 # Left
@@ -522,7 +674,7 @@ class ColosseumV2Env(BaseEnv):
             )
 
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
+    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | sapien.Pose | Pose | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
         
         assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
 
@@ -560,6 +712,13 @@ class ColosseumV2Env(BaseEnv):
                 xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
                 xyz[:, 2] = radius_range[1] + 0.01 # get the maximum radius
+                if mo_pose is not None:
+                    if isinstance(mo_pose, torch.Tensor):
+                        xyz[:, 2] += mo_pose[:, 2] # add the height of the MO
+                    elif isinstance(mo_pose, (sapien.Pose, Pose)):
+                        xyz[:, 2] += mo_pose.p[:, 2] # add the height of the MO
+                    else:
+                        raise ValueError(f"mo_pose must be a torch.Tensor or sapien.Pose, got {type(mo_pose)}")
                 self._ds._internal["distractor_object_cfg"]["sphere_actors"][i].set_pose(Pose.create_from_pq(p=xyz))
 
     def _get_obs_extra(self, info: dict):

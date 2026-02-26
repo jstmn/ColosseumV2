@@ -12,7 +12,7 @@ from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 from mani_skill import PACKAGE_ASSET_DIR
 
 
@@ -28,13 +28,15 @@ class DualArmLiftPotEnv(ColosseumV2Env):
     # Explicitly tell ManiSkill to use the DualPanda agent
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
-    IGNORED_VARIATION_FACTORS = [
-        "table_color",
-        "table_texture",
-    ]
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
@@ -60,13 +62,14 @@ class DualArmLiftPotEnv(ColosseumV2Env):
     def _load_scene(self, options: dict):
         # Load a simple floor and lighting
         
-        pot_builder = lambda: self.get_glb_asset_builder(
-            os.path.join(PACKAGE_ASSET_DIR, "pour_pot/pot.glb"),
-            initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
-            object_type="MO",
-            scale=(1,1,1),
-        )
-        self.pot = self.add_asset_to_scene(pot_builder, name="pot", physics_type="dynamic", object_type="MO")
+        def pot_builder_fn():
+            return self.get_glb_asset_builder(
+                os.path.join(PACKAGE_ASSET_DIR, "pour_pot/pot.glb"),
+                initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
+                object_type="MO",
+                scale=(1,1,1),
+            )
+        self.pot = self.add_asset_to_scene(pot_builder_fn, name="pot", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.pot])
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

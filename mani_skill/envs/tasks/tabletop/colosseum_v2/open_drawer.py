@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 CABINET_COLLISION_BIT = 29
 
@@ -60,13 +60,17 @@ class OpenDrawerEnv(ColosseumV2Env):
     CABINET_YAW_LIMS = [0, np.pi/8]
     min_open_frac = 0.5
 
-    IGNORED_VARIATION_FACTORS = [
-        "MO_color",
-        "RO_color",
-        "MO_texture",
-        "RO_texture",
-        "MO_mass",
-    ]
+    # No way to change the color / texture / size of the cabinet
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_color=True,
+        MO_texture=True,
+        MO_size=True,
+        MO_mass=True,
+        RO_texture=True,
+        RO_size=True,
+        RO_color=True,
+    )
+
 
     def __init__(
         self,
@@ -86,12 +90,7 @@ class OpenDrawerEnv(ColosseumV2Env):
         # self._model_id = 1005 # don't like the color
         self._model_id = 1027
 
-        super().__init__(
-            *args,
-            robot_uids=robot_uids,
-            ignored_variation_factors=self.IGNORED_VARIATION_FACTORS,
-            **kwargs,
-        )
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_human_render_camera_configs(self):

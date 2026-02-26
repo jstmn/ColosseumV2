@@ -14,7 +14,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Actor, Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 def _build_box_with_hole(
     scene: ManiSkillScene, inner_radius, outer_radius, depth, center=(0, 0)
@@ -69,6 +69,13 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
     # _clearance = 0.003
     _clearance = 0.006
     # ^ double the clearance to make it easier
+
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        # No way to change the size of the peg / box
+        MO_size=True,
+        RO_size=True,
+    )
+
 
     def __init__(
         self,
@@ -129,66 +136,6 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
             box_hole_offsets[:, 1:] = common.to_tensor(centers)
             self.box_hole_offsets = Pose.create_from_pq(p=box_hole_offsets)
             self.box_hole_radii = common.to_tensor(radii + self._clearance)
-
-            # in each parallel env we build a different box with a hole and peg (the task is meant to be quite difficult)
-            # pegs = []
-            # boxes = []
-
-            # for i in range(self.num_envs):
-            #     scene_idxs = [i]
-            #     length = lengths[i]
-            #     radius = radii[i]
-            #     builder = self.scene.create_actor_builder()
-            #     builder.add_box_collision(half_size=[length, radius, radius])
-            #     # peg head
-            #     mat = sapien.render.RenderMaterial(
-            #         base_color=sapien_utils.hex2rgba("#EC7357"),
-            #         roughness=0.5,
-            #         specular=0.5,
-            #     )
-            #     builder.add_box_visual(
-            #         sapien.Pose([length / 2, 0, 0]),
-            #         half_size=[length / 2, radius, radius],
-            #         material=mat,
-            #     )
-            #     # peg tail
-            #     mat = sapien.render.RenderMaterial(
-            #         base_color=sapien_utils.hex2rgba("#EDF6F9"),
-            #         roughness=0.5,
-            #         specular=0.5,
-            #     )
-            #     builder.add_box_visual(
-            #         sapien.Pose([-length / 2, 0, 0]),
-            #         half_size=[length / 2, radius, radius],
-            #         material=mat,
-            #     )
-            #     builder.initial_pose = sapien.Pose(p=[0, 0, 0.1])
-            #     builder.set_scene_idxs(scene_idxs)
-            #     peg = builder.build(f"peg_{i}")
-            #     self.remove_from_state_dict_registry(peg)
-            #     # box with hole
-
-            #     inner_radius, outer_radius, depth = (
-            #         radius + self._clearance,
-            #         length,
-            #         length,
-            #     )
-            #     builder = _build_box_with_hole(
-            #         self.scene, inner_radius, outer_radius, depth, center=centers[i]
-            #     )
-            #     builder.initial_pose = sapien.Pose(p=[0, 1, 0.1])
-            #     builder.set_scene_idxs(scene_idxs)
-            #     box = builder.build_kinematic(f"box_with_hole_{i}")
-            #     self.remove_from_state_dict_registry(box)
-            #     pegs.append(peg)
-            #     boxes.append(box)
-            # self.peg = Actor.merge(pegs, "peg")
-            # self.box = Actor.merge(boxes, "box_with_hole")
-
-            # # to support heterogeneous simulation state dictionaries we register merged versions
-            # # of the parallel actors
-            # self.add_to_state_dict_registry(self.peg)
-            # self.add_to_state_dict_registry(self.box)
 
             def _get_peg_builder(i):
                 length = lengths[i]
