@@ -225,11 +225,9 @@ class DistractionSet:
 # ^ can set the scale of the robot here
 all_distractor_set = DistractionSet(
     distractor_object_cfg={
-        "n_spheres": 2,
-        "radius_range": (0.01, 0.03),
-        "color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),
-        "x_lims": (-0.1, 0.1),
-        "y_lims": (-0.1, 0.1),
+        "n_distractors": 2,
+        "x_lims": (-0.4, 0.4),
+        "y_lims": (-0.4, 0.4),
     },
     MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},

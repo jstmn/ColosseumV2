@@ -251,8 +251,7 @@ if __name__ == "__main__":
         cprint(f"Variation factor disabled error: {e}", "red")
         exit(0)
     except Exception as e:
-        cprint(f"Error: {e}", "red")
-        exit(1)
+        raise e
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
     # agent setup

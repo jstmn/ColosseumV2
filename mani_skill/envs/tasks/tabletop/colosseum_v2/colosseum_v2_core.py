@@ -1,6 +1,8 @@
 from typing import Callable
 import os
+import random
 from dataclasses import dataclass
+
 from termcolor import cprint
 from sapien.physx import PhysxMaterial
 import numpy as np
@@ -575,32 +577,36 @@ class ColosseumV2Env(BaseEnv):
         # 
         self._load_scene_hool_called = True
 
-        # New distractor spheres
+        # New distractor objs
         # TODO: Add YCB objects
         if self._ds.distractor_object_enabled():
-            n_spheres = self._ds.distractor_object_cfg["n_spheres"]
-            radius_range = self._ds.distractor_object_cfg["radius_range"]
-            color_range = self._ds.distractor_object_cfg["color_range"]
-            self._ds._internal["distractor_object_cfg"]["sphere_actors"] = []
-
-            for i in range(n_spheres):
-                def get_sphere_builder():
-                    builder: ActorBuilder = self.scene.create_actor_builder()
-                    builder.add_sphere_collision(
-                        radius=np.random.uniform(*radius_range),
+            ycb_ids = (
+                "006_mustard_bottle", 
+                "022_windex_bottle",
+                "037_scissors",
+                "042_adjustable_wrench",
+                "050_medium_clamp",
+                "052_extra_large_clamp",
+                "053_mini_soccer_ball",
+                "054_softball",
+                "055_baseball",
+                "056_tennis_ball",
+                "062_dice"
+            )
+            n_distractors = self._ds.distractor_object_cfg["n_distractors"]
+            self._ds._internal["distractor_object_cfg"]["actors"] = []
+            for i in range(n_distractors):
+                def get_ycb_builder():
+                    return self.get_ycb_asset_builder(
+                        ycb_id=ycb_ids[random.randint(0, len(ycb_ids) - 1)],
+                        object_type="DISTRACTOR",
+                        initial_pose=sapien.Pose(),
                     )
-                    builder.add_sphere_visual(
-                        radius=np.random.uniform(*radius_range),
-                        material=sapien.render.RenderMaterial(
-                        base_color=color_range.sample_rgba(),
-                        ),
-                    )
-                    builder.set_initial_pose(sapien.Pose())
-                    return builder
 
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"].append(
-                    self.add_asset_to_scene(get_sphere_builder, name=f"distractor_sphere_{i}", physics_type="dynamic", object_type="DISTRACTOR")
+                self._ds._internal["distractor_object_cfg"]["actors"].append(
+                    self.add_asset_to_scene(get_ycb_builder, name=f"distractor_obj_{i}", physics_type="dynamic", object_type="DISTRACTOR")
                 )
+
 
         if add_table_to_scene:
             self._add_table_to_scene()
@@ -698,20 +704,19 @@ class ColosseumV2Env(BaseEnv):
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():
 
-            radius_range = self._ds.distractor_object_cfg["radius_range"]
             x_lims = self._ds.distractor_object_cfg["x_lims"]
             y_lims = self._ds.distractor_object_cfg["y_lims"]
             x_range = x_lims[1] - x_lims[0]
             y_range = y_lims[1] - y_lims[0]
 
 
-            for i in range(self._ds.distractor_object_cfg["n_spheres"]):
-                # What happens if you set the poses such that the spheres collide with one another?
-                # for i, sphere in enumerate(self._ds._internal["distractor_object_cfg"]["sphere_actors"]):
+            for i in range(self._ds.distractor_object_cfg["n_distractors"]):
+                # What happens if you set the poses such that the objs collide with one another?
+                # for i, obj in enumerate(self._ds._internal["distractor_object_cfg"]["obj_actors"]):
                 xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
                 xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
                 xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
-                xyz[:, 2] = radius_range[1] + 0.01 # get the maximum radius
+                xyz[:, 2] = 0.25 # 
                 if mo_pose is not None:
                     if isinstance(mo_pose, torch.Tensor):
                         xyz[:, 2] += mo_pose[:, 2] # add the height of the MO
@@ -719,7 +724,7 @@ class ColosseumV2Env(BaseEnv):
                         xyz[:, 2] += mo_pose.p[:, 2] # add the height of the MO
                     else:
                         raise ValueError(f"mo_pose must be a torch.Tensor or sapien.Pose, got {type(mo_pose)}")
-                self._ds._internal["distractor_object_cfg"]["sphere_actors"][i].set_pose(Pose.create_from_pq(p=xyz))
+                self._ds._internal["distractor_object_cfg"]["actors"][i].set_pose(Pose.create_from_pq(p=xyz))
 
     def _get_obs_extra(self, info: dict):
         if self._robot_uids == "dual_panda":
