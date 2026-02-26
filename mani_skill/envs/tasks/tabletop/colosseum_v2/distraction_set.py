@@ -197,20 +197,11 @@ class DistractionSet:
             assert_range_correct(self.camera_pose_cfg["xyz_range"])
 
     def to_dict(self):
-        return dict(
-            MO_color_cfg=self.MO_color_cfg,
-            RO_color_cfg=self.RO_color_cfg,
-            MO_texture_cfg=self.MO_texture_cfg,
-            RO_texture_cfg=self.RO_texture_cfg,
-            MO_size_cfg=self.MO_size_cfg,
-            RO_size_cfg=self.RO_size_cfg,
-            table_color_cfg=self.table_color_cfg,
-            light_color_cfg=self.light_color_cfg,
-            table_texture_cfg=self.table_texture_cfg,
-            distractor_object_cfg=self.distractor_object_cfg,
-            background_texture_cfg=self.background_texture_cfg,
-            camera_pose_cfg=self.camera_pose_cfg,
-        )
+        d = {}
+        for k in self.__dict__.keys():
+            if k.endswith("_cfg"):
+                d[k] = getattr(self, k)
+        return d
 
 
 # mani_skill/agents/base_agent.py
@@ -249,8 +240,10 @@ all_distractor_set = DistractionSet(
         "color_range": ColorRange(low=(0, 0, 0), high=(1, 1, 1)),
     },
     # ^ this works but makes it hard to see the color of the objects
-    MO_size_cfg = {"scale_range": (0.9, 1.1)},
-    RO_size_cfg = {"scale_range": (0.9, 1.1)},
+    MO_size_cfg = {"scale_range": (1.9, 2.1)},
+    RO_size_cfg = {"scale_range": (1.9, 2.1)},
+    # MO_size_cfg = {"scale_range": (0.9, 1.1)},
+    # RO_size_cfg = {"scale_range": (0.9, 1.1)},
     background_texture_cfg = {
         "textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),
     },

@@ -54,7 +54,7 @@ class Args:
 
     exp_name: Optional[str] = None
     """the name of this experiment"""
-    seed: int = 1
+    seed: int | None = None
     """seed of the experiment"""
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""

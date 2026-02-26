@@ -49,10 +49,6 @@ class RotateArrowEnv(ColosseumV2Env):
     ):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        # sim_backend="physx_cuda:0", render_backend="sapien_cuda:0"
-        if self.scene is not None:
-            print(f"Is GPU simulation enabled for this scene? {self.scene.gpu_sim_enabled}")
-
 
     @property
     def _default_sensor_configs(self):
@@ -69,11 +65,6 @@ class RotateArrowEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
         # All values obtained carefully from blender
-        # self.arrow = self.add_glb_asset_to_scene(self.scene, 
-        #                                     os.path.join(PACKAGE_ASSET_DIR,"push_arrow/arrow.glb"), 
-        #                                     sapien.Pose(p=[0.293, -0.1, 0], q=[-0.5, -0.5, 0.5, 0.5]), 
-        #                                     name="arrow",
-        #                                     type="dynamic")
         custom_material = sapien.render.RenderMaterial()
         custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
 
@@ -86,25 +77,6 @@ class RotateArrowEnv(ColosseumV2Env):
         self.arrow = self.add_asset_to_scene(arrow_builder, name="arrow", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.arrow])
 
-
-
-    # @staticmethod
-    # def add_glb_asset_to_scene(scene, glb_filepath, pose, name, type="static"):
-    #     """Load GLB file as a static actor in the scene"""
-    #     builder = scene.create_actor_builder()
-    #     # custom_material = sapien.render.RenderMaterial(base_color=[1, 0, 0, 1])
-    #     custom_material = sapien.render.RenderMaterial()
-    #     custom_material.base_color_texture = sapien.render.RenderTexture2D(filename = os.path.join(PACKAGE_ASSET_DIR, "textures/ceramic.png"))
-    #         #     builder.add_visual_from_file(glb_filepath)
-    #     builder.add_visual_from_file(glb_filepath, material=custom_material)
-    #     builder.add_multiple_convex_collisions_from_file(glb_filepath, decomposition="coacd")
-        
-    #     builder.set_initial_pose(pose)
-    #     if type=="dynamic":
-    #         actor = builder.build_dynamic(name)
-    #     else:
-    #         actor = builder.build_static(name)
-    #     return actor
 
     def quat_to_z_euler(self, quats):
         # sxyz convention, we want the z-axis rotation

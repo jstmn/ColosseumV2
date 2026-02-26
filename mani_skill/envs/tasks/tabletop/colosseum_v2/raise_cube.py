@@ -41,6 +41,11 @@ class RaiseCubeEnv(ColosseumV2Env):
     """
 
     GOAL_HEIGHT = 0.2
+    IGNORED_VARIATION_FACTORS = [
+        "RO_texture",
+        "RO_color",
+        "RO_size",
+    ]
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
 

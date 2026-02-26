@@ -32,10 +32,10 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
         "table_color_cfg",
         "table_texture_cfg",
     ]
-    
+
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
-        super().__init__(*args, robot_uids=robot_uids, ignored_variation_factors=self.IGNORED_VARIATION_FACTORS, **kwargs)
-    
+        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])

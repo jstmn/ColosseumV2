@@ -85,8 +85,11 @@ def build_success_matrix(
     *,
     distraction_sets: Iterable[str] | None,
     checkpoint_path: str | None,
+    sort_by_none_sr: bool = True,
 ) -> tuple[list[str], list[str], dict[tuple[str, str], float | None]]:
-    ds_list = list(distraction_sets) if distraction_sets is not None else _iter_distraction_sets_in_order()
+    ds_list_raw = list(distraction_sets) if distraction_sets is not None else _iter_distraction_sets_in_order()
+    # CSV distraction_set values are normalized to lowercase for aggregation keys.
+    ds_list = [str(ds).lower() for ds in ds_list_raw]
 
     totals: dict[tuple[str, str], tuple[int, int]] = {}
     task_order: list[str] = []
@@ -130,6 +133,23 @@ def build_success_matrix(
         raise ValueError("No rows matched (after checkpoint filter).")
     if not valid_any:
         raise ValueError("No valid rows (after filtering out negative successful runs).")
+
+    if sort_by_none_sr:
+        # Sort tasks by the success rate under the "none" distraction set (descending),
+        # placing tasks with missing "none" entries at the end. Keep stability for ties.
+        none_sr: dict[str, float | None] = {}
+        for t in task_order:
+            pair = totals.get((t, "none"))
+            if pair is None:
+                none_sr[t] = None
+                continue
+            succ, eps = pair
+            none_sr[t] = (100.0 * succ / eps) if eps > 0 else None
+
+        task_order = sorted(
+            task_order,
+            key=lambda t: (none_sr[t] is None, -(none_sr[t] or 0.0)),
+        )
 
     matrix: dict[tuple[str, str], float | None] = {}
     for t in task_order:
@@ -239,7 +259,6 @@ def main(argv: list[str]) -> int:
         f.write(latex)
     print(f"Wrote LaTeX table to {out_tex}")
     save_to_csv(tasks, distraction_sets, matrix, out_csv)
-    print(f"Wrote CSV table to {out_csv}")
     return 0
 
 

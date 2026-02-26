@@ -50,6 +50,8 @@ conda activate maniskill_jm
 # ============================================================
 
 
+NOW=$(date +%H%M%S)
+
 
 while true; do
     # python examples/baselines/act_clip/eval_rgbd.py \
@@ -67,18 +69,51 @@ while true; do
     #     --distraction-set "BLANK" \
     #     --results-path logs/results_single_arm.csv
 
+    # python examples/baselines/act_clip/eval_rgbd.py \
+    #     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
+    #     --control-mode "pd_joint_pos" \
+    #     --no-include-depth \
+    #     --sim-backend "physx_cuda" \
+    #     --is-multi-task True \
+    #     --target-num-cams 1 \
+    #     --num-eval-episodes 100 \
+    #     --num-eval-envs 50 \
+    #     --max-episode-steps 850 \
+    #     --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
+    #     --internal-instruction \
+    #     --distraction-set "BLANK" \
+    #     --results-path logs/results_bimanual.csv
+
+    # =============================== VIDEO MODE ===============================
     python examples/baselines/act_clip/eval_rgbd.py \
-        --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
-        --control-mode "pd_joint_pos" \
+        --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
+        --control-mode "pd_ee_delta_pose" \
         --no-include-depth \
         --sim-backend "physx_cuda" \
         --is-multi-task True \
         --target-num-cams 1 \
-        --num-eval-episodes 100 \
-        --num-eval-envs 50 \
-        --max-episode-steps 850 \
+        --num-eval-episodes 6 \
+        --num-eval-envs 6 \
+        --max-episode-steps 5 \
+        --capture-video \
         --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
         --internal-instruction \
         --distraction-set "BLANK" \
-        --results-path logs/results_bimanual.csv
+        --results-path logs/results_single_arm_VIDEOS_${NOW}.csv
+
+    # python examples/baselines/act_clip/eval_rgbd.py \
+    #     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
+    #     --control-mode "pd_joint_pos" \
+    #     --no-include-depth \
+    #     --sim-backend "physx_cuda" \
+    #     --is-multi-task True \
+    #     --target-num-cams 1 \
+    #     --num-eval-episodes 5 \
+    #     --num-eval-envs 5 \
+    #     --max-episode-steps 5 \
+    #     --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
+    #     --internal-instruction \
+    #     --distraction-set "BLANK" \
+    #     --capture-video \
+    #     --results-path logs/results_bimanual_VIDEOS.csv
 done
