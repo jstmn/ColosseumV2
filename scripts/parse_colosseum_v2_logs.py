@@ -15,8 +15,8 @@ Key behavior:
 
 # Example usage:
 
-python scripts/parse_colosseum_v2_logs.py --results-path logs/results_bimanual.csv
 python scripts/parse_colosseum_v2_logs.py --results-path logs/results_single_arm.csv
+python scripts/parse_colosseum_v2_logs.py --results-path logs/results_bimanual.csv
 """
 
 import argparse
@@ -222,7 +222,6 @@ def save_to_csv(tasks: list[str], distraction_sets: list[str], matrix: dict[tupl
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Parse Colosseum-V2 eval results CSV and emit a LaTeX table.")
     p.add_argument("--results-path", required=True, type=str, help="Path to results CSV (from eval_rgbd.py).")
-    p.add_argument("--is-bimanual", action="store_true", help="Deprecated (tasks are derived from CSV).")
     p.add_argument(
         "--checkpoint-path",
         default=None,

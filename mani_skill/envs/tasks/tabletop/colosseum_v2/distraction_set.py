@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from termcolor import cprint
 import os
 import numpy as np
@@ -64,6 +65,7 @@ class DistractionSet:
     background_color_cfg: dict = field(default_factory=dict)
     camera_pose_cfg: dict = field(default_factory=dict)
     MO_mass_cfg: dict = field(default_factory=dict)
+    language_cfg: dict = field(default_factory=dict)
 
     unimplemented = {}
 
@@ -154,6 +156,9 @@ class DistractionSet:
     def MO_mass_enabled(self) -> bool:
         return len(self.MO_mass_cfg) > 0
 
+    def language_enabled(self) -> bool:
+        return len(self.language_cfg) > 0
+
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
         disabled_strs = []
@@ -195,6 +200,7 @@ class DistractionSet:
             "background_color_cfg",
             "camera_pose_cfg",
             "MO_mass_cfg",
+            "language_cfg",
         ]:
             self._internal[key] = {}
 
@@ -228,6 +234,10 @@ all_distractor_set = DistractionSet(
         "n_distractors": 2,
         "x_lims": (-0.4, 0.4),
         "y_lims": (-0.4, 0.4),
+    },
+    language_cfg = {
+        "randomization": True, 
+        "randomization_file": Path(__file__).parent / "language_randomizations.yaml",
     },
     MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
@@ -277,4 +287,6 @@ DISTRACTION_SETS = {
     # Background
     "background_texture".upper(): all_distractor_set.get_partial_copy(["background_texture_cfg"]),
     "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
+    # 
+    "language".upper(): all_distractor_set.get_partial_copy(["language_cfg"]),
 }

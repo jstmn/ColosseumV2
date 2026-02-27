@@ -25,6 +25,8 @@ from sapien.render import RenderBodyComponent
 from mani_skill.utils.geometry.rotation_conversions import euler_angles_to_matrix, matrix_to_quaternion
 from mani_skill.utils.structs.actor import Actor
 from mani_skill import ASSET_DIR
+from yaml import load
+from yaml.loader import SafeLoader
 
 
 class VariationFactorDisabledError(Exception):
@@ -221,6 +223,11 @@ class ColosseumV2Env(BaseEnv):
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
+        env_id: str | None = kwargs.pop("_env_id", None)
+        assert env_id is not None, "env_id must be provided"
+        self._env_id = env_id
+
+        # 
         distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
         if distraction_set is None:
             self._ds = DistractionSet()
@@ -257,10 +264,16 @@ class ColosseumV2Env(BaseEnv):
         self._table_scene_builders: list[TableSceneBuilder] = []
         self._table: Actor | None = None
 
+        self._language_randomizations: dict[str, list[str]] = {}
+        if self._ds.language_enabled():
+            self._language_randomizations = load(open(self._ds.language_cfg["randomization_file"]), Loader=SafeLoader)
+
         self._robot_uids = robot_uids
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._load_scene_hool_called = False
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
+
 
 
     def _get_human_render_camera_config(self, eye: tuple[float, float, float], target: tuple[float, float, float]):
@@ -746,5 +759,13 @@ class ColosseumV2Env(BaseEnv):
                 left_arm_tcp=self.agent.tcp_1_pose.raw_pose,
                 right_arm_tcp=self.agent.tcp_2_pose.raw_pose,
             )
-        
         return dict(tcp_pose=self.agent.tcp_pose.raw_pose)
+
+    def update_language_instructions(self, language_instructions: list[str] | None) -> list[str] | None:
+        if language_instructions is None:
+            return None
+        if self._ds.language_enabled():
+            return [
+                random.choice(self._language_randomizations[self._env_id]) for _ in range(len(language_instructions))
+            ]
+        return language_instructions

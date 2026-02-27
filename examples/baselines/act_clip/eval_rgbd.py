@@ -39,14 +39,14 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (single arm)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "none" \
+    --distraction-set "language" \
     --env-id "RaiseCube-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
     --is-multi-task True \
     --target-num-cams 1 \
-    --num-eval-episodes 25 --num-eval-envs 25 --max-episode-steps 200 \
+    --num-eval-episodes 12 --num-eval-envs 12 --max-episode-steps 200 \
     --internal-instruction --capture-video
     # --capture-video is gpu intensive, so need to limit the number of environments
 
@@ -82,6 +82,9 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --distraction-set "BLANK" \
     --results-path logs/results_single_arm.csv
 """
+
+class OutOfTasksError(Exception):
+    pass
 
 ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS = (
     "RaiseCube-v1",
@@ -210,7 +213,7 @@ def update_args_from_results(args: Args):
             results_df.to_csv(args.results_path, index=False)
             return args
 
-    raise Exception("No result found for any task and distraction set")
+    raise OutOfTasksError("No result found for any task and distraction set")
 
 
 if __name__ == "__main__":
@@ -231,12 +234,21 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and "cuda" in args.sim_backend else "cpu")
 
     if args.results_path is not None:
-        args = update_args_from_results(args)
-
+        try:
+            args = update_args_from_results(args)
+        except OutOfTasksError as e:
+            cprint(f"SUCCESS: {e}. Exiting.", "green")
+            exit(0)
+        except Exception as e:
+            raise e
     # env setup
     env_kwargs = dict(
-        control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array" if args.capture_video else None,
+        control_mode=args.control_mode,
+        reward_mode="sparse", 
+        obs_mode="rgbd" if args.include_depth else "rgb", 
+        render_mode="rgb_array" if args.capture_video else None,
         distraction_set=DISTRACTION_SETS[args.distraction_set.upper()].to_dict(),
+        _env_id=args.env_id,
     )
     # ^ distraction_set needs to be pickle-able by ManiSkillVectorEnv, so we convert it to a dictionary
     if args.max_episode_steps is not None:
@@ -275,13 +287,21 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------------- #
     agent.eval()
 
-    #TODO: should be give lanaugage instructions for each task
+    # Update language instructions for each environment
     eid = args.env_id
-    print(f"Evaluating task: {eid}")
-    print(f"with language instruction: {TASK_TEXT_MAP[eid]}")
-    eval_lang = TASK_TEXT_MAP[eid] if args.internal_instruction else None
+    print(f"Evaluating task: {eid} with language instruction: {TASK_TEXT_MAP[eid]}")
+    eval_langs = None
+    if args.internal_instruction:
+        eval_langs = [TASK_TEXT_MAP[eid]] * args.num_eval_envs
+    try:
+        eval_langs = envs.unwrapped.update_language_instructions(eval_langs)
+        cprint(f"Using updated language instruction: {eval_langs}", "yellow")
+    except AttributeError as e:
+        cprint(f"Environment doesn't support perturbed language instructions: {e}", "yellow")
+    except Exception as e:
+        raise e
 
-    eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, eval_kwargs, lang_instruction=eval_lang)
+    eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, eval_kwargs, lang_instructions=eval_langs)
     for metric, value in eval_metrics.items():
         print(f"{metric}: {value}")
 
