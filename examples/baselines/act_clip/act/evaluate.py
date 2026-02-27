@@ -6,7 +6,7 @@ import torch
 import tqdm
 from mani_skill.utils import common
 
-def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name=None):
+def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str] | None, save_name=None):
     stats, num_queries, temporal_agg, max_timesteps, device, sim_backend = eval_kwargs.values()
 
     use_visual_obs = isinstance(eval_envs.single_observation_space.sample(), dict)
@@ -22,10 +22,11 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instruction, save_name=
     action_dim = eval_envs.action_space.shape[-1]
     num_envs = eval_envs.num_envs
 
-    if lang_instruction is None:
+    if lang_instructions is None:
         eval_lang = None
     else:
-        eval_lang = [lang_instruction] * num_envs
+        assert len(lang_instructions) == num_envs, "number of language instructions must match number of environments"
+        eval_lang = lang_instructions
 
     if temporal_agg:
         query_frequency = 1

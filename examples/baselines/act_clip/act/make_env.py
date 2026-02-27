@@ -6,7 +6,7 @@ from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 from mani_skill.utils.wrappers import RecordEpisode, CPUGymWrapper
 
 
-def make_eval_envs(env_id, num_envs: int, sim_backend: str, env_kwargs: dict, other_kwargs: dict, video_dir: Optional[str] = None, wrappers: list[gym.Wrapper] = [], video_filename: Optional[str] = None):
+def make_eval_envs(env_id: str, num_envs: int, sim_backend: str, env_kwargs: dict, other_kwargs: dict, video_dir: Optional[str] = None, wrappers: list[gym.Wrapper] = [], video_filename: Optional[str] = None):
     """Create vectorized environment for evaluation and/or recording videos.
     For CPU vectorized environments only the first parallel environment is used to record videos.
     For GPU vectorized environments all parallel environments are used to record videos.
