@@ -341,7 +341,7 @@ class ColosseumV2Env(BaseEnv):
         for cfg in cfgs:
             rpy_low = torch.tensor(rpy_range[0], device=self.device, dtype=torch.float32)
             rpy_high = torch.tensor(rpy_range[1], device=self.device, dtype=torch.float32)
-            rpy = torch.rand((self.num_envs, 3), device=self.device) * (rpy_high - rpy_low) + rpy_low            
+            rpy = torch.rand((self.num_envs, 3), device=self.device) * (rpy_high - rpy_low) + rpy_low
             delta_quat = matrix_to_quaternion(euler_angles_to_matrix(rpy, convention="XYZ"))
             xyz_low = torch.tensor(xyz_range[0], device=self.device, dtype=torch.float32)
             xyz_high = torch.tensor(xyz_range[1], device=self.device, dtype=torch.float32)
