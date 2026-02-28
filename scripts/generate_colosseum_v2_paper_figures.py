@@ -78,13 +78,37 @@ DISTRACTION_SET_DISPLAY_NAMES = {
     "language": "Language",
 }
 
+VISION_DISTRACTION_SETS = [
+    "MO_color",
+    "RO_color",
+    "MO_texture",
+    "RO_texture",
+    "table_color",
+    "light_color",
+    "table_texture",
+    "distractor_object",
+    "background_texture",
+    "background_color",
+    "camera_pose",
+]
+LANGUAGE_DISTRACTION_SETS = [
+    "language"
+]
+ACTION_DISTRACTION_SETS = [
+    "MO_size",
+    "RO_size",
+    "MO_mass",
+]
+assert len(VISION_DISTRACTION_SETS) + len(ACTION_DISTRACTION_SETS) + len(LANGUAGE_DISTRACTION_SETS) == len(DISTRACTION_SETS) - 2
+# ^ 2 not included are 'none' and 'all'
+
+
 
 # Don't count tasks with none success rate below this threshold
 LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING = 10
 
 
-def generate_mean_change_figure(result_csvs: List[str], model_names: List[str], output_dir: str):
-
+def calculate_mean_changes_from_none(result_csvs: List[str], model_names: List[str]):
     mean_changes_from_none = {
         name: {} for name in model_names
     }
@@ -135,6 +159,70 @@ def generate_mean_change_figure(result_csvs: List[str], model_names: List[str], 
                 change = success_rates[task][ds] - base
                 all_changes.append(change)
             mean_changes_from_none[model_name][ds] = float(np.mean(all_changes)) if all_changes else 0.0
+    return mean_changes_from_none
+
+
+def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: List[str], output_dir: str):
+    n_models = len(model_names)
+
+    # Compute per-model means clumped by modality.
+    mean_clumped_changes: Dict[str, Dict[str, float]] = {
+        model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+    }
+    for model in model_names:
+        mean_changes = mean_changes_from_none.get(model, {})
+        
+        vision_vals = []
+        action_vals = []
+        language_vals = []
+        for ds in VISION_DISTRACTION_SETS:
+            vision_vals.append(float(mean_changes[ds]))
+        for ds in ACTION_DISTRACTION_SETS:
+            action_vals.append(float(mean_changes[ds]))
+        for ds in LANGUAGE_DISTRACTION_SETS:
+            language_vals.append(float(mean_changes[ds]))
+
+        mean_clumped_changes[model]["vision"] = float(np.mean(vision_vals)) if vision_vals else 0.0
+        mean_clumped_changes[model]["action"] = float(np.mean(action_vals)) if action_vals else 0.0
+        mean_clumped_changes[model]["language"] = float(np.mean(language_vals)) if language_vals else 0.0
+
+    # Plot grouped barchart (matches style of generate_mean_change_figure).
+    categories = ["vision", "language", "action"]
+    display = {"vision": "Vision", "action": "Action", "language": "Language"}
+    values = [[mean_clumped_changes[model][c] for c in categories] for model in model_names]
+
+    x = range(len(categories))
+    bar_width = 0.8 / n_models if n_models > 0 else 0.8
+
+    plt.figure(figsize=(10, 6))
+    for i, model in enumerate(model_names):
+        plt.bar(
+            [xx + (i - n_models / 2) * bar_width + bar_width / 2 for xx in x],
+            values[i],
+            width=bar_width,
+            label=model,
+        )
+
+    fontsize = 13
+    plt.xticks(
+        list(x),
+        [display[c] for c in categories],
+        rotation=0,
+        ha="center",
+        fontsize=fontsize,
+    )
+    plt.ylabel("Mean Change\nin Success Rate", fontsize=fontsize)
+    plt.legend(fontsize=fontsize)
+    plt.tight_layout()
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "mean_change_clumped_barchart.png")
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Saved clumped mean change barchart to {save_path}")
+
+
+def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: List[str], output_dir: str):
 
     # Plotting barchart
     distraction_sets = list(DISTRACTION_SETS)
@@ -184,4 +272,6 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=str, required=True)
     args = parser.parse_args()
 
-    generate_mean_change_figure(args.result_csvs, args.model_names, args.output_dir)
+    mean_changes_from_none = calculate_mean_changes_from_none(args.result_csvs, args.model_names)
+    generate_mean_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
+    generate_clumped_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
