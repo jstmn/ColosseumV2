@@ -39,8 +39,8 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (single arm)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "language" \
-    --env-id "RaiseCube-v1" \
+    --distraction-set "none" \
+    --env-id "PlaceCubeInDrawer-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
     --sim-backend "physx_cuda" \
@@ -54,8 +54,8 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (bimanual)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
-    --distraction-set "all" \
-    --env-id "DualArmPickCube-v1" \
+    --distraction-set "table_texture" \
+    --env-id "DualArmLiftTray-v1" \
     --control-mode "pd_joint_pos" \
     --no-include-depth \
     --sim-backend "physx_cuda" \

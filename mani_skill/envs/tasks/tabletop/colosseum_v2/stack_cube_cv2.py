@@ -33,8 +33,6 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
     # Problem is underspecified if the cubes visual appearance is randomized
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
-        MO_color=True,
-        MO_texture=True,
         RO_texture=True,
         RO_color=True,
     )

@@ -13,7 +13,7 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
 
 CABINET_COLLISION_BIT = 29
 
@@ -44,11 +44,14 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
 
     CUBE_HALF_SIZE = 0.035
 
-    DISABLED_VARIATION_FACTORS = [
-        "MO_color",
-        "MO_texture",
-        "MO_mass",
-    ]
+    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+        MO_color=True,
+        MO_texture=True,
+        MO_mass=True,
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
 
     def __init__(
         self,
