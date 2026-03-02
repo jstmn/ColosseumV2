@@ -32,8 +32,8 @@ DualArmDrawerPlace,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,0.0,0.0,0.0,0.0,0.0
 
 # Example usage:
 python scripts/generate_colosseum_v2_paper_figures.py \
-    --result-csvs logs/results_bimanual.results.csv logs/results_single_arm.results.csv \
-    --model-names "ACT - Bimanual" "ACT - Single Arm" \
+    --result-csvs logs/results_bimanual.results.csv logs/results_single_arm.results.csv logs/results_single_arm_pi05.results.csv logs/results_bimanual_pi05.results.csv \
+    --model-names "ACT - Bimanual" "ACT - Single Arm" "Pi.0.5 - Single Arm" "Pi.0.5 - Bimanual" \
     --output-dir logs/
 """
 
@@ -194,7 +194,7 @@ def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, f
     x = range(len(categories))
     bar_width = 0.8 / n_models if n_models > 0 else 0.8
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 3))
     for i, model in enumerate(model_names):
         plt.bar(
             [xx + (i - n_models / 2) * bar_width + bar_width / 2 for xx in x],
