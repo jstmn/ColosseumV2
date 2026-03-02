@@ -11,8 +11,9 @@ from mani_skill.envs.tasks.tabletop.colosseum_v2.raise_cube import RaiseCubeEnv
 This script measures maniskill's FPS for difference batch sizes.
 
 # Example usage:
-python scripts/generate_colosseum_v2_runtime_results.py \
-    --results_filepath "logs/maniskill_fps.csv" --batch_sizes 1 2 4 8 16 32 64 128 256 512 1024 2048 4096
+python scripts/generate_colosseum_v2_maniskill_runtime_results.py \
+    --results_filepath "logs/fps/maniskill_fps.csv" --batch_sizes 1 2 3 4 5 6 7 8 9 10 20 30 40 50 100 250 500 750 1000 1250 1500 1750 2000 2250 2500 2750 3000
+
 """
 
 
@@ -34,10 +35,9 @@ def measure_runtime_fps(results_filepath: str, batch_sizes: list[int], env_id: s
             _env_id=env_id
         )
         obs, _ = env.reset()
-        print(obs["sensor_data"]["base_camera"].keys())
-        assert obs
+        assert obs["sensor_data"]["base_camera"]["rgb"].shape == (batch_size, 128, 128, 3)
         t0 = time()
-        n_steps = 100
+        n_steps = 25
         for _ in range(n_steps):
             env.step(env.action_space.sample())
         t1 = time()
