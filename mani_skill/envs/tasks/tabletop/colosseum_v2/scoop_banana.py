@@ -63,6 +63,9 @@ class ScoopBananaEnv(ColosseumV2Env):
             CameraConfig(
                 "base_camera",
                 pose=pose,
+                # width=600,
+                # height=600,
+                # shader_pack="rt",
                 width=128,
                 height=128,
                 fov=np.pi / 2,

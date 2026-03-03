@@ -50,6 +50,7 @@ conda activate maniskill_jm
 # ============================================================
 
 
+NOW=$(date +%H:%M:%S)
 
 while true; do
     python examples/baselines/act_clip/eval_rgbd.py \
@@ -60,7 +61,7 @@ while true; do
         --is-multi-task True \
         --target-num-cams 1 \
         --num-eval-episodes 200 \
-        --num-eval-envs 50 \
+        --num-eval-envs 20 \
         --max-episode-steps 350 \
         --internal-instruction \
         --distraction-set "BLANK" \
@@ -74,7 +75,7 @@ while true; do
         --is-multi-task True \
         --target-num-cams 1 \
         --num-eval-episodes 200 \
-        --num-eval-envs 50 \
+        --num-eval-envs 14 \
         --max-episode-steps 850 \
         --internal-instruction \
         --distraction-set "BLANK" \
@@ -107,9 +108,9 @@ while true; do
     #     --num-eval-episodes 5 \
     #     --num-eval-envs 5 \
     #     --max-episode-steps 5 \
-    #     --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     #     --internal-instruction \
     #     --distraction-set "BLANK" \
     #     --capture-video \
-    #     --results-path logs/results_bimanual_VIDEOS_${NOW}.csv
+    #     --results-path logs/results_bimanual.csv
+        # --results-path logs/results_bimanual_VIDEOS_${NOW}.csv
 done

@@ -53,6 +53,9 @@ class TwoRobotStack3Cube(ColosseumV2Env):
             CameraConfig(
                 "base_camera",
                 pose=pose,
+                # shader_pack="rt",
+                # width=600,
+                # height=600,
                 width=128,
                 height=128,
                 fov=np.pi / 3,

@@ -17,6 +17,8 @@ Key behavior:
 
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm.csv logs/4090/results_single_arm.csv
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual.csv logs/4090/results_bimanual.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm_pi05.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual_pi05.csv
 """
 
 import argparse

@@ -17,7 +17,7 @@ import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solvePickLightbulbPlaceSocket, solvePlaceAppleOnPlate, solveCookItemInPan, solvePickBananaFromOpenDrawer,solvePlaceDishInRack,solvePickDishFromRack,solvePourSphere, solveHammerNail, solveOpenCabinet, solveObjectInCabinet, solvePickCubeFromDrawer, solvePlaceCubeInDrawer
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
@@ -46,22 +46,23 @@ MP_SOLUTIONS = {
     "PickSodaFromCabinet-v1": solvePickSodaFromCabinet,
     "RotateArrow-v1": solveRotateArrow,
     "ScoopBanana-v1": solveScoopBanana,
-    "PickBananaFromOpenDrawer-v1": solvePickBananaFromOpenDrawer,    # new
-    "PickCubeFromDrawer-v1": solvePickCubeFromDrawer,              # new
-    "PickLightbulbPlaceSocket-v1": solvePickLightbulbPlaceSocket, #new
-    "PlaceAppleOnPlate-v1": solvePlaceAppleOnPlate, # new
     "CookItemInPan-v1": solveCookItemInPan,
     "PlaceDishInRack-v1": solvePlaceDishInRack, # new
     "PickDishFromRack-v1": solvePickDishFromRack, # new
-    "PourSphere-v1": solvePourSphere, # new
     "PegInsertionSideColosseumV2-v1": solvePegInsertionSide, # new
     "PlugChargerColosseumV2-v1": solvePlugCharger, # new
     "HammerNail-v1": solveHammerNail,
     "OpenCabinet-v1": solveOpenCabinet,
-    "ObjectInCabinet-v1": solveObjectInCabinet,
     "PlaceCubeInDrawer-v1": solvePlaceCubeInDrawer,
     "StackCubeColosseumV2-v1": solveStackCube,
     "LiftPegUprightColosseumV2-v1": solveLiftPegUpright,
+    # "PourSphere-v1": solvePourSphere, # new
+    # "PickBananaFromOpenDrawer-v1": solvePickBananaFromOpenDrawer,    # new
+    # "PickCubeFromDrawer-v1": solvePickCubeFromDrawer,              # new
+    # "PickLightbulbPlaceSocket-v1": solvePickLightbulbPlaceSocket, #new
+    # "PlaceAppleOnPlate-v1": solvePlaceAppleOnPlate, # new
+    # "ObjectInCabinet-v1": solveObjectInCabinet,
+    # 
     # Bimanual
     "DualArmPickCube-v1": solveBimanualPassCube,
     "DualArmLiftPot-v1": solveBimanualLiftPot,
@@ -173,7 +174,8 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             human_render_camera_configs=dict(shader_pack=args.shader),
             viewer_camera_configs=dict(shader_pack=args.shader),
             sim_backend=args.sim_backend,
-            distraction_set=distraction_set
+            distraction_set=distraction_set,
+            _env_id=env_id
         )
     except TypeError as e:
         assert "got an unexpected keyword argument 'distraction_set'" in str(e)

@@ -65,7 +65,7 @@ The h5 file format is:
 python scripts/extract_h5_images.py --h5-file demos/RaiseCube-v1/motionplanning/trajectory.h5
 """
 
-def save_h5_images(h5_file_path: str):
+def save_h5_images(h5_file_path: str, first_n: int | None = None, prefix: str = ""):
     with h5py.File(h5_file_path, 'r') as f:
 
         # First, create the save directories
@@ -85,12 +85,18 @@ def save_h5_images(h5_file_path: str):
             for camera_name in sensor_data.keys():
                 rgbs = sensor_data[camera_name]['rgb']
                 for i, rgb in enumerate(rgbs):
-                    image_path = save_dirs[camera_name] / f"{traj_key}___{i:03d}.png"
+                    image_path = save_dirs[camera_name] / f"{prefix}{traj_key}___{i:03d}.png"
                     rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(str(image_path), rgb)
+                    print(f"Saved image to {image_path}")
+                    if first_n is not None and i > first_n:
+                        break
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--h5-file", type=str, required=True)
+    parser.add_argument("--first-n", type=int, required=False, default=None)
+    parser.add_argument("--prefix", type=str, required=False, default="")
     args = parser.parse_args()
-    save_h5_images(args.h5_file)
+    assert os.path.exists(args.h5_file), f"H5 file {args.h5_file} does not exist"
+    save_h5_images(args.h5_file, args.first_n, args.prefix)
