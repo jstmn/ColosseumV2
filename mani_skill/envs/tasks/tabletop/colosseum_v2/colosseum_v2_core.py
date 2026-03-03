@@ -60,6 +60,29 @@ class DisabledVariationFactors:
         return [k for k, v in self.__dict__.items() if v]
 
 
+@dataclass
+class PlacementRegion:
+    """
+    Stores the variation factor.
+    """
+    x_lims: tuple[float, float]
+    y_lims: tuple[float, float]
+
+
+    @property
+    def width_x(self) -> float:
+        return self.x_lims[1] - self.x_lims[0]
+    
+    @property
+    def width_y(self) -> float:
+        return self.y_lims[1] - self.y_lims[0]
+
+    def to_bounds(self) -> tuple[list[float], list[float]]:
+        """ Follows the convention of UniformPlacementSampler: ((low1, low2, ...), (high1, high2, ...))
+        """
+        return ([self.x_lims[0], self.y_lims[0]], [self.x_lims[1], self.y_lims[1]])
+
+
 def _warn_or_raise_if_shared_materials(objs: list, actor_name: str, *, set_color: bool, set_texture: bool):
     """
     Heuristic guard for a common domain-randomization footgun:
@@ -335,7 +358,7 @@ class ColosseumV2Env(BaseEnv):
         if not self._ds.camera_pose_enabled():
             return cfgs
 
-        rpy_range = self._ds.camera_pose_cfg["rpy_range"]
+        rpy_lims = self._ds.camera_pose_cfg["rpy_lims"]
         xyz_range = self._ds.camera_pose_cfg["xyz_range"]
 
         for cfg in cfgs:
@@ -733,16 +756,16 @@ class ColosseumV2Env(BaseEnv):
 
             x_lims = self._ds.distractor_object_cfg["x_lims"]
             y_lims = self._ds.distractor_object_cfg["y_lims"]
-            x_range = x_lims[1] - x_lims[0]
-            y_range = y_lims[1] - y_lims[0]
+            x_lims = x_lims[1] - x_lims[0]
+            y_lims = y_lims[1] - y_lims[0]
 
 
             for i in range(self._ds.distractor_object_cfg["n_distractors"]):
                 # What happens if you set the poses such that the objs collide with one another?
                 # for i, obj in enumerate(self._ds._internal["distractor_object_cfg"]["obj_actors"]):
                 xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
-                xyz[:, 0] = x_range * xyz[:, 0] + x_lims[0]
-                xyz[:, 1] = y_range * xyz[:, 1] + y_lims[0]
+                xyz[:, 0] = x_lims * xyz[:, 0] + x_lims[0]
+                xyz[:, 1] = y_lims * xyz[:, 1] + y_lims[0]
                 xyz[:, 2] = 0.25 # 
                 if mo_pose is not None:
                     if isinstance(mo_pose, torch.Tensor):
@@ -769,3 +792,25 @@ class ColosseumV2Env(BaseEnv):
                 random.choice(self._language_randomizations[self._env_id]) for _ in range(len(language_instructions))
             ]
         return language_instructions
+
+    
+    def update_placement_region(self, region: PlacementRegion):
+        """
+        Updates the default placement regions if 
+        Args:
+            placement_region (PlacementRegion): The placement region to update.
+        """
+        if self._ds.pose_randomization_enabled():
+            x_region_multiplier = self._ds.pose_randomization_cfg["x_region_multiplier"]
+            y_region_multiplier = self._ds.pose_randomization_cfg["y_region_multiplier"]
+            print("\nCurrent region: ", region)
+            center_x = (region.x_lims[0] + region.x_lims[1]) / 2
+            center_y = (region.y_lims[0] + region.y_lims[1]) / 2
+            width_x = (region.x_lims[1] - region.x_lims[0])
+            width_y = (region.y_lims[1] - region.y_lims[0])
+            new_width_x = width_x * x_region_multiplier
+            new_width_y = width_y * y_region_multiplier
+            region.x_lims = (center_x - (new_width_x/2), center_x + (new_width_x/2))
+            region.y_lims = (center_y - (new_width_y/2), center_y + (new_width_y/2))
+            print("Updated: ", region)
+        return region

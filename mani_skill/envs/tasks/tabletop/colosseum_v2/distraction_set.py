@@ -66,6 +66,7 @@ class DistractionSet:
     camera_pose_cfg: dict = field(default_factory=dict)
     MO_mass_cfg: dict = field(default_factory=dict)
     language_cfg: dict = field(default_factory=dict)
+    pose_randomization_cfg: dict = field(default_factory=dict)
 
     unimplemented = {}
 
@@ -158,6 +159,9 @@ class DistractionSet:
 
     def language_enabled(self) -> bool:
         return len(self.language_cfg) > 0
+    
+    def pose_randomization_enabled(self) -> bool:
+        return len(self.pose_randomization_cfg) > 0
 
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
@@ -201,6 +205,7 @@ class DistractionSet:
             "camera_pose_cfg",
             "MO_mass_cfg",
             "language_cfg",
+            "pose_randomization_cfg",
         ]:
             self._internal[key] = {}
 
@@ -261,6 +266,7 @@ all_distractor_set = DistractionSet(
     # ^ this works but makes it hard to see the color of the objects
     background_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     background_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),},
+    pose_randomization_cfg = {"x_region_multiplier": 1.5, "y_region_multiplier": 1.5}
 )
 
 DISTRACTION_SETS = {
@@ -289,4 +295,6 @@ DISTRACTION_SETS = {
     "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
     # 
     "language".upper(): all_distractor_set.get_partial_copy(["language_cfg"]),
+    # Pose randomization
+    "pose_randomization".upper(): all_distractor_set.get_partial_copy(["pose_randomization_cfg"]),
 }
