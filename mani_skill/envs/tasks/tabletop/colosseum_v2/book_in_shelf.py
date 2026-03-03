@@ -79,7 +79,7 @@ class PlaceBookEnv(ColosseumV2Env):
                 glb_filepath=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
                 object_type="MO",
             )
-        
+
         self.shelf = self.add_asset_to_scene(get_shelf_builder, name="shelf", physics_type="kinematic", object_type="RO")
         self.book_A = self.add_asset_to_scene(get_book_builder, name="book_A", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.book_A], receiving_objects=[self.shelf])

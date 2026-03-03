@@ -69,10 +69,17 @@ class PlacementRegion:
     y_lims: tuple[float, float]
 
 
+    @staticmethod
+    def from_center_and_width(center: tuple[float, float], width: tuple[float, float]) -> "PlacementRegion":
+        return PlacementRegion(
+            x_lims=(center[0] - width[0] / 2, center[0] + width[0] / 2),
+            y_lims=(center[1] - width[1] / 2, center[1] + width[1] / 2),
+        )
+
     @property
     def width_x(self) -> float:
         return self.x_lims[1] - self.x_lims[0]
-    
+
     @property
     def width_y(self) -> float:
         return self.y_lims[1] - self.y_lims[0]
@@ -82,6 +89,15 @@ class PlacementRegion:
         """
         return ([self.x_lims[0], self.y_lims[0]], [self.x_lims[1], self.y_lims[1]])
 
+    def sample_xy(self, b: int, device: torch.device) -> torch.Tensor:
+        rand = (2*torch.rand((b, 2), device=device)) - 1
+        rand[:, 0] *= self.width_x / 2
+        rand[:, 1] *= self.width_y / 2
+        center = torch.tensor(
+            [(self.x_lims[0] + self.x_lims[1]) * 0.5, (self.y_lims[0] + self.y_lims[1]) * 0.5],
+            device=device,
+        )
+        return rand + center
 
 def _warn_or_raise_if_shared_materials(objs: list, actor_name: str, *, set_color: bool, set_texture: bool):
     """
