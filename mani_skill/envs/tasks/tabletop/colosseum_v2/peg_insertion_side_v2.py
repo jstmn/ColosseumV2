@@ -1,20 +1,18 @@
-from typing import Any, Union
+from typing import Union
 
 import numpy as np
 import sapien
 import torch
 
 from mani_skill.agents.robots.panda import PandaWristCam
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.scene import ManiSkillScene
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.utils.structs import Actor, Pose
+from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 def _build_box_with_hole(
     scene: ManiSkillScene, inner_radius, outer_radius, depth, center=(0, 0)
@@ -203,6 +201,20 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
             self.box = self.add_asset_to_scene(get_box_builder, name="box_with_hole", physics_type="kinematic", object_type="RO")
             self.load_scene_hook(manipulation_objects=[self.peg], receiving_objects=[self.box])
 
+            self._box_region = self.update_placement_region(
+                # xy = randomization.uniform(low=torch.tensor([-0.1, -0.3]), high=torch.tensor([0.1, 0]), size=(b, 2))
+                # ^ ground truth
+                PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.3, 0.0))
+            )
+            self._peg_region = self.update_placement_region(
+                # xy = randomization.uniform(
+                #     low=torch.tensor([-0.05, 0.2]),
+                #     high=torch.tensor([0.05, 0.4]),
+                #     size=(b, 2),
+                # )
+                # ^ ground truth
+                PlacementRegion(x_lims=(-0.05, 0.05), y_lims=(0.2, 0.4))
+            )
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -210,11 +222,11 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
             b = len(env_idx)
 
             # initialize the box and peg
-            xy = randomization.uniform(
-                low=torch.tensor([-0.1, -0.3]), high=torch.tensor([0.1, 0]), size=(b, 2)
-            )
+            # xy = randomization.uniform(
+            #     low=torch.tensor([-0.1, -0.3]), high=torch.tensor([0.1, 0]), size=(b, 2)
+            # )
             pos = torch.zeros((b, 3))
-            pos[:, :2] = xy
+            pos[:, :2] = self._box_region.sample_xy(b, device=self.device)
             pos[:, 2] = self.peg_half_sizes[env_idx, 2]
             quat = randomization.random_quaternions(
                 b,
@@ -224,14 +236,14 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
                 bounds=(np.pi / 2 - np.pi / 3, np.pi / 2 + np.pi / 3),
             )
             self.peg.set_pose(Pose.create_from_pq(pos, quat))
-
-            xy = randomization.uniform(
-                low=torch.tensor([-0.05, 0.2]),
-                high=torch.tensor([0.05, 0.4]),
-                size=(b, 2),
-            )
             pos = torch.zeros((b, 3))
-            pos[:, :2] = xy
+
+            # xy = randomization.uniform(
+            #     low=torch.tensor([-0.05, 0.2]),
+            #     high=torch.tensor([0.05, 0.4]),
+            #     size=(b, 2),
+            # )
+            pos[:, :2] = self._peg_region.sample_xy(b, device=self.device)
             pos[:, 2] = self.peg_half_sizes[env_idx, 0]
             quat = randomization.random_quaternions(
                 b,

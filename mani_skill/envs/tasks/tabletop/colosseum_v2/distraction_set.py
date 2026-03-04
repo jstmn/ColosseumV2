@@ -266,7 +266,7 @@ all_distractor_set = DistractionSet(
     # ^ this works but makes it hard to see the color of the objects
     background_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     background_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),},
-    pose_randomization_cfg = {"x_region_multiplier": 3.5, "y_region_multiplier": 3.5}
+    pose_randomization_cfg = {"x_region_multiplier": 1.25, "y_region_multiplier": 1.25, "min_width_x": 0.1, "min_width_y": 0.1}
 )
 
 DISTRACTION_SETS = {

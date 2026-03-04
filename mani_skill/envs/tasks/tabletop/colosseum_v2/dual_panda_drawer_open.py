@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.articulation import Articulation
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 @register_env("DualArmDrawerOpen-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
@@ -78,13 +78,16 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
         assert isinstance(self.open_cabinet, Articulation), "open_cabinet must be an articulation"
 
         self.load_scene_hook(manipulation_objects=[self.open_cabinet])
-        
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
+            # xyz = torch.zeros((b, 3), device=self.device)
+            # xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 + 0.1
+            # xyz[..., 0] += 0.2
             xyz = torch.zeros((b, 3), device=self.device)
-            xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 + 0.1
-            xyz[..., 0] += 0.2
+            drawer_region = self.update_placement_region(PlacementRegion.from_center_and_width(center=(0.2, 0.0), width=(0.2, 0.2)))
+            xyz[..., :2] = drawer_region.sample_xy(b, device=self.device)
             xyz[..., 2] = 0.456 + 0.8
             theta_by_2 = torch.rand(b, device=self.device) * np.pi / 16 - np.pi / 32
             dof_tensor = self.open_cabinet.dof
@@ -92,7 +95,7 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
                 dof = int(dof_tensor.flatten()[0].cpu().item())
             else:
                 dof = int(dof_tensor)
-                
+
             # Vectorized pose setting
             cos_vals = torch.cos(theta_by_2)
             sin_vals = torch.sin(theta_by_2)

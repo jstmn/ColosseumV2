@@ -49,8 +49,6 @@ class PlaceBookEnv(ColosseumV2Env):
         self._book_to_shelf_padding = 0.0
         # ^ this is the distance from the origin of the shelf to the furthest negative x-axis of the shelf
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-        self._book_region = self.update_placement_region(self.DEFAULT_BOOK_REGION)
-        self._shelf_region = self.update_placement_region(self.DEFAULT_SHELF_REGION)
 
     @property
     def _default_sensor_configs(self):
@@ -67,6 +65,9 @@ class PlaceBookEnv(ColosseumV2Env):
 
 
     def _load_scene(self, options: dict):
+
+        self._book_region = self.update_placement_region(self.DEFAULT_BOOK_REGION)
+        self._shelf_region = self.update_placement_region(self.DEFAULT_SHELF_REGION)
 
         def get_shelf_builder():
             return self.get_glb_asset_builder(
@@ -92,8 +93,10 @@ class PlaceBookEnv(ColosseumV2Env):
             book_xyz = torch.zeros((b, 3))
             book_xyz[:, 2] = 0.089
             sampler = randomization.UniformPlacementSampler(bounds=self._book_region.to_bounds(), batch_size=b, device=self.device)
-            radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
+            # radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
+            radius = 0.125
             bookA_xy = sampler.sample(radius, max_trials=100)
+            # ^ I don't think this does anything, because 'fixture_positions' is not set
 
             book_xyz[:, :2] = bookA_xy
             self.book_A.set_pose(Pose.create_from_pq(p=book_xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
@@ -107,11 +110,11 @@ class PlaceBookEnv(ColosseumV2Env):
 
             self.initialize_episode_hook(env_idx, mo_pose=book_xyz)
         self._initialize_agent()
-        
+
     def _initialize_agent(self):
         qpos = np.array([-0.816, 0.109, 0.437, -3.005, 2.678, 1.626, -2.312, 0.04, 0.04])
         self.agent.reset(qpos)
-        
+
     def evaluate(self):
         pos_shelf = self.shelf.pose.p
         pos_book = self.book_A.pose.p

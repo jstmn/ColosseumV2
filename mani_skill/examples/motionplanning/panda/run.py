@@ -80,6 +80,8 @@ MP_SOLUTIONS = {
 
 """
 # Colosseum v2 single-arm tasks
+ENV_ID="PlaceBookInShelf-v1"
+ENV_ID="CookItemInPan-v1"
 ENV_ID="PickSodaFromCabinet-v1"
 ENV_ID="PickDishFromRack-v1"
 ENV_ID="StackCubeColosseumV2-v1"
@@ -93,10 +95,10 @@ ENV_ID="ScoopBanana-v1"
 ENV_ID="OpenDrawer-v1"
 ENV_ID="OpenCabinet-v1"
 ENV_ID="PlaceCubeInDrawer-v1"
-ENV_ID="PlaceBookInShelf-v1"
-ENV_ID="CookItemInPan-v1"
+ENV_ID="RaiseCube-v1"
 
 # Colosseum v2 bimanual tasks
+ENV_ID="DualArmDrawerOpen-v1"
 ENV_ID="DualArmPickCube-v1"
 ENV_ID="DualArmPickBottle-v1"
 ENV_ID="DualArmLiftPot-v1"
@@ -106,24 +108,23 @@ ENV_ID="DualArmPourPot-v1"
 ENV_ID="DualArmThreading-v1"
 ENV_ID="DualArmPenCap-v1"
 ENV_ID="DualArmDrawerPlace-v1"
-ENV_ID="DualArmDrawerOpen-v1"
 ENV_ID="DualArmStackCube-v1"
 ENV_ID="DualArmStack3Cube-v1"
-ENV_ID="RaiseCube-v1"
 
 
 #DISTRACTION_SET=all
+DISTRACTION_SET=none
 DISTRACTION_SET=pose_randomization
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
-    --num-traj 100 \
+    --num-traj 10 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 2 \
+    --num-procs 1 \
     --obs-mode "rgb" \
-    --reward-mode "sparse" \
+    --reward-mode "none" \
     --random-seed \
     --only-count-success \
     --traj-name "trajectory" --vis \

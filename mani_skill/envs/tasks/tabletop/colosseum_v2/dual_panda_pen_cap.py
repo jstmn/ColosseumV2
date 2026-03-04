@@ -15,7 +15,8 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+
 
 # 1. Define the Empty Environment
 @register_env("DualArmPenCap-v1", max_episode_steps=1000)
@@ -76,18 +77,33 @@ class DualArmPenCapEnv(ColosseumV2Env):
         self.pen = self.add_asset_to_scene(pen_builder_fn, name="pen", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.pen], receiving_objects=[self.cap])
 
+        # Placement regions
+        self._cap_region = self.update_placement_region(
+            # Ground-truth from the legacy sampling: -torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # => x,y in [-0.4, -0.1]
+            PlacementRegion(x_lims=(-0.4, -0.1), y_lims=(-0.4, -0.1))
+        )
+        self._pen_region = self.update_placement_region(
+            # Ground-truth from the legacy sampling: torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # => x,y in [-0.1, 0.2]
+            PlacementRegion(x_lims=(-0.1, 0.2), y_lims=(-0.1, 0.2))
+        )
+
+
         
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             cap_xyz = torch.zeros((b, 3), device=self.device)
-            cap_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # cap_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            cap_xyz[..., :2] = self._cap_region.sample_xy(b, device=self.device)
             cap_xyz[..., 2] = 0.84
             q = [0, 0, 0.707, 0.707]
             self.cap.set_pose(Pose.create_from_pq(p=cap_xyz, q=q))
             
             pen_xyz = torch.zeros((b, 3), device=self.device)
-            pen_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # pen_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            pen_xyz[..., :2] = self._pen_region.sample_xy(b, device=self.device)
             pen_xyz[..., 2] = 0.84
             q = [0, 0, 0.707, 0.707]
             self.pen.set_pose(Pose.create_from_pq(p=pen_xyz, q=q))

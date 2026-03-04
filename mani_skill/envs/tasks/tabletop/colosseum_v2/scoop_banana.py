@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Union
 import os
 import numpy as np
 import sapien
@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 @register_env("ScoopBanana-v1", max_episode_steps=100)
 class ScoopBananaEnv(ColosseumV2Env):
@@ -111,13 +111,20 @@ class ScoopBananaEnv(ColosseumV2Env):
         self.wall = self.add_asset_to_scene(wall_builder, name="wall", physics_type="kinematic", object_type="BACKGROUND")
         self.load_scene_hook(manipulation_objects=[self.dustpan], receiving_objects=[self.banana])
 
+        self._tool_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # tool_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # => x,y in [-0.3, -0.1]
+            PlacementRegion.from_center_and_width(center=(-0.2, -0.2), width=(0.2, 0.2))
+        )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
 
             tool_xyz = torch.zeros((b, 3), device=self.device)
-            tool_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # tool_xyz[..., :2] = -torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            tool_xyz[..., :2] = self._tool_region.sample_xy(b, device=self.device)
             tool_xyz[..., 2] = 0.015
             tool_q = torch.tensor([0.559, 0.464, 0.439, 0.529], device=self.device).expand(b, 4)
 

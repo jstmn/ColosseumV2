@@ -1,5 +1,3 @@
-from typing import Union
-
 import numpy as np
 import sapien
 import torch
@@ -8,12 +6,12 @@ from transforms3d.euler import euler2quat
 from mani_skill.agents.robots import PandaWristCam
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils import common, sapien_utils
+from mani_skill.utils import sapien_utils
 from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 @register_env("PlugChargerColosseumV2-v1", max_episode_steps=200)
@@ -43,7 +41,7 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
 
 
     SUPPORTED_ROBOTS = ["panda_wristcam"]
-    agent: Union[PandaWristCam]
+    agent: PandaWristCam
     SUPPORTED_REWARD_MODES = ["none", "sparse"]
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
@@ -188,6 +186,13 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
         self.receptacle = self.add_asset_to_scene(get_receptacle_builder, name="receptacle", physics_type="kinematic", object_type="RO")
         self.load_scene_hook(manipulation_objects=[self.charger], receiving_objects=[self.receptacle])
 
+        self._charger_region = self.update_placement_region(
+            # xy = randomization.uniform(
+            #     [-0.1, -0.2], [-0.01 - self._peg_size[0] * 2, 0.2], size=(b, 2)
+            # )
+            PlacementRegion(x_lims=(-0.1, -0.01 - self._peg_size[0] * 2), y_lims=(-0.2, 0.2))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
@@ -221,11 +226,10 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
                 self.agent.robot.set_pose(sapien.Pose([-0.615, 0, 0]))
 
             # Initialize charger
-            xy = randomization.uniform(
-                [-0.1, -0.2], [-0.01 - self._peg_size[0] * 2, 0.2], size=(b, 2)
-            )
             pos = torch.zeros((b, 3))
-            pos[:, :2] = xy
+            # xy = randomization.uniform[-0.1, -0.2], [-0.01 - self._peg_size[0] * 2, 0.2], size=(b, 2))
+            # pos[:, :2] = xy
+            pos[:, :2] = self._charger_region.sample_xy(b, device=self.device)
             pos[:, 2] = self._base_size[2]
             ori = randomization.random_quaternions(
                 n=b, lock_x=True, lock_y=True, bounds=(-torch.pi / 3, torch.pi / 3)
@@ -249,6 +253,8 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
                 sapien.Pose(q=euler2quat(0, 0, np.pi))
             )
             self.initialize_episode_hook(env_idx, mo_pose=self.charger.pose, ro_pose=self.receptacle.pose)
+
+
 
     @property
     def charger_base_pose(self):

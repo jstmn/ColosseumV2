@@ -55,6 +55,7 @@ class DisabledVariationFactors:
     background_texture: bool = False
     background_color: bool = False
     camera_pose: bool = False
+    pose_randomization: bool = False
 
     def to_list(self):
         return [k for k, v in self.__dict__.items() if v]
@@ -63,14 +64,41 @@ class DisabledVariationFactors:
 @dataclass
 class PlacementRegion:
     """
-    Stores the variation factor.
+    Controls where objects are spawned in the scene.
     """
-    x_lims: tuple[float, float]
-    y_lims: tuple[float, float]
+    x_lims: tuple[float, float] | np.ndarray
+    y_lims: tuple[float, float] | np.ndarray
 
+    def __post_init__(self):
+        assert isinstance(self.x_lims, (tuple, np.ndarray)) and isinstance(self.y_lims, (tuple, np.ndarray)), "x_lims and y_lims must be a tuple or numpy array"
+        if isinstance(self.x_lims, tuple):
+            assert len(self.x_lims) == 2, "x_lims must be a tuple of length 2"
+            assert self.x_lims[0] < self.x_lims[1], "x_lims must be in increasing order"
+        if isinstance(self.y_lims, tuple):
+            assert len(self.y_lims) == 2, "y_lims must be a tuple of length 2"
+            assert self.y_lims[0] < self.y_lims[1], "y_lims must be in increasing order"
+        if isinstance(self.x_lims, np.ndarray):
+            assert self.x_lims.shape == (2,), "x_lims must be a numpy array of shape (2,)"
+            assert self.x_lims[0] < self.x_lims[1], "x_lims must be in increasing order"
+        if isinstance(self.y_lims, np.ndarray):
+            assert self.y_lims.shape == (2,), "y_lims must be a numpy array of shape (2,)"
+            assert self.y_lims[0] < self.y_lims[1], "y_lims must be in increasing order"
 
     @staticmethod
-    def from_center_and_width(center: tuple[float, float], width: tuple[float, float]) -> "PlacementRegion":
+    def from_center_and_width(center: tuple[float, float] | np.ndarray, width: tuple[float, float] | np.ndarray) -> "PlacementRegion":
+        assert isinstance(center, (tuple, np.ndarray)) and isinstance(width, (tuple, np.ndarray)), "center and width must be a tuple or numpy array"
+        if isinstance(center, tuple):
+            assert len(center) == 2, "center must be a tuple of length 2"
+            assert len(width) == 2, "width must be a tuple of length 2"
+        if isinstance(center, np.ndarray):
+            assert center.shape == (2,), "center must be a numpy array of shape (2,)"
+        if isinstance(width, np.ndarray):
+            assert width.shape == (2,), "width must be a numpy array of shape (2,)"
+        assert width[0] >= 0 and width[1] >= 0, "width must be non-negative"
+        if width[0] < 1e-6:
+            width = (1e-6, width[1])
+        if width[1] < 1e-6:
+            width = (width[0], 1e-6)
         return PlacementRegion(
             x_lims=(center[0] - width[0] / 2, center[0] + width[0] / 2),
             y_lims=(center[1] - width[1] / 2, center[1] + width[1] / 2),
@@ -770,18 +798,15 @@ class ColosseumV2Env(BaseEnv):
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():
 
-            x_lims = self._ds.distractor_object_cfg["x_lims"]
-            y_lims = self._ds.distractor_object_cfg["y_lims"]
-            x_lims = x_lims[1] - x_lims[0]
-            y_lims = y_lims[1] - y_lims[0]
-
-
             for i in range(self._ds.distractor_object_cfg["n_distractors"]):
                 # What happens if you set the poses such that the objs collide with one another?
                 # for i, obj in enumerate(self._ds._internal["distractor_object_cfg"]["obj_actors"]):
-                xyz = torch.rand((self.num_envs, 3), dtype=torch.float32)
-                xyz[:, 0] = x_lims * xyz[:, 0] + x_lims[0]
-                xyz[:, 1] = y_lims * xyz[:, 1] + y_lims[0]
+                region = PlacementRegion(
+                    x_lims=tuple(self._ds.distractor_object_cfg["x_lims"]),
+                    y_lims=tuple(self._ds.distractor_object_cfg["y_lims"]),
+                )
+                xyz = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+                xyz[:, :2] = region.sample_xy(self.num_envs, device=self.device)
                 xyz[:, 2] = 0.25 # 
                 if mo_pose is not None:
                     if isinstance(mo_pose, torch.Tensor):
@@ -809,24 +834,31 @@ class ColosseumV2Env(BaseEnv):
             ]
         return language_instructions
 
-    
     def update_placement_region(self, region: PlacementRegion):
         """
         Updates the default placement regions if 
         Args:
             placement_region (PlacementRegion): The placement region to update.
         """
-        if self._ds.pose_randomization_enabled():
-            x_region_multiplier = self._ds.pose_randomization_cfg["x_region_multiplier"]
-            y_region_multiplier = self._ds.pose_randomization_cfg["y_region_multiplier"]
-            print("\nCurrent region: ", region)
-            center_x = (region.x_lims[0] + region.x_lims[1]) / 2
-            center_y = (region.y_lims[0] + region.y_lims[1]) / 2
-            width_x = (region.x_lims[1] - region.x_lims[0])
-            width_y = (region.y_lims[1] - region.y_lims[0])
-            new_width_x = width_x * x_region_multiplier
-            new_width_y = width_y * y_region_multiplier
-            region.x_lims = (center_x - (new_width_x/2), center_x + (new_width_x/2))
-            region.y_lims = (center_y - (new_width_y/2), center_y + (new_width_y/2))
-            print("Updated: ", region)
-        return region
+        if not self._ds.pose_randomization_enabled():
+            return region
+
+        region_cp = PlacementRegion(x_lims=region.x_lims, y_lims=region.y_lims)
+        x_region_multiplier = self._ds.pose_randomization_cfg["x_region_multiplier"]
+        y_region_multiplier = self._ds.pose_randomization_cfg["y_region_multiplier"]
+        center_x = (region.x_lims[0] + region.x_lims[1]) / 2
+        center_y = (region.y_lims[0] + region.y_lims[1]) / 2
+        width_x = (region.x_lims[1] - region.x_lims[0])
+        width_y = (region.y_lims[1] - region.y_lims[0])
+
+        # Set a minumum width
+        if width_x < 1e-6:
+            width_x = self._ds.pose_randomization_cfg["min_width_x"]
+        if width_y < 1e-6:
+            width_y = self._ds.pose_randomization_cfg["min_width_y"]
+
+        new_width_x = width_x * x_region_multiplier
+        new_width_y = width_y * y_region_multiplier
+        region_cp.x_lims = (center_x - (new_width_x/2), center_x + (new_width_x/2))
+        region_cp.y_lims = (center_y - (new_width_y/2), center_y + (new_width_y/2))
+        return region_cp

@@ -13,12 +13,11 @@ from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.utils.building import actors
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 YCB_HAMMER_ID = "048_hammer"
 NAIL_HEIGHT = 0.086
@@ -212,6 +211,19 @@ class HammerNailEnv(ColosseumV2Env):
         self._choose_hammer_orientation()
         self._apply_hammer_z_rotation(-90.0)
         self._update_hammer_rest_height()
+
+        self._hammer_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # hammer_pos = self._hammer_rest_center.to(self.device).unsqueeze(0).repeat(b, 1)
+            # # Add randomization: ±0.03m in X, ±0.03m in Y
+            # hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            # hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            # => x,y are centered at hammer_rest_center with width 0.06
+            PlacementRegion.from_center_and_width(
+                center=(float(self._hammer_rest_center[0]), float(self._hammer_rest_center[1])),
+                width=(0.06, 0.06),
+            )
+        )
 
 
 
@@ -464,39 +476,37 @@ class HammerNailEnv(ColosseumV2Env):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
-            # Use a start pose with gripper closer to hammer position
-            # Arm extended toward hammer location for faster grasping
-            closer_to_hammer_qpos = np.array(
-                [0.2, -0.3, 0.0, -2.0, 0.0, 1.8, 0.78, 0.04, 0.04]
-            )
 
             base_centers = self._nail_rest_centers.to(self.device)
             raise_ranges = self._nail_raise_ranges.to(self.device)
 
             centers = base_centers.unsqueeze(0).repeat(b, 1, 1).clone()
             # Randomize slightly in Y direction (pull nail back a bit from initial position)
-            lift = torch.rand((b, len(self.nails)), device=self.device)
+            lift = torch.rand((b, 1), device=self.device)
             centers[..., 1] = centers[..., 1] - self._nail_dir * lift * raise_ranges.unsqueeze(0)
 
             # Horizontal nail orientation along the selected Y direction
             nail_angle = -90 if self._nail_dir > 0 else 90
             nail_rot = Rotation.from_euler('x', nail_angle, degrees=True).as_quat()  # [x, y, z, w]
-            nail_quat = torch.tensor([nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]],
-                                    device=self.device, dtype=torch.float32).repeat(b, 1)
-
-            for i, nail in enumerate(self.nails):
-                pose = Pose.create_from_pq(
-                    p=centers[:, i, :], q=nail_quat
-                )
-                nail.set_pose(pose)
-                nail.set_linear_velocity(torch.zeros((b, 3), device=self.device))
-                nail.set_angular_velocity(torch.zeros((b, 3), device=self.device))
+            nail_quat = torch.tensor([nail_rot[3], nail_rot[0], nail_rot[1], nail_rot[2]], device=self.device, dtype=torch.float32).repeat(b, 1)
+            nail_pose = Pose.create_from_pq(
+                p=centers[:, 0, :], q=nail_quat
+            )
+            self.nails[0].set_pose(nail_pose)
+            self.nails[0].set_linear_velocity(torch.zeros((b, 3), device=self.device))
+            self.nails[0].set_angular_velocity(torch.zeros((b, 3), device=self.device))
+            # 
 
             # Randomize hammer position
-            hammer_pos = self._hammer_rest_center.to(self.device).unsqueeze(0).repeat(b, 1)
-            # Add randomization: ±0.03m in X, ±0.03m in Y
-            hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
-            hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            # hammer_pos = self._hammer_rest_center.to(self.device).unsqueeze(0).repeat(b, 1)
+            # # Add randomization: ±0.03m in X, ±0.03m in Y
+            # hammer_pos[:, 0] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            # hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
+            hammer_pos = torch.zeros((b, 3), device=self.device)
+            hammer_pos[:, 0:2] = self._hammer_region.sample_xy(b, device=self.device)
+            hammer_pos[:, 2] = self._hammer_rest_center[:, 2].to(self.device).unsqueeze(0).repeat(b, 1)
+
+
             # Randomize hammer yaw (rotation around Z axis) between 0 and 90 degrees
             base_hammer_q = self._hammer_orientation.to(self.device).unsqueeze(0).repeat(b, 1)
             # Random angle between 0 and 90 degrees (0 to pi/2 radians)

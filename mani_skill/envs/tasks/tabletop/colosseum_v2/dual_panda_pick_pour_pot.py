@@ -5,13 +5,12 @@ import torch
 import os
 
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 # 1. Define the Empty Environment
@@ -28,6 +27,11 @@ class DualArmPourPotEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["dual_panda"]
     agent: DualPanda # Type hinting for IDE support
 
+    DisabledVariationFactors = DisabledVariationFactors(
+        RO_color=True,
+        RO_texture=True,
+        RO_size=True,
+    )
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -77,19 +81,24 @@ class DualArmPourPotEnv(ColosseumV2Env):
         self.pot = self.add_asset_to_scene(pot_builder, name="pot", physics_type="dynamic", object_type="MO")
         self.tray = self.add_asset_to_scene(tray_builder, name="tray", physics_type="dynamic", object_type="RO")
         self.load_scene_hook(manipulation_objects=[self.pot], receiving_objects=[self.tray])
-    
-        
+
+        self._pot_region = self.update_placement_region(
+            # Ground-truth from legacy sampling: torch.rand(b, device=self.device) * 0.2 - 0.1
+            PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.1, 0.1))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             pot_xyz = torch.zeros((b, 3), device=self.device)
             pot_xyz[..., 0] = 0.1
-            pot_xyz[..., 1] = torch.rand(b, device=self.device) * 0.2 - 0.1
+            # pot_xyz[..., 1] = torch.rand(b, device=self.device) * 0.2 - 0.1
+            pot_xyz[..., 1] = self._pot_region.sample_xy(b, device=self.device)
             pot_xyz[..., 2] = self.cube_half_size+0.83
-            
+
             pot_q = torch.tensor([0.5, 0.5, 0.5, 0.5], device=self.device).repeat(b, 1)
             self.pot.set_pose(Pose.create_from_pq(p=pot_xyz, q=pot_q))
-            
+
             ball_xyz = pot_xyz.clone()
             ball_xyz[..., 2] = 0.9
             self.ball.set_pose(Pose.create_from_pq(p=ball_xyz,q=[1,0,0,0]))

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import sapien
@@ -12,8 +12,7 @@ from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 CABINET_COLLISION_BIT = 29
 
@@ -39,7 +38,7 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
     """
 
     SUPPORTED_ROBOTS = ["panda"]
-    agent: Union[Panda]
+    agent: Panda
     handle_types = ["prismatic"]  # Drawer joints
 
     CUBE_HALF_SIZE = 0.035
@@ -63,10 +62,10 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 45427  # Same cabinet as PickCubeFromDrawer
 
-        self._cube_x_range = (-0.1, 0.1)
-        self._cube_y_range = (0.4, 0.6)
-        self._cabinet_x_range = (-0.1, 0.1)
-        self._cabinet_y_range = (-0.6, -0.4)
+        self._cube_x_lims = (-0.1, 0.1)
+        self._cube_y_lims = (0.4, 0.6)
+        self._cabinet_x_lims = (-0.1, 0.1)
+        self._cabinet_y_lims = (-0.6, -0.4)
 
         super().__init__(
             *args,
@@ -108,6 +107,14 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
         self.cube = self.add_asset_to_scene(cube_builder, name="cube", physics_type="dynamic", object_type="MO")
 
         self.load_scene_hook(manipulation_objects=[self.cube])
+
+        #
+        self._cube_region = self.update_placement_region(
+            PlacementRegion(x_lims=self._cube_x_lims, y_lims=self._cube_y_lims)
+        )
+        self._cabinet_region = self.update_placement_region(
+            PlacementRegion(x_lims=self._cabinet_x_lims, y_lims=self._cabinet_y_lims)
+        )
 
     def _load_cube(self):
         # Build cube with high friction so it stays in drawer
@@ -237,8 +244,9 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             # Robot is at Y=-0.615, cabinet rotated so drawer faces -Y (towards robot)
             # Swapped: cabinet now on the right side
             cabinet_pos = torch.zeros((b, 3))
-            cabinet_pos[:, 0] = self._cabinet_x_range[0] + (torch.rand(b) - 0.5) * (self._cabinet_x_range[1] - self._cabinet_x_range[0])     # X position (right side)
-            cabinet_pos[:, 1] = self._cabinet_y_range[0] + (torch.rand(b) - 0.5) * (self._cabinet_y_range[1] - self._cabinet_y_range[0])    # Y position
+            # cabinet_pos[:, 0] = self._cabinet_x_lims[0] + (torch.rand(b) - 0.5) * (self._cabinet_x_lims[1] - self._cabinet_x_lims[0])     # X position (right side)
+            # cabinet_pos[:, 1] = self._cabinet_y_lims[0] + (torch.rand(b) - 0.5) * (self._cabinet_y_lims[1] - self._cabinet_y_lims[0])    # Y position
+            cabinet_pos[:, 0:2] = self._cabinet_region.sample_xy(b, device=self.device)
             cabinet_pos[:, 2] = self.cabinet_zs[env_idx]
 
             # Rotate 90° clockwise around Z so drawer faces -Y
@@ -290,8 +298,9 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             # Robot is at Y=-0.615, cabinet at X=0.10
             # Swapped: cube now on the left side
             cube_xyz = torch.zeros((b, 3))
-            cube_xyz[:, 0] = self._cube_x_range[0] + (torch.rand(b) - 0.5) * (self._cube_x_range[1] - self._cube_x_range[0])  # X: to the left
-            cube_xyz[:, 1] = self._cube_y_range[0] + (torch.rand(b) - 0.5) * (self._cube_y_range[1] - self._cube_y_range[0])  # Y: between robot and cabinet
+            # cube_xyz[:, 0] = self._cube_x_lims[0] + (torch.rand(b) - 0.5) * (self._cube_x_lims[1] - self._cube_x_lims[0])  # X: to the left
+            # cube_xyz[:, 1] = self._cube_y_lims[0] + (torch.rand(b) - 0.5) * (self._cube_y_lims[1] - self._cube_y_lims[0])  # Y: between robot and cabinet
+            cube_xyz[:, 0:2] = self._cube_region.sample_xy(b, device=self.device)
             cube_xyz[:, 2] = self.CUBE_HALF_SIZE
 
             self.cube.set_pose(Pose.create_from_pq(p=cube_xyz))

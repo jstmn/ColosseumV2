@@ -108,12 +108,6 @@ class CookItemInPanEnv(ColosseumV2Env):
 
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
-        # Get placement regions
-        food_region = PlacementRegion.from_center_and_width(self.food_spawn_center, self.food_spawn_half_size*2)
-        self._food_region = self.update_placement_region(food_region)
-        pan_region = PlacementRegion.from_center_and_width(self.pan_spawn_center, self.pan_spawn_half_size*2)
-        self._pan_region = self.update_placement_region(pan_region)
-
 
     def _load_pan_geometry(self):
         mesh = self._load_pan_mesh()
@@ -225,6 +219,15 @@ class CookItemInPanEnv(ColosseumV2Env):
         return merged
 
     def _load_scene(self, options: dict):
+
+        # Get placement regions
+        food_region = PlacementRegion.from_center_and_width(self.food_spawn_center, (self.food_spawn_half_size*2, self.food_spawn_half_size*2))
+        self._food_region = self.update_placement_region(food_region)
+        pan_region = PlacementRegion.from_center_and_width(self.pan_spawn_center, (self.pan_spawn_half_size*2, self.pan_spawn_half_size*2))
+        self._pan_region = self.update_placement_region(pan_region)
+        # 
+
+
         self._add_table_to_scene()
         raw_table = self.table._objs[0]
         table_z = float(raw_table.pose.p[2])

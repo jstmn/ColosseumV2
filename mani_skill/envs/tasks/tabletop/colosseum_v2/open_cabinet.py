@@ -16,8 +16,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
-from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 CABINET_COLLISION_BIT = 29
 
@@ -78,29 +77,6 @@ def _get_joint_pivot(joint) -> np.ndarray:
     if pivot.ndim == 2:
         pivot = pivot[0]
     return pivot
-
-
-def _get_handle_obb(handle_link):
-    """Get the oriented bounding box of the handle mesh."""
-    try:
-        meshes = handle_link.generate_mesh(
-            filter=lambda _, render_shape: "handle" in render_shape.name,
-            mesh_name="handle",
-        )
-    except Exception:
-        return None
-    if not meshes:
-        return None
-    merged = merge_meshes([mesh for mesh in meshes if mesh is not None])
-    if merged is None:
-        return None
-    link_pose = handle_link.pose.to_transformation_matrix()
-    if hasattr(link_pose, "ndim") and link_pose.ndim == 3:
-        link_pose = link_pose[0]
-    if hasattr(link_pose, "cpu"):
-        link_pose = link_pose.cpu().numpy()
-    merged.apply_transform(link_pose)
-    return merged.bounding_box_oriented
 
 
 @register_env(
@@ -276,6 +252,12 @@ class OpenCabinetEnv(ColosseumV2Env):
             initial_pose=sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0]),
         )
 
+        self._cabinet_region = self.update_placement_region(
+            # xy[:, 0] = 0.20  # Fixed X position
+            # xy[:, 1] = 0.0   # Fixed Y position
+            PlacementRegion.from_center_and_width(center=(0.2, 0.0), width=(0.0, 0.0))
+        )
+
     def _after_reconfigure(self, options):
         cabinet_zs = []
         for cabinet in self._cabinets:
@@ -305,8 +287,9 @@ class OpenCabinetEnv(ColosseumV2Env):
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
-            xy[:, 0] = 0.20  # Fixed X position
-            xy[:, 1] = 0.0   # Fixed Y position
+            # xy[:, 0] = 0.20  # Fixed X position
+            # xy[:, 1] = 0.0   # Fixed Y position
+            xy[:, 0:2] = self._cabinet_region.sample_xy(b, device=self.device)
             xy[:, 2] = self.cabinet_zs[env_idx]
 
             self.cabinet.set_pose(Pose.create_from_pq(p=xy))
@@ -341,8 +324,6 @@ class OpenCabinetEnv(ColosseumV2Env):
             axis = _get_joint_axis(joint)
             pivot = _get_joint_pivot(joint)
 
-            # Calculate approach direction (from robot to handle)
-            approaching = _normalize(handle_pos - robot_base_pos, np.array([1.0, 0.0, 0.0], dtype=np.float32))
 
             # Door normal perpendicular to axis and radial direction
             radial = _normalize(handle_pos - pivot, np.array([1.0, 0.0, 0.0], dtype=np.float32))
@@ -350,28 +331,6 @@ class OpenCabinetEnv(ColosseumV2Env):
             door_normal = _normalize(door_normal, np.array([0.0, 1.0, 0.0], dtype=np.float32))
             if np.dot(door_normal, robot_base_pos - handle_pos) < 0:
                 door_normal = -door_normal
-
-            # Tangent direction for gripper closing
-            tangent = _normalize(np.cross(axis, door_normal), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-
-            # Get handle OBB for precise grasp
-            handle_obb = _get_handle_obb(self.handle_link)
-
-            # Compute grasp pose (same as motion planning)
-            finger_length = 0.025
-            grasp_backoff = -0.005
-            if handle_obb is not None:
-                grasp_info = compute_grasp_info_by_obb(
-                    handle_obb,
-                    approaching=approaching,
-                    target_closing=tangent,
-                    depth=finger_length,
-                )
-                closing = grasp_info["closing"]
-                center = grasp_info["center"] + approaching * grasp_backoff
-            else:
-                closing = _normalize(np.cross(axis, approaching), np.array([0.0, 1.0, 0.0], dtype=np.float32))
-                center = handle_pos + approaching * grasp_backoff
 
             # Fixed pre-grasp qpos (robot and cabinet positions are fixed, so this is deterministic)
             pregrasp_qpos = np.array([

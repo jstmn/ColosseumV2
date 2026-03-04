@@ -1,17 +1,13 @@
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-import mani_skill.agents.robots.panda.dual_panda
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building.ground import build_ground
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 import torch
 import os
@@ -71,15 +67,23 @@ class DualArmLiftTrayEnv(ColosseumV2Env):
         )
         self.tray = self.add_asset_to_scene(tray_builder, name="tray", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.tray])
-        
+
+        # Placement regions
+        self._tray_region = self.update_placement_region(
+            # Ground-truth from the legacy sampling:
+            # xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            PlacementRegion.from_center_and_width(center=(0.0, 0.0), width=(0.2, 0.2))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3), device=self.device)
-            xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # ^ correct, but doesn't use PlacementRegion
             xyz[..., 2] = self.cube_half_size+0.83
             theta_by_2 = torch.rand(b, device=self.device)*np.pi/8 - np.pi/16  # -pi/2 to pi/2
-            
+
             base_q = torch.tensor([0.5, 0.5, 0.5, 0.5], device=self.device).repeat(b, 1)
             cos_vals = torch.cos(theta_by_2)
             sin_vals = torch.sin(theta_by_2)

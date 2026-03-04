@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Union
+from typing import Dict, Union
 
 import numpy as np
 import sapien
@@ -14,7 +14,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ class PickDishFromRackEnv(ColosseumV2Env):
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_size=True,
         RO_size=True,
+        pose_randomization=True,
     )
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
@@ -187,11 +188,6 @@ class PickDishFromRackEnv(ColosseumV2Env):
             return builder
 
         return self.add_asset_to_scene(rack_builder_fn, name="dish_rack", physics_type="kinematic", object_type="RO")
-
-
-
-
-        
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: Dict):
         device = self.device

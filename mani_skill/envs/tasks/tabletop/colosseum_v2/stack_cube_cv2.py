@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Union
 
 import numpy as np
 import sapien
@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 @register_env("StackCubeColosseumV2-v1", max_episode_steps=50)
 class StackCubeColosseumV2Env(ColosseumV2Env):
@@ -74,13 +74,19 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
         self.load_scene_hook(manipulation_objects=[self.cubeA], receiving_objects=[self.cubeB])
 
+        self._cubeA_region = self.update_placement_region(
+            # Ground-truth from legacy sampling: xy = torch.rand((b, 2)) * 0.2 - 0.1
+            PlacementRegion.from_center_and_width(center=(0.0, 0.0), width=(0.2, 0.2))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
 
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.02
-            xy = torch.rand((b, 2)) * 0.2 - 0.1
+            # xy = torch.rand((b, 2)) * 0.2 - 0.1
+            xy = self._cubeA_region.sample_xy(b, device=self.device)
             region = [[-0.1, -0.2], [0.1, 0.2]]
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device

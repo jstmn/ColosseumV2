@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Union
 import numpy as np
 import sapien
 import torch
@@ -12,8 +12,8 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.structs.pose import Pose
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
-import gymnasium as gym
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+
 
 @register_env("PickSodaFromCabinet-v1", max_episode_steps=50)
 class PickSodaFromCabinetEnv(ColosseumV2Env):
@@ -38,6 +38,7 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_size=True,
         RO_size=True,
+        pose_randomization=True,
     )
 
     def __init__(
@@ -143,10 +144,9 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
             self.right.set_pose(Pose.create_from_pq(p=torch.tensor([0.304005, -0.422210, 0.309642]), q=torch.tensor([1,0,0,0]).repeat(b,1)))
             self.back.set_pose(Pose.create_from_pq(p=torch.tensor([0.49, -0.120, 0.309642]), q=torch.tensor([0.7071,0,0,-0.7071]).repeat(b,1)))
 
-
             self.initialize_episode_hook(env_idx, mo_pose=xyz)
         self._initialize_agent()
-            
+
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         qpos = np.array([-0.387, -0.770, 0.395, -3.009, 2.978, 2.396, -1.963, 0.040, 0.04])

@@ -1,7 +1,4 @@
-from typing import Any, Dict, Union
-
 import numpy as np
-import sapien
 import torch
 
 from mani_skill.envs.tasks.tabletop.pick_cube_cfgs import PICK_CUBE_CONFIGS
@@ -9,7 +6,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 PICK_CUBE_DOC_STRING = """**Task Description:**
 A simple task where the objective is to grasp a red cube with the {robot_id} robot and move it to a target goal position. This is also the *baseline* task to test whether a robot with manipulation
@@ -51,13 +48,13 @@ class RaiseCubeEnv(ColosseumV2Env):
             cfg = PICK_CUBE_CONFIGS["panda"]
         self.cube_half_size = cfg["cube_half_size"]
         self.goal_thresh = cfg["goal_thresh"]
-        self.cube_spawn_half_size = cfg["cube_spawn_half_size"]
-        self.cube_spawn_center = cfg["cube_spawn_center"]
-        self.max_goal_height = cfg["max_goal_height"]
+        # self.cube_spawn_half_size = cfg["cube_spawn_half_size"]
+        # self.cube_spawn_center = cfg["cube_spawn_center"]
+        # self.max_goal_height = cfg["max_goal_height"]
         self.sensor_cam_eye_pos = cfg["sensor_cam_eye_pos"]
         self.sensor_cam_target_pos = cfg["sensor_cam_target_pos"]
-        self.human_cam_eye_pos = cfg["human_cam_eye_pos"]
-        self.human_cam_target_pos = cfg["human_cam_target_pos"]
+        # self.human_cam_eye_pos = cfg["human_cam_eye_pos"]
+        # self.human_cam_target_pos = cfg["human_cam_target_pos"]
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
 
@@ -69,6 +66,10 @@ class RaiseCubeEnv(ColosseumV2Env):
 
         self.cube = self.add_asset_to_scene(get_cube_builder, name="cube", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.cube])
+
+        self._cube_region = self.update_placement_region(
+            PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.1, 0.1))
+        )
 
     @property
     def _default_human_render_camera_configs(self):
@@ -85,7 +86,8 @@ class RaiseCubeEnv(ColosseumV2Env):
             b = len(env_idx)
 
             xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            # xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            xyz[..., :2] = self._cube_region.sample_xy(b, device=self.device)
             xyz[..., 2] = self.cube_half_size
             q = [1, 0, 0, 0]
 

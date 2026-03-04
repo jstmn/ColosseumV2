@@ -1,19 +1,15 @@
-from typing import Any, Tuple
-
 import numpy as np
 import sapien
 import torch
 from transforms3d.euler import euler2quat
-import gymnasium as gym
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.envs.utils.randomization.pose import random_quaternions
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, PlacementRegion
 
 @register_env("DualArmStackCube-v1", max_episode_steps=100)
 class TwoRobotStackCube(ColosseumV2Env):
@@ -95,17 +91,36 @@ class TwoRobotStackCube(ColosseumV2Env):
         self.goal_region = self.add_asset_to_scene(goal_region_builder, name="goal_region", physics_type="kinematic", object_type="RO")
         self.load_scene_hook(manipulation_objects=[self.cubeA, self.cubeB], receiving_objects=[self.goal_region])
 
+        self._cubeA_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # cubeA_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.2 - 0.05
+            # cubeA_xyz[:, 1] = -0.15 - torch.rand((b,), device=self.device) * 0.1 + 0.05
+            # => x in [-0.05, 0.15], y in [-0.2, -0.1]
+            PlacementRegion.from_center_and_width(center=(0.05, -0.15), width=(0.2, 0.1))
+        )
+        self._cubeB_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # cubeB_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.1 - 0.05
+            # cubeB_xyz[:, 1] = 0.15 + torch.rand((b,), device=self.device) * 0.1 - 0.05
+            # => x in [-0.05, 0.05], y in [0.1, 0.2]
+            PlacementRegion.from_center_and_width(center=(0.0, 0.15), width=(0.1, 0.1))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             # the table scene initializes two robots. the first one self.agents[0] is on the left and the second one is on the right
             cubeA_xyz = torch.zeros((b, 3), device=self.device)
-            cubeA_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.2 - 0.05
-            cubeA_xyz[:, 1] = -0.15 - torch.rand((b,), device=self.device) * 0.1 + 0.05
-            cubeB_xyz = torch.zeros((b, 3), device=self.device)
-            cubeB_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.1 - 0.05
-            cubeB_xyz[:, 1] = 0.15 + torch.rand((b,), device=self.device) * 0.1 - 0.05
+            # cubeA_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.2 - 0.05
+            # cubeA_xyz[:, 1] = -0.15 - torch.rand((b,), device=self.device) * 0.1 + 0.05
+            cubeA_xyz[:, 0:2] = self._cubeA_region.sample_xy(b, device=self.device)
             cubeA_xyz[:, 2] = 0.02 + 0.83 
+
+            # 
+            cubeB_xyz = torch.zeros((b, 3), device=self.device)
+            # cubeB_xyz[:, 0] = torch.rand((b,), device=self.device) * 0.1 - 0.05
+            # cubeB_xyz[:, 1] = 0.15 + torch.rand((b,), device=self.device) * 0.1 - 0.05
+            cubeB_xyz[:, 0:2] = self._cubeB_region.sample_xy(b, device=self.device)
             cubeB_xyz[:, 2] = 0.02 + 0.83
 
             qs = random_quaternions(

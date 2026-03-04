@@ -14,7 +14,7 @@ from mani_skill.utils.structs import Pose
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 # 1. Define the Empty Environment
 @register_env("DualArmPickBottle-v1", max_episode_steps=1000)
@@ -68,19 +68,25 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         )
         self.obj = self.add_asset_to_scene(obj_builder, name="bottle", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.obj])
-    
+
+        self._bottle_region = self.update_placement_region(
+            # Ground-truth from legacy sampling: torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # => x,y in [-0.1, 0.2]
+            PlacementRegion.from_center_and_width(center=(0.05, 0.05), width=(0.3, 0.3))
+        )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3), device=self.device)
-            xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            # xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.1
+            xyz[..., :2] = self._bottle_region.sample_xy(b, device=self.device)
             xyz[..., 2] = self.cube_half_size+0.83
             q = [0.707, 0.707, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
             self.initialize_episode_hook(env_idx, mo_pose=self.obj.pose)
         self._initialize_agent()
-        
+
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         # Dual Panda has 14+ gripper joints. 
