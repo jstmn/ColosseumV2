@@ -504,7 +504,7 @@ class HammerNailEnv(ColosseumV2Env):
             # hammer_pos[:, 1] += (torch.rand(b, device=self.device) - 0.5) * 0.06
             hammer_pos = torch.zeros((b, 3), device=self.device)
             hammer_pos[:, 0:2] = self._hammer_region.sample_xy(b, device=self.device)
-            hammer_pos[:, 2] = self._hammer_rest_center[:, 2].to(self.device).unsqueeze(0).repeat(b, 1)
+            hammer_pos[:, 2] = self._hammer_rest_center[2]
 
 
             # Randomize hammer yaw (rotation around Z axis) between 0 and 90 degrees

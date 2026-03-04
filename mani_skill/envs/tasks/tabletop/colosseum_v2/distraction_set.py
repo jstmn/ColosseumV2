@@ -257,7 +257,7 @@ all_distractor_set = DistractionSet(
     table_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     camera_pose_cfg = {
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
-        "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),  # 2.5 cm
+        "xyz_range": ((-0.03, -0.03, 0.03), (0.03, 0.03, 0.03)),  # 3 cm
     },
     light_color_cfg = {
         "color_range": ColorRange(low=(0.5, 0.5, 0.5), high=(1, 1, 1)),

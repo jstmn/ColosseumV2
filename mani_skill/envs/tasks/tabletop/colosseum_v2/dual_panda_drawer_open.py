@@ -1,7 +1,6 @@
 import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda
 from mani_skill.utils.building import articulations
@@ -111,45 +110,24 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
 
             self.initialize_episode_hook(env_idx)
         self._initialize_agent()
-        
+
     def _initialize_agent(self):
         # Reset the robot to a neutral position
         qpos = np.array([1.683, 1.357, 0.284, 0.393, -0.103, 0.249, -1.529, -2.074, -1.497, 1.647, 1.409, 1.758, -2.106, -0.114, 0.04, 0.04, 0.04, 0.04])
         self.agent.reset(qpos)
 
     def evaluate(self):
-        pose_1 = self.open_cabinet.links_map['link_0'].pose.p
-        pose_2 = self.open_cabinet.links_map['link_2'].pose.p
 
-        drawer_1_open = pose_1[..., 0] < -0.07
-        drawer_2_open = pose_2[..., 0] < -0.07
-        
-        success = drawer_1_open * drawer_2_open
-        # print(success)
-        return {"drawer_1_open": drawer_1_open, "drawer_2_open": drawer_2_open, "success": success}
-    
+        active_joints = self.open_cabinet.active_joints
+        assert len(active_joints) == 4, "There should be 4 active joints, got %d" % len(active_joints)
 
-# 2. Main Execution Block
-if __name__ == "__main__":
-    # Now you can load this safe environment
-    env = gym.make(
-        "DualArmDrawerOpen-v1", 
-        robot_uids="dual_panda", # Force the dual panda
-        obs_mode="state_dict", 
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
+        qpos_1 = active_joints[0].qpos
+        qpos_2 = active_joints[2].qpos
+        qpos_min_1, qpos_max_1 = active_joints[0].limits[..., 0], active_joints[0].limits[..., 1]
+        qpos_min_2, qpos_max_2 = active_joints[1].limits[..., 0], active_joints[1].limits[..., 1]
 
-    print("Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    if "agent" in obs:
-        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
-    
-    # NOW you can run your IK loop here
-    # 2. You MUST run a loop, or the window will close immediately
-    while True:
-        # Render the frame
-        env.render()  # <--- Updates the GUI    
-    env.close()
+        drawer_open_pct_1 = (qpos_1 - qpos_min_1) / (qpos_max_1 - qpos_min_1 + 1e-6)
+        drawer_open_pct_2 = (qpos_2 - qpos_min_2) / (qpos_max_2 - qpos_min_2 + 1e-6)
+        is_drawer_open = torch.logical_and(drawer_open_pct_1 > 0.20, drawer_open_pct_2 > 0.20)
+        success = is_drawer_open
+        return {"is_drawer_open_1": drawer_open_pct_1 > 0.30, "is_drawer_open_2": drawer_open_pct_2 > 0.30, "success": success}

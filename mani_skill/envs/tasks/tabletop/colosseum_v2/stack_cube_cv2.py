@@ -76,7 +76,7 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
         self._cubeA_region = self.update_placement_region(
             # Ground-truth from legacy sampling: xy = torch.rand((b, 2)) * 0.2 - 0.1
-            PlacementRegion.from_center_and_width(center=(0.0, 0.0), width=(0.2, 0.2))
+            PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.2, 0.2))
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -85,9 +85,10 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
 
             xyz = torch.zeros((b, 3))
             xyz[:, 2] = 0.02
-            # xy = torch.rand((b, 2)) * 0.2 - 0.1
-            xy = self._cubeA_region.sample_xy(b, device=self.device)
-            region = [[-0.1, -0.2], [0.1, 0.2]]
+            xy = torch.rand((b, 2)) * 0.2 - 0.1
+            # xy = self._cubeA_region.sample_xy(b, device=self.device)
+            # region = [[-0.1, -0.2], [0.1, 0.2]]
+            region = self._cubeA_region.to_bounds()
             sampler = randomization.UniformPlacementSampler(
                 bounds=region, batch_size=b, device=self.device
             )

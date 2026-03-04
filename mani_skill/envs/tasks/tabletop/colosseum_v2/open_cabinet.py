@@ -133,7 +133,8 @@ class OpenCabinetEnv(ColosseumV2Env):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         # Cabinet door model - 1027 has revolute door joints (from info_cabinet_door_train.json)
         self._model_id = 1027
-        super().__init__(*args, robot_uids=robot_uids, **kwargs)
+        super().__init__(*args, robot_uids=robot_uids, max_n_distractor_objects=1, **kwargs)
+        # Only use one distractor object to prevent the robot from colliding with it
 
     @property
     def _default_sim_config(self):
@@ -339,7 +340,15 @@ class OpenCabinetEnv(ColosseumV2Env):
             ])
 
             # Initialize robot with fixed configuration
-            self.initialize_episode_hook(env_idx, mo_pose=xy, table_z_rotation_angle=np.pi, qpos_0=pregrasp_qpos)
+            distractor_object_bounds = PlacementRegion.from_center_and_width(center=(-0.2, 0.0), width=(0.1, 0.1))
+            self.initialize_episode_hook(
+                env_idx,
+                mo_pose=xy, 
+                table_z_rotation_angle=np.pi,
+                qpos_0=pregrasp_qpos,
+                distractor_object_bounds=distractor_object_bounds,
+                distractor_object_height=0.1,
+            )
             self.agent.robot.set_pose(robot_pose)
 
             if self.gpu_sim_enabled:

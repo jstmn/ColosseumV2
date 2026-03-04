@@ -28,6 +28,75 @@ from mani_skill import ASSET_DIR
 from yaml import load
 from yaml.loader import SafeLoader
 
+YCB_DISTRACTOR_OBJECTS = (
+    "002_master_chef_can",
+    "003_cracker_box",
+    "004_sugar_box",
+    "005_tomato_soup_can",
+    "006_mustard_bottle",
+    "007_tuna_fish_can",
+    "008_pudding_box",
+    "009_gelatin_box",
+    "010_potted_meat_can",
+    "011_banana",
+    "012_strawberry",
+    "013_apple",
+    "014_lemon",
+    "015_peach",
+    "016_pear",
+    "017_orange",
+    "018_plum",
+    "019_pitcher_base",
+    "021_bleach_cleanser",
+    "022_windex_bottle",
+    "024_bowl",
+    "025_mug",
+    "026_sponge",
+    "028_skillet_lid",
+    "029_plate",
+    "030_fork",
+    "031_spoon",
+    "032_knife",
+    "033_spatula",
+    "035_power_drill",
+    "036_wood_block",
+    "037_scissors",
+    "038_padlock",
+    "040_large_marker",
+    "042_adjustable_wrench",
+    "043_phillips_screwdriver",
+    "044_flat_screwdriver",
+    "048_hammer",
+    "050_medium_clamp",
+    "051_large_clamp",
+    "052_extra_large_clamp",
+    "059_chain",
+    "061_foam_brick",
+    "062_dice",
+    "065-a_cups",
+    "065-b_cups",
+    "065-c_cups",
+    "065-d_cups",
+    "065-e_cups",
+    "065-f_cups",
+    "065-g_cups",
+    "065-h_cups",
+    "065-i_cups",
+    "065-j_cups",
+    "070-a_colored_wood_blocks",
+    "070-b_colored_wood_blocks",
+    "072-a_toy_airplane",
+    "072-b_toy_airplane",
+    "072-c_toy_airplane",
+    "072-d_toy_airplane",
+    "072-e_toy_airplane",
+    "073-a_lego_duplo",
+    "073-b_lego_duplo",
+    "073-c_lego_duplo",
+    "073-d_lego_duplo",
+    "077_rubiks_cube",
+)
+
 
 class VariationFactorDisabledError(Exception):
     """
@@ -294,6 +363,8 @@ class ColosseumV2Env(BaseEnv):
         assert env_id is not None, "env_id must be provided"
         self._env_id = env_id
 
+        max_n_distractor_objects = kwargs.pop("max_n_distractor_objects", 1000)
+
         # 
         distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
         if distraction_set is None:
@@ -304,6 +375,8 @@ class ColosseumV2Env(BaseEnv):
             self._ds = distraction_set
         else:
             raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
+        if max_n_distractor_objects is not None and self._ds.distractor_object_enabled():
+            self._ds.distractor_object_cfg["n_distractors"] = min(max_n_distractor_objects, self._ds.distractor_object_cfg["n_distractors"])
 
         # Verify that the variation factors are consistent
         if hasattr(self, "DISABLED_VARIATION_FACTORS"):
@@ -427,7 +500,7 @@ class ColosseumV2Env(BaseEnv):
             builder.set_scene_idxs([i])
             articulation = builder.build(name=name_i)
 
-            if object_type == "MO" and self._ds.MO_mass_enabled():
+            if object_type.upper() == "MO" and self._ds.MO_mass_enabled():
                 mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
                 for link in articulation.links:
                     new_mass = (link.get_mass() * mass_scale).item()
@@ -674,25 +747,12 @@ class ColosseumV2Env(BaseEnv):
         # New distractor objs
         # TODO: Add YCB objects
         if self._ds.distractor_object_enabled():
-            ycb_ids = (
-                "006_mustard_bottle", 
-                "022_windex_bottle",
-                "037_scissors",
-                "042_adjustable_wrench",
-                "050_medium_clamp",
-                "052_extra_large_clamp",
-                "053_mini_soccer_ball",
-                "054_softball",
-                "055_baseball",
-                "056_tennis_ball",
-                "062_dice"
-            )
             n_distractors = self._ds.distractor_object_cfg["n_distractors"]
             self._ds._internal["distractor_object_cfg"]["actors"] = []
             for i in range(n_distractors):
                 def get_ycb_builder():
                     return self.get_ycb_asset_builder(
-                        ycb_id=ycb_ids[random.randint(0, len(ycb_ids) - 1)],
+                        ycb_id=YCB_DISTRACTOR_OBJECTS[random.randint(0, len(YCB_DISTRACTOR_OBJECTS) - 1)],
                         object_type="DISTRACTOR",
                         initial_pose=sapien.Pose(),
                     )
@@ -774,8 +834,19 @@ class ColosseumV2Env(BaseEnv):
             )
 
 
-    def initialize_episode_hook(self, env_idx: torch.Tensor, mo_pose: torch.Tensor | sapien.Pose | Pose | None = None, ro_pose: torch.Tensor | None = None, qpos_0: np.ndarray | None = None, initialize_table_scene: bool = True, table_z_rotation_angle: float | None = None):
-        
+    def initialize_episode_hook(
+        self, 
+        env_idx: torch.Tensor, 
+        mo_pose: torch.Tensor | sapien.Pose | Pose | None = None, 
+        ro_pose: torch.Tensor | None = None, 
+        qpos_0: np.ndarray | None = None, 
+        initialize_table_scene: bool = True, 
+        table_z_rotation_angle: float | None = None,
+        distractor_object_bounds: PlacementRegion | None = None,
+        distractor_object_height: float = 0.25,
+        max_n_distractor_objects: int = 2,
+    ):
+
         assert self._load_scene_hool_called, "load_scene_hook must be called before initialize_episode_hook"
 
         if mo_pose is not None:
@@ -798,16 +869,19 @@ class ColosseumV2Env(BaseEnv):
         # TODO: Make sure that the sampled poses are beyond some epsilon of RO/ro objects
         if self._ds.distractor_object_enabled():
 
-            for i in range(self._ds.distractor_object_cfg["n_distractors"]):
+            for i in range(min(max_n_distractor_objects, self._ds.distractor_object_cfg["n_distractors"])):
                 # What happens if you set the poses such that the objs collide with one another?
                 # for i, obj in enumerate(self._ds._internal["distractor_object_cfg"]["obj_actors"]):
-                region = PlacementRegion(
-                    x_lims=tuple(self._ds.distractor_object_cfg["x_lims"]),
-                    y_lims=tuple(self._ds.distractor_object_cfg["y_lims"]),
-                )
+                if distractor_object_bounds is None:
+                    region = PlacementRegion(
+                        x_lims=tuple(self._ds.distractor_object_cfg["x_lims"]),
+                        y_lims=tuple(self._ds.distractor_object_cfg["y_lims"]),
+                    )
+                else:
+                    region = distractor_object_bounds
                 xyz = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
                 xyz[:, :2] = region.sample_xy(self.num_envs, device=self.device)
-                xyz[:, 2] = 0.25 # 
+                xyz[:, 2] = distractor_object_height # 
                 if mo_pose is not None:
                     if isinstance(mo_pose, torch.Tensor):
                         xyz[:, 2] += mo_pose[:, 2] # add the height of the MO

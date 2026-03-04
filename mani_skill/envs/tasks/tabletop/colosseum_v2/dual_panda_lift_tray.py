@@ -79,6 +79,7 @@ class DualArmLiftTrayEnv(ColosseumV2Env):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3), device=self.device)
+            xyz[..., :2] = self._tray_region.sample_xy(b, device=self.device)
             # xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
             # ^ correct, but doesn't use PlacementRegion
             xyz[..., 2] = self.cube_half_size+0.83
