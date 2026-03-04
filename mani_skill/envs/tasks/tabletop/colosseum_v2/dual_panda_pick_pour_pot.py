@@ -13,7 +13,6 @@ from mani_skill.utils import sapien_utils
 from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
-# 1. Define the Empty Environment
 @register_env("DualArmPourPot-v1", max_episode_steps=1000)
 class DualArmPourPotEnv(ColosseumV2Env):
     """
@@ -83,17 +82,19 @@ class DualArmPourPotEnv(ColosseumV2Env):
         self.load_scene_hook(manipulation_objects=[self.pot], receiving_objects=[self.tray])
 
         self._pot_region = self.update_placement_region(
-            # Ground-truth from legacy sampling: torch.rand(b, device=self.device) * 0.2 - 0.1
-            PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.1, 0.1))
+            # Ground-truth from legacy sampling:
+            # pot_xyz[..., 0] = 0.1
+            # pot_xyz[..., 1] = torch.rand(b, device=self.device) * 0.2 - 0.1
+            PlacementRegion(x_lims=(0.1, 0.1), y_lims=(-0.1, 0.1))
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             pot_xyz = torch.zeros((b, 3), device=self.device)
-            pot_xyz[..., 0] = 0.1
+            # pot_xyz[..., 0] = 0.1
             # pot_xyz[..., 1] = torch.rand(b, device=self.device) * 0.2 - 0.1
-            pot_xyz[..., 1] = self._pot_region.sample_xy(b, device=self.device)
+            pot_xyz[..., 0:2] = self._pot_region.sample_xy(b, device=self.device)
             pot_xyz[..., 2] = self.cube_half_size+0.83
 
             pot_q = torch.tensor([0.5, 0.5, 0.5, 0.5], device=self.device).repeat(b, 1)

@@ -73,16 +73,16 @@ class PlacementRegion:
         assert isinstance(self.x_lims, (tuple, np.ndarray)) and isinstance(self.y_lims, (tuple, np.ndarray)), "x_lims and y_lims must be a tuple or numpy array"
         if isinstance(self.x_lims, tuple):
             assert len(self.x_lims) == 2, "x_lims must be a tuple of length 2"
-            assert self.x_lims[0] < self.x_lims[1], "x_lims must be in increasing order"
+            assert self.x_lims[0] <= self.x_lims[1], "x_lims must be in increasing order"
         if isinstance(self.y_lims, tuple):
             assert len(self.y_lims) == 2, "y_lims must be a tuple of length 2"
-            assert self.y_lims[0] < self.y_lims[1], "y_lims must be in increasing order"
+            assert self.y_lims[0] <= self.y_lims[1], "y_lims must be in increasing order"
         if isinstance(self.x_lims, np.ndarray):
             assert self.x_lims.shape == (2,), "x_lims must be a numpy array of shape (2,)"
-            assert self.x_lims[0] < self.x_lims[1], "x_lims must be in increasing order"
+            assert self.x_lims[0] <= self.x_lims[1], "x_lims must be in increasing order"
         if isinstance(self.y_lims, np.ndarray):
             assert self.y_lims.shape == (2,), "y_lims must be a numpy array of shape (2,)"
-            assert self.y_lims[0] < self.y_lims[1], "y_lims must be in increasing order"
+            assert self.y_lims[0] <= self.y_lims[1], "y_lims must be in increasing order"
 
     @staticmethod
     def from_center_and_width(center: tuple[float, float] | np.ndarray, width: tuple[float, float] | np.ndarray) -> "PlacementRegion":
