@@ -272,29 +272,29 @@ all_distractor_set = DistractionSet(
 DISTRACTION_SETS = {
     "none".upper(): DistractionSet(),
     "all".upper(): all_distractor_set,
-    # Distractor object
+    ### Distractor object
     "distractor_object".upper(): all_distractor_set.get_partial_copy(["distractor_object_cfg"]),
-    # MO
+    ### MO
     "MO_color".upper(): all_distractor_set.get_partial_copy(["MO_color_cfg"]),
     "MO_texture".upper(): all_distractor_set.get_partial_copy(["MO_texture_cfg"]),
     "MO_size".upper(): all_distractor_set.get_partial_copy(["MO_size_cfg"]),
     "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
-    # RO
+    ### RO
     "RO_color".upper(): all_distractor_set.get_partial_copy(["RO_color_cfg"]),
     "RO_texture".upper(): all_distractor_set.get_partial_copy(["RO_texture_cfg"]),
     "RO_size".upper(): all_distractor_set.get_partial_copy(["RO_size_cfg"]),
-    # Table
+    ### Table
     "table_color".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
-    # Camera
+    ### Camera
     "camera_pose".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
-    # Light
+    ### Light
     "light_color".upper(): all_distractor_set.get_partial_copy(["light_color_cfg"]),
-    # Background
+    ### Background
     "background_texture".upper(): all_distractor_set.get_partial_copy(["background_texture_cfg"]),
     "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
-    # 
+    ### Language
     "language".upper(): all_distractor_set.get_partial_copy(["language_cfg"]),
-    # Pose randomization
+    ### Pose randomization
     "pose_randomization".upper(): all_distractor_set.get_partial_copy(["pose_randomization_cfg"]),
 }

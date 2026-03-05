@@ -55,3 +55,6 @@ logs/
 
 logs_*/
 thirdparty/
+
+slurm-*
+sbatch_*

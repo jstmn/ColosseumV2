@@ -9,6 +9,15 @@ from mani_skill.utils import common
 def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str] | None, save_name=None):
     stats, num_queries, temporal_agg, max_timesteps, device, sim_backend = eval_kwargs.values()
 
+    def _to_cpu_numpy(x):
+        """Convert info/metrics values to CPU numpy to avoid retaining GPU tensors."""
+        if isinstance(x, torch.Tensor):
+            return x.detach().float().cpu().numpy()
+        if isinstance(x, np.ndarray):
+            return x
+        # numbers / lists / tuples
+        return np.asarray(x)
+
     use_visual_obs = isinstance(eval_envs.single_observation_space.sample(), dict)
     delta_control = not stats
     if not delta_control:
@@ -31,12 +40,14 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str]
     if temporal_agg:
         query_frequency = 1
         all_time_actions = torch.zeros([num_envs, max_timesteps, max_timesteps+num_queries, action_dim], device=device)
+        actions_populated = torch.zeros(max_timesteps, dtype=torch.bool, device=device)
     else:
         query_frequency = num_queries
         actions_to_take = torch.zeros([num_envs, num_queries, action_dim], device=device)
 
     agent.eval()
-    with torch.no_grad():
+    # inference_mode is slightly stricter than no_grad and can reduce overhead/memory.
+    with torch.inference_mode():
         eval_metrics = defaultdict(list)
         obs, info = eval_envs.reset()
         ts, eps_count = 0, 0
@@ -65,7 +76,7 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str]
                 actions_for_curr_step = all_time_actions[:, :, ts] # (num_envs, max_timesteps, act_dim)
                 # since we pad the action with 0 in 'delta_pos' control mode, this causes error.
                 #actions_populated = torch.all(actions_for_curr_step[0] != 0, axis=1) # (max_timesteps,)
-                actions_populated = torch.zeros(max_timesteps, dtype=torch.bool, device=device) # (max_timesteps,)
+                actions_populated.zero_()
                 actions_populated[max(0, ts + 1 - num_queries):ts+1] = True
                 actions_for_curr_step = actions_for_curr_step[:, actions_populated] # (num_envs, num_populated, act_dim)
                 k = 0.01
@@ -93,20 +104,21 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str]
                 assert truncated.all() == truncated.any(), "all episodes should truncate at the same time for fair evaluation with other algorithms"
                 if isinstance(info["final_info"], dict):
                     for k, v in info["final_info"]["episode"].items():
-                        eval_metrics[k].append(v.float().cpu().numpy())
+                        eval_metrics[k].append(_to_cpu_numpy(v))
                 else:
                     for final_info in info["final_info"]:
                         for k, v in final_info["episode"].items():
-                            eval_metrics[k].append(v)
+                            eval_metrics[k].append(_to_cpu_numpy(v))
                 # new episodes begin
                 eps_count += num_envs
                 counter.update(num_envs)
                 ts = 0
-                all_time_actions = torch.zeros([num_envs, max_timesteps, max_timesteps+num_queries, action_dim], device=device)
+                if temporal_agg:
+                    # Avoid repeated large allocations (which can look like a GPU memory leak).
+                    all_time_actions.zero_()
 
     agent.train()
-    for k in eval_metrics.keys():
-        eval_metrics[k] = np.stack(eval_metrics[k])
+    eval_metrics = {k: np.stack(v) for k, v in eval_metrics.items()}
     #video log
 
     print(f"\n[DEBUG] Attempting to flush video with name: {save_name}")

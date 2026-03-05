@@ -475,7 +475,7 @@ class ColosseumV2Env(BaseEnv):
         if not self._ds.camera_pose_enabled():
             return cfgs
 
-        rpy_lims = self._ds.camera_pose_cfg["rpy_lims"]
+        rpy_range = self._ds.camera_pose_cfg["rpy_range"]
         xyz_range = self._ds.camera_pose_cfg["xyz_range"]
 
         for cfg in cfgs:
@@ -606,7 +606,13 @@ class ColosseumV2Env(BaseEnv):
         assert "ycb:" not in ycb_id, "ycb_id shouldn't contain 'ycb:'. Remove that substring if it does"
         builder = self.scene.create_actor_builder()
 
-        model_db = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
+        try:
+            model_db = load_json(ASSET_DIR / "assets/mani_skill2_ycb/info_pick_v0.json")
+        except FileNotFoundError:
+            cprint(f"YCB model dataset isn't downloaded. Run: 'python mani_skill/utils/download_asset.py ycb'", "red")
+            exit(1)
+
+
         metadata = model_db[ycb_id]
         if density is None:
             density = metadata.get("density", 1000)

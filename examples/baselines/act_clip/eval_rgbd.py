@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from act.evaluate import evaluate
 from pandas import read_csv, DataFrame
-
+from datetime import datetime
+import socket
 from act.make_env import make_eval_envs
 from diffusers.training_utils import EMAModel
 import tyro
@@ -166,7 +167,7 @@ TASK_TEXT_MAP = {
 def update_args_from_results(args: Args):
     assert args.results_path is not None
     expected_columns = [
-        "checkpoint_path","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
+        "checkpoint_path","pc_hostname","now","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
     ]
     if not Path(args.results_path).exists():
         results_df = DataFrame(columns=expected_columns)
@@ -175,14 +176,20 @@ def update_args_from_results(args: Args):
     assert results_df.columns.tolist() == expected_columns
 
     if "bimanual" in args.results_path:
+        is_bimanual = True
         tasks = ALL_COLOSSEUM_V2_BIMANUAL_TASKS
         print("Evaluating bimanual tasks")
         assert args.control_mode == "pd_joint_pos", f"The control_mode should be pd_joint_pos for bimanual tasks"
     elif "single_arm" in args.results_path:
+        is_bimanual = False
         tasks = ALL_COLOSSEUM_V2_SINGLE_ARM_TASKS
         print("Evaluating single arm tasks")
     else:
         raise Exception(f"Unclear whether {args.results_path} is for bimanual or single arm tasks")
+
+    now = datetime.now().strftime("%Y:%m:%d__%H:%M:%S")
+    args.now = now
+    args.pc_hostname = socket.gethostname()
 
     for task in tasks:
         for distraction_set in DISTRACTION_SETS.keys():
@@ -199,6 +206,8 @@ def update_args_from_results(args: Args):
 
             row = [
                 args.checkpoint_path,
+                args.pc_hostname,
+                args.now,
                 distraction_set.lower(),
                 task,
                 args.control_mode,
@@ -211,6 +220,11 @@ def update_args_from_results(args: Args):
             ]
             results_df.loc[len(results_df)] = row
             results_df.to_csv(args.results_path, index=False)
+
+            if is_bimanual and (("table_" in distraction_set.lower()) or ("all" in distraction_set.lower())):
+                args.num_eval_envs = int(args.num_eval_envs / 4)
+                print(f"Reducing number of evaluation environments to {args.num_eval_envs}. Bimanual tasks with table-related distraction sets use far greater GPU memory.")
+
             return args
 
     raise OutOfTasksError("No result found for any task and distraction set")
@@ -318,6 +332,8 @@ if __name__ == "__main__":
         results_df = read_csv(args.results_path)
         new_row = [
             args.checkpoint_path,
+            args.pc_hostname,
+            args.now,
             args.distraction_set.lower(),
             args.env_id,
             args.control_mode,
