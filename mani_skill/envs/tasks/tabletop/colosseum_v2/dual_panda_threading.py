@@ -7,10 +7,10 @@ from mani_skill.utils.building.actors.needle import build_needle
 from mani_skill.utils.building.actors.ring_tripod import build_ring_tripod
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix, quaternion_apply
-from mani_skill.utils import common, sapien_utils
+from mani_skill.utils import sapien_utils
 import sapien.core as sapien
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 @register_env("DualArmThreading-v1", max_episode_steps=1000)
@@ -87,14 +87,30 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         self.needle = self.add_asset_to_scene(needle_builder, name="needle", physics_type="dynamic", object_type="MO")
         self.ring_tripod = self.add_asset_to_scene(ring_tripod_builder, name="ring_tripod", physics_type="dynamic", object_type="RO")
         self.load_scene_hook(manipulation_objects=[self.needle], receiving_objects=[self.ring_tripod])
-    
+
+        self._ring_tripod_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
+            # ring_xyz[..., 1] -= 0.1
+            # => x in [0.0, 0.2], y in [-0.1, 0.1]
+            PlacementRegion.from_center_and_width(center=(0.1, 0.0), width=(0.2, 0.2))
+        )
+        self._needle_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # needle_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
+            # needle_xyz[..., 1] -= 0.1
+            # => x in [0.0, 0.2], y in [-0.1, 0.1]
+            PlacementRegion.from_center_and_width(center=(0.1, 0.0), width=(0.2, 0.2))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         """Reset actor poses for each episode."""
         with torch.device(self.device):
             b = len(env_idx)
             ring_xyz = torch.zeros((b, 3), device=self.device)
-            ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
-            ring_xyz[..., 1] -= 0.1
+            ring_xyz[..., :2] = self._ring_tripod_region.sample_xy(b, device=self.device)
+            # ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
+            # ring_xyz[..., 1] -= 0.1
             ring_xyz[..., 2] = 0.9
             theta_by_2 = torch.rand(b, device=self.device) * np.pi / 12
             cos_vals = torch.cos(theta_by_2)
@@ -105,8 +121,9 @@ class DualPandaThreadingEnv(ColosseumV2Env):
             self.ring_tripod.set_pose(Pose.create_from_pq(p=ring_xyz, q=rot_q))
             
             needle_xyz = torch.zeros((b, 3), device=self.device)
-            needle_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.3 - 0.4
-            needle_xyz[..., 1] += 0.1
+            needle_xyz[..., :2] = self._needle_region.sample_xy(b, device=self.device)
+            # ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
+            # ring_xyz[..., 1] -= 0.1
             needle_xyz[..., 2] = 0.85
             self.needle.set_pose(Pose.create_from_pq(p=needle_xyz))
             self.initialize_episode_hook(env_idx, mo_pose=self.needle.pose)

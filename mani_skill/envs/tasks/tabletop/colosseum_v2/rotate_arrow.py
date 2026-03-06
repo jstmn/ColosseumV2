@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 @register_env("RotateArrow-v1", max_episode_steps=50)
 class RotateArrowEnv(ColosseumV2Env):
@@ -80,6 +80,19 @@ class RotateArrowEnv(ColosseumV2Env):
         self.arrow = self.add_asset_to_scene(arrow_builder_fn, name="arrow", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.arrow])
 
+        self._arrow_region = self.update_placement_region(
+            # target_region_xyz[..., 0] += (
+            #     torch.rand(b) * (self.arrow_spawnbox_xlength) + self.arrow_spawnbox_xoffset
+            # )
+            # target_region_xyz[..., 1] += (
+            #     torch.rand(b) * (self.arrow_spawnbox_ylength) + self.arrow_spawnbox_yoffset
+            # )
+            PlacementRegion.from_center_and_width(
+                center=(self.arrow_spawnbox_xoffset, self.arrow_spawnbox_yoffset),
+                width=(self.arrow_spawnbox_xlength, self.arrow_spawnbox_ylength)
+            )
+        )
+
 
     def quat_to_z_euler(self, quats):
         # sxyz convention, we want the z-axis rotation
@@ -92,7 +105,6 @@ class RotateArrowEnv(ColosseumV2Env):
         qpos0 = np.array(
             [0.0, 0, -0.04, -2.21, 0.0, 2.28, 0.66, 0.04, 0.04]
         )
-        # qpos0 = np.zeros_like(qpos0)
 
         with torch.device(self.device):
             b = len(env_idx)
@@ -101,12 +113,13 @@ class RotateArrowEnv(ColosseumV2Env):
 
 #             # randomization code that randomizes the x, y position of the arrow we
 #             # goal tee is alredy at y = -0.1 relative to robot, so we allow the tee to be only -0.2 y relative to robot arm
-            target_region_xyz[..., 0] += (
-                torch.rand(b) * (self.arrow_spawnbox_xlength) + self.arrow_spawnbox_xoffset
-            )
-            target_region_xyz[..., 1] += (
-                torch.rand(b) * (self.arrow_spawnbox_ylength) + self.arrow_spawnbox_yoffset
-            )
+            # target_region_xyz[..., 0] += (
+            #     torch.rand(b) * (self.arrow_spawnbox_xlength) + self.arrow_spawnbox_xoffset
+            # )
+            # target_region_xyz[..., 1] += (
+            #     torch.rand(b) * (self.arrow_spawnbox_ylength) + self.arrow_spawnbox_yoffset
+            # )
+            target_region_xyz[..., 0:2] = self._arrow_region.sample_xy(b, device=self.device)
 
             target_region_xyz[..., 2] = (
                 0.01982/2 + 2*1e-3

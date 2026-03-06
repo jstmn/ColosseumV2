@@ -2,7 +2,6 @@ from typing import Union
 import numpy as np
 import sapien
 import torch
-import trimesh
 import os
 from mani_skill import PACKAGE_ASSET_DIR
 from mani_skill.agents.robots import Fetch, Panda
@@ -10,7 +9,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, PlacementRegion
 
 
 @register_env("HangClothingFrameOnPole-v1", max_episode_steps=50)
@@ -82,14 +81,27 @@ class HangClothingFrameOnPoleEnv(ColosseumV2Env):
         self.rack2 = self.add_asset_to_scene(rack2_builder, name="rack2", physics_type="static", object_type="RO")
         self.load_scene_hook(manipulation_objects=[self.clothing_frame], receiving_objects=[self.rack1, self.rack2])
 
+        self._frame_region = self.update_placement_region(
+            # Ground-truth from legacy sampling:
+            # x = -torch.rand((b, 1))*0.3-0.1
+            # xyz[:, 0] = x
+            # xyz[:, 1] = -0.4
+            PlacementRegion.from_center_and_width(
+                # x in [-0.4, -0.1], y fixed at -0.4 (epsilon width for PlacementRegion)
+                center=(-0.25, -0.4),
+                width=(0.3, 0.0),
+            )
+        )
+
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3))
-            x = -torch.rand((b, 1))*0.3-0.1
-            xyz[:, 0] = x
-            xyz[:, 1] = -0.4
+            # x = -torch.rand((b, 1))*0.3-0.1
+            # xyz[:, 0] = x
+            # xyz[:, 1] = -0.4
+            xyz[:, 0:2] = self._frame_region.sample_xy(b, device=self.device)
             xyz[:, 2] = 0.431
             self.clothing_frame.set_pose(Pose.create_from_pq(p=xyz, q=torch.tensor([0.548,0.5,0.5,0.453]).repeat(b,1)))
             self.initialize_episode_hook(env_idx, mo_pose=xyz)

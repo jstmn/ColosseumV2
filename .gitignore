@@ -52,5 +52,9 @@ checkpoints/
 logs/
 
 *.ply
-logs*/
+
+logs_*/
 thirdparty/
+
+slurm-*
+sbatch_*

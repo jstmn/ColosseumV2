@@ -1,9 +1,8 @@
-from typing import Any, Union
+from typing import Union
 
 import numpy as np
 import sapien
 import torch
-import torch.random
 from transforms3d.euler import euler2quat
 
 from mani_skill.agents.robots import Fetch, Panda
@@ -13,7 +12,7 @@ from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.sapien_utils import look_at
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 @register_env("LiftPegUprightColosseumV2-v1", max_episode_steps=50)
 class LiftPegUprightColosseumV2Env(ColosseumV2Env):
@@ -28,7 +27,6 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
     - the absolute value of the peg's y euler angle is within 0.08 of $\pi$/2 and the z position of the peg is within 0.005 of its half-length (0.12).
     """
 
-    _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/LiftPegUpright-v1_rt.mp4"
     SUPPORTED_ROBOTS = ["panda", "fetch"]
     agent: Union[Panda, Fetch]
 
@@ -78,12 +76,17 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
         self.peg = self.add_asset_to_scene(peg_builder, name="peg", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.peg])
 
+        self._peg_region = self.update_placement_region(
+            PlacementRegion.from_center_and_width(center=(0.0, 0.0), width=(0.2, 0.2))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
 
             xyz = torch.zeros((b, 3))
-            xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            # xyz[..., :2] = torch.rand((b, 2)) * 0.2 - 0.1
+            xyz[..., :2] = self._peg_region.sample_xy(b, device=self.device)
             xyz[..., 2] = self.peg_half_width
             q = euler2quat(np.pi / 2, 0, 0)
 

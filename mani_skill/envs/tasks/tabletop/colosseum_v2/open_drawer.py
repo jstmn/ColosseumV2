@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 CABINET_COLLISION_BIT = 29
 
@@ -206,6 +206,15 @@ class OpenDrawerEnv(ColosseumV2Env):
             initial_pose=sapien.Pose(p=[0, 0, 0], q=[1, 0, 0, 0]),
         )
 
+        self._cabinet_region = self.update_placement_region(
+            # Ground-truth:
+            # cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
+            # cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
+            # xy[:, 0] = torch.rand(b, device=self.device) * cabinet_x_range + self.CABINET_X_LIMS[0]
+            # xy[:, 1] = torch.rand(b, device=self.device) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            PlacementRegion(x_lims=tuple(self.CABINET_X_LIMS), y_lims=tuple(self.CABINET_Y_LIMS))
+        )
+
     def _after_reconfigure(self, options):
         # To spawn cabinets in the right place, we need to change their z position such that
         # the bottom of the cabinet sits at z=0 (the floor). Luckily the partnet mobility dataset is made such that
@@ -243,10 +252,11 @@ class OpenDrawerEnv(ColosseumV2Env):
         with torch.device(self.device):
             b = len(env_idx)
             xy = torch.zeros((b, 3))
-            cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
-            cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
-            xy[:, 0] = torch.rand(b, device=self.device) * cabinet_x_range + self.CABINET_X_LIMS[0]
-            xy[:, 1] = torch.rand(b, device=self.device) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            # cabinet_x_range = self.CABINET_X_LIMS[1] - self.CABINET_X_LIMS[0]
+            # cabinet_y_range = self.CABINET_Y_LIMS[1] - self.CABINET_Y_LIMS[0]
+            # xy[:, 0] = torch.rand(b, device=self.device) * cabinet_x_range + self.CABINET_X_LIMS[0]
+            # xy[:, 1] = torch.rand(b, device=self.device) * cabinet_y_range + self.CABINET_Y_LIMS[0]
+            xy[:, 0:2] = self._cabinet_region.sample_xy(b, device=self.device)
 
             # Quaternion for Z rotation: [cos(θ/2), 0, 0, sin(θ/2)] in wxyz format
             random_yaw_angle = torch.rand(b, device=self.device) * (self.CABINET_YAW_LIMS[1] - self.CABINET_YAW_LIMS[0]) + self.CABINET_YAW_LIMS[0]

@@ -13,7 +13,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 
 
 @register_env("PlaceBookInShelf-v1", max_episode_steps=50)
@@ -39,13 +39,12 @@ class PlaceBookEnv(ColosseumV2Env):
         MO_size=True,
         RO_size=True,
     )
+    DEFAULT_BOOK_REGION = PlacementRegion(x_lims=(-0.2, 0.0), y_lims=(-0.4, -0.2))
+    DEFAULT_SHELF_REGION = PlacementRegion(x_lims=(-0.4, -0.2), y_lims=(-0.4, -0.2))
 
     def __init__(
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
-        self._book_y_range = (-0.4, -0.2)
-        self._book_x_range = (-0.2, 0.0)
-        self._shelf_y_range = (-0.4, -0.2)
         self._shelf_dist_origin_to_furtherst_negative_x = 0.2
         self._book_to_shelf_padding = 0.0
         # ^ this is the distance from the origin of the shelf to the furthest negative x-axis of the shelf
@@ -67,6 +66,9 @@ class PlaceBookEnv(ColosseumV2Env):
 
     def _load_scene(self, options: dict):
 
+        self._book_region = self.update_placement_region(self.DEFAULT_BOOK_REGION)
+        self._shelf_region = self.update_placement_region(self.DEFAULT_SHELF_REGION)
+
         def get_shelf_builder():
             return self.get_glb_asset_builder(
                 glb_filepath=os.path.join(PACKAGE_ASSET_DIR, 'book_in_shelf/BookShelf.glb'),
@@ -78,7 +80,7 @@ class PlaceBookEnv(ColosseumV2Env):
                 glb_filepath=os.path.join(PACKAGE_ASSET_DIR ,'book_in_shelf/simple_book_1.glb'),
                 object_type="MO",
             )
-        
+
         self.shelf = self.add_asset_to_scene(get_shelf_builder, name="shelf", physics_type="kinematic", object_type="RO")
         self.book_A = self.add_asset_to_scene(get_book_builder, name="book_A", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.book_A], receiving_objects=[self.shelf])
@@ -90,28 +92,29 @@ class PlaceBookEnv(ColosseumV2Env):
 
             book_xyz = torch.zeros((b, 3))
             book_xyz[:, 2] = 0.089
-            region = [[self._book_x_range[0], self._book_y_range[0]], [self._book_x_range[1], self._book_y_range[1]]] 
-            sampler = randomization.UniformPlacementSampler(bounds=region, batch_size=b, device=self.device)
-            radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
+            sampler = randomization.UniformPlacementSampler(bounds=self._book_region.to_bounds(), batch_size=b, device=self.device)
+            # radius = torch.linalg.norm(torch.tensor([0.02, 0.02])) + 0.001
+            radius = 0.125
             bookA_xy = sampler.sample(radius, max_trials=100)
+            # ^ I don't think this does anything, because 'fixture_positions' is not set
 
             book_xyz[:, :2] = bookA_xy
             self.book_A.set_pose(Pose.create_from_pq(p=book_xyz.clone(), q=torch.tensor([0.06, -0.162, -0.296, 0.940]).repeat(b,1)))
 
             shelf_xyz = torch.zeros((b, 3))
-            shelf_xyz[..., 0] = self._book_x_range[1] + self._shelf_dist_origin_to_furtherst_negative_x + \
+            shelf_xyz[..., 0] = self._shelf_region.x_lims[1] + self._shelf_dist_origin_to_furtherst_negative_x + \
                 (torch.rand(b, device=self.device) * 0.1) + self._book_to_shelf_padding
-            shelf_xyz[..., 1] = self._shelf_y_range[0] + torch.rand(b, device=self.device) * (self._shelf_y_range[1] - self._shelf_y_range[0])
+            shelf_xyz[..., 1] = self._shelf_region.y_lims[0] + torch.rand(b, device=self.device) * self._shelf_region.width_y
             shelf_xyz[..., 2] = 0
             self.shelf.set_pose(Pose.create_from_pq(p=shelf_xyz, q=[-0.5, -0.5, 0.5, 0.5]))
 
             self.initialize_episode_hook(env_idx, mo_pose=book_xyz)
         self._initialize_agent()
-        
+
     def _initialize_agent(self):
         qpos = np.array([-0.816, 0.109, 0.437, -3.005, 2.678, 1.626, -2.312, 0.04, 0.04])
         self.agent.reset(qpos)
-        
+
     def evaluate(self):
         pos_shelf = self.shelf.pose.p
         pos_book = self.book_A.pose.p

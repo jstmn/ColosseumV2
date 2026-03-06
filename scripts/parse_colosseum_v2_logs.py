@@ -15,10 +15,14 @@ Key behavior:
 
 # Example usage:
 
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm.csv logs/4090/results_single_arm.csv
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual.csv logs/4090/results_bimanual.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual.csv
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm_pi05.csv
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual_pi05.csv
+
+
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/logs_4090_pose_init_test/single_arm.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/logs_4090_pose_init_test/bimanual.csv
 """
 
 import argparse

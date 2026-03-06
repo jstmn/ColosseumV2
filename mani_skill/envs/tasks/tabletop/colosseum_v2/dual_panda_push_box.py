@@ -1,5 +1,3 @@
-from typing import Any, Tuple
-
 import numpy as np
 import sapien
 import torch
@@ -7,11 +5,11 @@ import gymnasium as gym
 
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils import common, sapien_utils
+from mani_skill.utils import sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, PlacementRegion
 
 @register_env("DualArmPushBox-v1", max_episode_steps=100)
 class DualPandaPushBoxEnv(ColosseumV2Env):
@@ -40,11 +38,11 @@ class DualPandaPushBoxEnv(ColosseumV2Env):
     agent: DualPanda
 
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
-        RO_color=True,
-        RO_texture=True,
-        RO_size=True,
-    )
+    # DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    #     RO_color=True,
+    #     RO_texture=True,
+    #     RO_size=True,
+    # )
 
     def __init__(self, *args, robot_uids="dual_panda", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -74,8 +72,8 @@ class DualPandaPushBoxEnv(ColosseumV2Env):
 
         self.cube_half_size = [0.08, 0.12, 0.04]
         box_builder = lambda: self.get_box_asset_builder(
-            half_size=self.cube_half_size,
-            color=np.array([0, 0.5, 0, 1]),
+            half_size=(self.cube_half_size[0], self.cube_half_size[1], self.cube_half_size[2]),
+            color=[0, 0.5, 0, 1],
             object_type="MO",
             initial_pose=sapien.Pose(p=[1, 0, 0.02], q=[1,0,0,0]),
         )
@@ -93,19 +91,27 @@ class DualPandaPushBoxEnv(ColosseumV2Env):
         self.box = self.add_asset_to_scene(box_builder, name="box", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.box], receiving_objects=[self.goal_region])
 
+        self._box_region = self.update_placement_region(
+            # Ground-truth from legacy sampling: 
+            #   box_xyz[:, 0] = - torch.rand((b,), device=self.device) * 0.2
+            #   box_xyz[:, 1] = torch.rand((b,), device=self.device) * 0.2 - 0.1
+            PlacementRegion(x_lims=(-0.2, 0.0), y_lims=(-0.1, 0.1))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             box_xyz = torch.zeros((b, 3), device=self.device)
-            box_xyz[:, 0] = - torch.rand((b,), device=self.device) * 0.2
-            box_xyz[:, 1] = torch.rand((b,), device=self.device) * 0.2 - 0.1
+            # box_xyz[:, 0] = - torch.rand((b,), device=self.device) * 0.2
+            # box_xyz[:, 1] = torch.rand((b,), device=self.device) * 0.2 - 0.1
+            box_xyz[:, 0:2] = self._box_region.sample_xy(b, device=self.device)
             box_xyz[:, 2] = 0.02 + 0.83
-            
+
             goal_xyz = torch.zeros((b, 3), device=self.device)
             goal_xyz[:, 0] = -0.4
             goal_xyz[:, 1] = 0
             goal_xyz[:, 2] = 1e-3 + 0.83
-            
+
             theta_by_2 = (torch.rand(b, device=self.device))*np.pi/6-np.pi/12
             cos_vals = torch.cos(theta_by_2)
             sin_vals = torch.sin(theta_by_2)

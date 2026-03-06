@@ -66,6 +66,7 @@ class DistractionSet:
     camera_pose_cfg: dict = field(default_factory=dict)
     MO_mass_cfg: dict = field(default_factory=dict)
     language_cfg: dict = field(default_factory=dict)
+    pose_randomization_cfg: dict = field(default_factory=dict)
 
     unimplemented = {}
 
@@ -154,10 +155,15 @@ class DistractionSet:
         return len(self.camera_pose_cfg) > 0
 
     def MO_mass_enabled(self) -> bool:
-        return len(self.MO_mass_cfg) > 0
+        enabled = len(self.MO_mass_cfg) > 0
+        assert not enabled, "MO mass is disabled"
+        return False
 
     def language_enabled(self) -> bool:
         return len(self.language_cfg) > 0
+    
+    def pose_randomization_enabled(self) -> bool:
+        return len(self.pose_randomization_cfg) > 0
 
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
@@ -201,6 +207,7 @@ class DistractionSet:
             "camera_pose_cfg",
             "MO_mass_cfg",
             "language_cfg",
+            "pose_randomization_cfg",
         ]:
             self._internal[key] = {}
 
@@ -241,7 +248,8 @@ all_distractor_set = DistractionSet(
     },
     MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
-    MO_mass_cfg = {"mass_scale_range": (3, 8),},
+    # MO_mass_cfg = {"mass_scale_range": (3, 8),},
+    MO_mass_cfg = {}, # ignored
     MO_size_cfg = {"scale_range": (0.8, 1.2)},
     # 
     RO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
@@ -252,7 +260,7 @@ all_distractor_set = DistractionSet(
     table_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     camera_pose_cfg = {
         "rpy_range": ((-0.035, -0.035, -0.035), (0.035, 0.035, 0.035)), # aproximately 2 degrees
-        "xyz_range": ((-0.025, -0.025, 0.025), (0.025, 0.025, 0.025)),  # 2.5 cm
+        "xyz_range": ((-0.03, -0.03, 0.03), (0.03, 0.03, 0.03)),  # 3 cm
     },
     light_color_cfg = {
         "color_range": ColorRange(low=(0.5, 0.5, 0.5), high=(1, 1, 1)),
@@ -261,32 +269,36 @@ all_distractor_set = DistractionSet(
     # ^ this works but makes it hard to see the color of the objects
     background_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     background_color_cfg = {"color_range": ColorRange(low=(0, 0, 0, 1.0), high=(1, 1, 1, 1.0)),},
+    pose_randomization_cfg = {"x_region_multiplier": 1.25, "y_region_multiplier": 1.25, "min_width_x": 0.1, "min_width_y": 0.1}
 )
 
 DISTRACTION_SETS = {
-    "none".upper(): DistractionSet(),
+    # "none".upper(): DistractionSet(),
     "all".upper(): all_distractor_set,
-    # Distractor object
+    ### Distractor object
     "distractor_object".upper(): all_distractor_set.get_partial_copy(["distractor_object_cfg"]),
-    # MO
+    ### MO
     "MO_color".upper(): all_distractor_set.get_partial_copy(["MO_color_cfg"]),
     "MO_texture".upper(): all_distractor_set.get_partial_copy(["MO_texture_cfg"]),
     "MO_size".upper(): all_distractor_set.get_partial_copy(["MO_size_cfg"]),
-    "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
-    # RO
+    # "MO_mass".upper(): all_distractor_set.get_partial_copy(["MO_mass_cfg"]),
+    # ^ mass is ignored
+    ### RO
     "RO_color".upper(): all_distractor_set.get_partial_copy(["RO_color_cfg"]),
     "RO_texture".upper(): all_distractor_set.get_partial_copy(["RO_texture_cfg"]),
     "RO_size".upper(): all_distractor_set.get_partial_copy(["RO_size_cfg"]),
-    # Table
+    # ### Table
     "table_color".upper(): all_distractor_set.get_partial_copy(["table_color_cfg"]),
     "table_texture".upper(): all_distractor_set.get_partial_copy(["table_texture_cfg"]),
-    # Camera
+    ### Camera
     "camera_pose".upper(): all_distractor_set.get_partial_copy(["camera_pose_cfg"]),
-    # Light
+    ### Light
     "light_color".upper(): all_distractor_set.get_partial_copy(["light_color_cfg"]),
-    # Background
+    ### Background
     "background_texture".upper(): all_distractor_set.get_partial_copy(["background_texture_cfg"]),
     "background_color".upper(): all_distractor_set.get_partial_copy(["background_color_cfg"]),
-    # 
+    ### Language
     "language".upper(): all_distractor_set.get_partial_copy(["language_cfg"]),
+    ### Pose randomization
+    "pose_randomization".upper(): all_distractor_set.get_partial_copy(["pose_randomization_cfg"]),
 }

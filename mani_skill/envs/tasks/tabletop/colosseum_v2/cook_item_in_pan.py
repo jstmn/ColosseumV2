@@ -15,7 +15,7 @@ from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, PlacementRegion
 
 
 @register_env("CookItemInPan-v1", max_episode_steps=150, asset_download_ids=["ycb"])
@@ -105,7 +105,9 @@ class CookItemInPanEnv(ColosseumV2Env):
         self.food_spawn_center = np.array([-0.12, -0.20], dtype=np.float32)
         self.food_spawn_half_size = 0.08  # Randomization within reachable area
 
+
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
+
 
     def _load_pan_geometry(self):
         mesh = self._load_pan_mesh()
@@ -217,6 +219,15 @@ class CookItemInPanEnv(ColosseumV2Env):
         return merged
 
     def _load_scene(self, options: dict):
+
+        # Get placement regions
+        food_region = PlacementRegion.from_center_and_width(self.food_spawn_center, (self.food_spawn_half_size*2, self.food_spawn_half_size*2))
+        self._food_region = self.update_placement_region(food_region)
+        pan_region = PlacementRegion.from_center_and_width(self.pan_spawn_center, (self.pan_spawn_half_size*2, self.pan_spawn_half_size*2))
+        self._pan_region = self.update_placement_region(pan_region)
+        # 
+
+
         self._add_table_to_scene()
         raw_table = self.table._objs[0]
         table_z = float(raw_table.pose.p[2])
@@ -276,28 +287,19 @@ class CookItemInPanEnv(ColosseumV2Env):
             # contact explosions (e.g., the robot spawning intersecting the pan).
             self.initialize_episode_hook(env_idx, mo_pose=None, qpos_0=pregrasp_qpos)
 
-            pan_xy = (
-                torch.rand((b, 2), device=self.device) * 2 - 1
-            ) * self.pan_spawn_half_size + torch.tensor(
-                self.pan_spawn_center, device=self.device
-            )
+            # pan_xy = (torch.rand((b, 2), device=self.device) * 2 - 1) * self.pan_spawn_half_size + torch.tensor(self.pan_spawn_center, device=self.device)
+            pan_xy = self._pan_region.sample_xy(b, device=self.device)
             pan_pos = torch.zeros((b, 3), device=self.device)
             pan_pos[:, :2] = pan_xy
             pan_pos[:, 2] = self.table_surface_z + self.pan_bottom_offset + self.pan_spawn_z_offset
-            pan_q = torch.tensor(
-                euler2quat(self.pan_spawn_x_rot, 0, self.pan_spawn_z_rot),
-                device=self.device,
-            ).repeat(b, 1)
+            pan_q = torch.tensor(euler2quat(self.pan_spawn_x_rot, 0, self.pan_spawn_z_rot), device=self.device).repeat(b, 1)
             self.pan.set_pose(Pose.create_from_pq(p=pan_pos, q=pan_q))
             # Ensure no carry-over momentum across episode resets.
             self.pan.set_linear_velocity(torch.zeros((b, 3), device=self.device))
             self.pan.set_angular_velocity(torch.zeros((b, 3), device=self.device))
 
-            food_xy = (
-                torch.rand((b, 2), device=self.device) * 2 - 1
-            ) * self.food_spawn_half_size + torch.tensor(
-                self.food_spawn_center, device=self.device
-            )
+            # food_xy = (torch.rand((b, 2), device=self.device) * 2 - 1) * self.food_spawn_half_size + torch.tensor(self.food_spawn_center, device=self.device)
+            food_xy = self._food_region.sample_xy(b, device=self.device)
             food_pos = torch.zeros((b, 3), device=self.device)
             food_pos[:, :2] = food_xy
             food_pos[:, 2] = self.table_surface_z + self.food_bottom_offset

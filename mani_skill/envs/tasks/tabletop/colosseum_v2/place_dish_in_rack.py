@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 from sapien.physx import PhysxMaterial
 
 
@@ -138,6 +138,13 @@ class PlaceDishInRackEnv(ColosseumV2Env):
         self.load_scene_hook(manipulation_objects=[self.plate], receiving_objects=[self.dish_rack])
         # ^ self.plate_support ignored b/c i'm not sure if it's actually added
 
+        self._plate_region = self.update_placement_region(
+            # plate_x = -0.3 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
+            # plate_y = -0.2 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
+            # => x in [-0.4, -0.2], y in [-0.3, -0.1]
+            PlacementRegion.from_center_and_width(center=(-0.3, -0.2), width=(0.2, 0.2))
+        )
+
     def _build_plate(self):
         """Build the plate directly from the high-fidelity ceramic bowl mesh."""
         def get_builder_fn():
@@ -247,8 +254,8 @@ class PlaceDishInRackEnv(ColosseumV2Env):
 
             # First compute plate position so we can position robot above it
             # Randomize plate position within reachable zone - 20cm range (±0.1m)
-            plate_x = -0.3 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
-            plate_y = -0.2 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
+            # plate_x = -0.3 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in X
+            # plate_y = -0.2 + (torch.rand(b, device=device) - 0.5) * 0.2  # ±0.1m in Y
  
             panda_qpos_above_plate = np.array(
                 [-1.08, 0, 0.68, -2.64, 0.07, 2.6, -1.25, 0.04, 0.04]
@@ -264,8 +271,9 @@ class PlaceDishInRackEnv(ColosseumV2Env):
 
             # Set plate position (using pre-computed random values)
             xyz = torch.zeros((b, 3), device=device)
-            xyz[:, 0] = plate_x
-            xyz[:, 1] = plate_y
+            # xyz[:, 0] = plate_x
+            # xyz[:, 1] = plate_y
+            xyz[:, 0:2] = self._plate_region.sample_xy(b, device=device)
             plate_half_height = self._plate_total_height / 2.0
             xyz[:, 2] = table_top_z
 

@@ -1,14 +1,11 @@
-import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
-from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.registration import register_env
 from mani_skill.agents.robots.panda.dual_panda import DualPanda 
-from mani_skill.utils.building import actors
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
 import torch
 
 # 1. Define the Empty Environment
@@ -64,11 +61,18 @@ class DualArmPickCubeEnv(ColosseumV2Env):
         self.obj = self.add_asset_to_scene(cube_builder, name="cube", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.obj])
 
+        self._cube_region = self.update_placement_region(
+            # Ground-truth from legacy sampling: torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # => x,y in [-0.1, 0.1]
+            PlacementRegion(x_lims=(-0.1, 0.1), y_lims=(-0.1, 0.1))
+        )
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
             xyz = torch.zeros((b, 3), device=self.device)
-            xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            # xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2 - 0.1
+            xyz[..., :2] = self._cube_region.sample_xy(b, device=self.device)
             xyz[..., 2] = self.cube_half_size + 0.83
             q = [1, 0, 0, 0]
             self.obj.set_pose(Pose.create_from_pq(p=xyz, q=q))
