@@ -61,7 +61,7 @@ while true; do
         --is-multi-task True \
         --target-num-cams 1 \
         --num-eval-episodes 200 \
-        --num-eval-envs 20 \
+        --num-eval-envs 34 \
         --max-episode-steps 350 \
         --internal-instruction \
         --distraction-set "BLANK" \
@@ -75,7 +75,7 @@ while true; do
         --is-multi-task True \
         --target-num-cams 1 \
         --num-eval-episodes 200 \
-        --num-eval-envs 14 \
+        --num-eval-envs 34 \
         --max-episode-steps 850 \
         --internal-instruction \
         --distraction-set "BLANK" \

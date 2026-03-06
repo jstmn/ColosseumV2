@@ -273,7 +273,7 @@ all_distractor_set = DistractionSet(
 )
 
 DISTRACTION_SETS = {
-    # "none".upper(): DistractionSet(),
+    "none".upper(): DistractionSet(),
     "all".upper(): all_distractor_set,
     ### Distractor object
     "distractor_object".upper(): all_distractor_set.get_partial_copy(["distractor_object_cfg"]),

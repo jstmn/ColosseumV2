@@ -709,7 +709,9 @@ class ColosseumV2Env(BaseEnv):
     def _add_table_to_scene(self):
         # Create the table and optionally set its color and/or texture
         if self._ds.table_color_enabled() or self._ds.table_texture_enabled():
-            # Note: you can't add a texture to the table if you've set its color already.
+            # Clear to avoid accumulating table scene builders across reconfigurations (each
+            # reconfigure calls _load_scene -> load_scene_hook -> _add_table_to_scene again).
+            self._table_scene_builders = []
             add_visual_from_file = not self._ds.table_color_enabled()
             for i in range(self.num_envs):
                 table_scene = TableSceneBuilder(self, robot_init_qpos_noise=self.robot_init_qpos_noise)
