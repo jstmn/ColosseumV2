@@ -15,12 +15,8 @@ Key behavior:
 
 # Example usage:
 
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm_pi05.csv
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual_pi05.csv
-
-
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__table.csv
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__table.csv --output-path logs/parsed/single_arm_1.25
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv --output-path logs/parsed/bimanual__1.25
 """
 
 import argparse
@@ -29,22 +25,6 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-
-EXPECTED_COLUMNS: tuple[str, ...] = (
-    "checkpoint_path",
-    "pc_hostname",
-    "now",
-    "distraction_set",
-    "env_id",
-    "control_mode",
-    "include_depth",
-    "num_eval_episodes",
-    "max_episode_steps",
-    "message",
-    # yes, the writer has a typo: "sucessful" (kept for compatibility)
-    "num_sucessful_episodes",
-    "success_percent",
-)
 
 def _escape_latex(s: str) -> str:
     # Minimal escaping for typical strings; env IDs don't include many special chars,
@@ -333,6 +313,7 @@ def main(argv: list[str]) -> int:
         type=str,
         help="If provided, filter rows to this exact checkpoint_path.",
     )
+    p.add_argument("--output-path", required=True, type=str)
     p.add_argument("--decimals", default=1, type=int, help="Decimal places for success_percent.")
     p.add_argument("--caption", default=None, type=str, help="Optional LaTeX caption.")
     p.add_argument("--label", default=None, type=str, help="Optional LaTeX label, e.g. tab:colosseum_results.")
@@ -368,8 +349,10 @@ def main(argv: list[str]) -> int:
         decimals=args.decimals,
     )
 
-    out_tex = args.results_paths[0].replace(".csv", ".tex")
-    out_csv = args.results_paths[0].replace(".csv", ".results.csv")
+    out_path = Path(args.output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_tex = args.output_path + ".tex"
+    out_csv = args.output_path + ".formatted.csv"
     with open(out_tex, "w") as f:
         f.write(latex)
     print(f"Wrote LaTeX table to {out_tex}")
