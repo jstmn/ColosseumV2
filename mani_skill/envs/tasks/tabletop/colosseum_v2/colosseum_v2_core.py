@@ -500,11 +500,12 @@ class ColosseumV2Env(BaseEnv):
             builder.set_scene_idxs([i])
             articulation = builder.build(name=name_i)
 
-            if object_type.upper() == "MO" and self._ds.MO_mass_enabled():
-                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
-                for link in articulation.links:
-                    new_mass = (link.get_mass() * mass_scale).item()
-                    link.set_mass(new_mass)
+            # MO is disabled
+            # if object_type.upper() == "MO" and self._ds.MO_mass_enabled():
+            #     mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+            #     for link in articulation.links:
+            #         new_mass = (link.get_mass() * mass_scale).item()
+            #         link.set_mass(new_mass)
 
             self.remove_from_state_dict_registry(articulation)
             articulations.append(articulation)
@@ -551,11 +552,12 @@ class ColosseumV2Env(BaseEnv):
             else:
                 raise ValueError(f"Invalid type: {physics_type}")
 
-            if object_type == "MO" and self._ds.MO_mass_enabled():
-                mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
-                assert isinstance(actor, Actor), "actor must be an actor"
-                new_mass = (actor.get_mass() * mass_scale).item()
-                actor.set_mass(new_mass)
+            # MO is disabled
+            # if object_type == "MO" and self._ds.MO_mass_enabled():
+            #     mass_scale = np.random.uniform(*self._ds.MO_mass_cfg["mass_scale_range"])
+            #     assert isinstance(actor, Actor), "actor must be an actor"
+            #     new_mass = (actor.get_mass() * mass_scale).item()
+            #     actor.set_mass(new_mass)
 
             self.remove_from_state_dict_registry(actor)
             actors.append(actor)

@@ -154,10 +154,10 @@ class DistractionSet:
     def camera_pose_enabled(self) -> bool:
         return len(self.camera_pose_cfg) > 0
 
-    def MO_mass_enabled(self) -> bool:
-        enabled = len(self.MO_mass_cfg) > 0
-        assert not enabled, "MO mass is disabled"
-        return False
+    # def MO_mass_enabled(self) -> bool:
+    #     enabled = len(self.MO_mass_cfg) > 0
+    #     assert not enabled, "MO mass is disabled"
+    #     return False
 
     def language_enabled(self) -> bool:
         return len(self.language_cfg) > 0
