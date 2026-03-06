@@ -65,7 +65,7 @@ while true; do
         --max-episode-steps 350 \
         --internal-instruction \
         --distraction-set "BLANK" \
-        --results-path logs/results_single_arm.csv
+        --results-path logs/yggdrasil/results_single_arm__table.csv
 
     python examples/baselines/act_clip/eval_rgbd.py \
         --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
@@ -79,7 +79,7 @@ while true; do
         --max-episode-steps 850 \
         --internal-instruction \
         --distraction-set "BLANK" \
-        --results-path logs/results_bimanual.csv
+        --results-path logs/yggdrasil/results_bimanual__table.csv
 
     # =============================== VIDEO MODE ===============================
     # python examples/baselines/act_clip/eval_rgbd.py \
