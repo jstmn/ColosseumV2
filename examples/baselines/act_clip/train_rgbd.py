@@ -156,6 +156,13 @@ class Args:
     target_num_cams: int | None = None
     """the number of cameras to use for the evaluation environments. Must be set for evaluation"""
 
+    variation_factors_subset: list[str] = field(default_factory=list)
+    """A subset of the variation factors to evaluate on, when running evaluations automatically. Runs on all 
+    colosseum v2 variation factors by default"""
+    tasks_subset: list[str] = field(default_factory=list)
+    """A subset of the tasks to evaluate on, when running evaluations automatically. Runs on all colosseum v2 tasks 
+    by default"""
+
 
 TASK_TEXT_MAP = {
     #Single_arm

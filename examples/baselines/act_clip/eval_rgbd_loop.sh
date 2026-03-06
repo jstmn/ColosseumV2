@@ -66,6 +66,8 @@ while true; do
         --internal-instruction \
         --distraction-set "BLANK" \
         --results-path logs/yggdrasil/results_single_arm__table.csv
+        # --tasks-subset "PickSodaFromCabinet-v1" \
+        # --variation-factors-subset "none" \
 
     python examples/baselines/act_clip/eval_rgbd.py \
         --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \

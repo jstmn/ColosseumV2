@@ -191,8 +191,21 @@ def update_args_from_results(args: Args):
     args.now = now
     args.pc_hostname = socket.gethostname()
 
+    # Filter tasks
+    if len(args.tasks_subset) > 0:
+        tasks = [task for task in tasks if task in args.tasks_subset]
+        assert len(tasks) > 0, f"No tasks found in {args.tasks_subset} after filtering by args.tasks_subset: {args.tasks_subset}"
+
+    # 
+    if len(args.variation_factors_subset) > 0:
+        variation_factors = args.variation_factors_subset
+    else:
+        variation_factors = DISTRACTION_SETS.keys()
+    print("Considering variation factors: ", variation_factors)
+    print("Considering tasks: ", tasks)
+
     for task in tasks:
-        for distraction_set in DISTRACTION_SETS.keys():
+        for distraction_set in variation_factors:
             result_found = results_df[
                 (results_df["env_id"] == task)
                 & (results_df["distraction_set"].str.lower() == distraction_set.lower())
