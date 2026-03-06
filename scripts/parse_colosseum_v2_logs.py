@@ -15,14 +15,12 @@ Key behavior:
 
 # Example usage:
 
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm.csv
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual.csv
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_single_arm_pi05.csv
 python scripts/parse_colosseum_v2_logs.py --results-paths logs/results_bimanual_pi05.csv
 
 
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/logs_4090_pose_init_test/single_arm.csv
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/logs_4090_pose_init_test/bimanual.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__table.csv
+python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv
 """
 
 import argparse
@@ -31,11 +29,11 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
-
 
 EXPECTED_COLUMNS: tuple[str, ...] = (
     "checkpoint_path",
+    "pc_hostname",
+    "now",
     "distraction_set",
     "env_id",
     "control_mode",
@@ -62,11 +60,6 @@ def _escape_latex(s: str) -> str:
         .replace("^", r"\^{}")
         .replace("~", r"\~{}")
     )
-
-
-def _iter_distraction_sets_in_order() -> list[str]:
-    # Dict insertion order is the canonical ordering here.
-    return [k.lower() for k in DISTRACTION_SETS.keys()]
 
 
 def _format_percent(x: object, *, decimals: int) -> str:
@@ -128,6 +121,28 @@ ENV_ID_TO_FANCY_NAME = {
 }
 
 
+
+VARIATION_NAMES = (
+    "none".lower(),
+    "all".lower(),
+    "MO_color".lower(),
+    "RO_color".lower(),
+    "MO_texture".lower(),
+    "RO_texture".lower(),
+    "table_color".lower(),
+    "light_color".lower(),
+    "table_texture".lower(),
+    "distractor_object".lower(),
+    "background_texture".lower(),
+    "background_color".lower(),
+    "camera_pose".lower(),
+    "pose_randomization".lower(),
+    "MO_size".lower(),
+    "RO_size".lower(),
+    "language".lower(),
+)
+
+
 def _task_display_name(env_id: str) -> str:
     # Use the curated short names for presentation in tables.
     # Fail fast if we don't have an entry so tables don't silently mix naming schemes.
@@ -146,14 +161,9 @@ def round_to(x: float):
 
 def build_success_matrix(
     rows: list[dict[str, str]],
-    *,
-    distraction_sets: Iterable[str] | None,
     checkpoint_path: str | None,
     sort_by_success_rate: bool = True,
 ) -> tuple[list[str], list[str], dict[tuple[str, str], float | None]]:
-    ds_list_raw = list(distraction_sets) if distraction_sets is not None else _iter_distraction_sets_in_order()
-    # CSV distraction_set values are normalized to lowercase for aggregation keys.
-    ds_list = [str(ds).lower() for ds in ds_list_raw]
 
     totals: dict[tuple[str, str], tuple[int, int]] = {}
     task_order: list[str] = []
@@ -171,6 +181,7 @@ def build_success_matrix(
 
         if checkpoint_path is not None and row["checkpoint_path"] != checkpoint_path:
             continue
+
         matched_any = True
 
         # Convert env_id to a display name immediately and fail if missing.
@@ -218,7 +229,7 @@ def build_success_matrix(
 
     matrix: dict[tuple[str, str], float | None] = {}
     for t in task_order:
-        for ds in ds_list:
+        for ds in VARIATION_NAMES:
             pair = totals.get((t, ds))
             if pair is None:
                 matrix[(t, ds)] = None
@@ -229,20 +240,18 @@ def build_success_matrix(
                 success_pct = round_to(success_pct)
             matrix[(t, ds)] = success_pct
 
-    return task_order, ds_list, matrix
+    return task_order, matrix
 
 
 def render_latex_table(
     tasks: list[str],
-    distraction_sets: list[str],
     matrix: dict[tuple[str, str], float | None],
-    *,
     caption: str | None,
     label: str | None,
     decimals: int,
     sort_by_success_rate: bool = True,
 ) -> str:
-    header_cells = ["Task"] + [c.upper() for c in distraction_sets]
+    header_cells = ["Task"] + [c.upper() for c in VARIATION_NAMES]
 
     def get_header_cell(x: str) -> str:
         def to_bold(x: str) -> str:
@@ -255,7 +264,7 @@ def render_latex_table(
         return r"\rotatebox{90}{ " + to_bold(escaped) + " }"
 
     # tabular spec: 1 left column + N right columns
-    tabular_spec = "l" + ("r" * len(distraction_sets))
+    tabular_spec = "l" + ("r" * len(VARIATION_NAMES))
     lines: list[str] = []
     lines.append(r"\centering")
     lines.append(rf"\begin{{tabular}}{{{tabular_spec}}}")
@@ -275,7 +284,7 @@ def render_latex_table(
 
     for task in tasks:
         cells = [_escape_latex(str(task))]
-        for ds in distraction_sets:
+        for ds in VARIATION_NAMES:
             cells.append(_format_percent(matrix.get((task, ds)), decimals=decimals))
         lines.append(" & ".join(cells) + r" \\")
 
@@ -289,17 +298,17 @@ def render_latex_table(
     return "\n".join(lines)
 
 
-def save_to_csv(tasks: list[str], distraction_sets: list[str], matrix: dict[tuple[str, str], float | None], path: str):
+def save_to_csv(tasks: list[str], matrix: dict[tuple[str, str], float | None], path: str):
     with open(path, "w") as f:
         writer = csv.writer(f)
-        writer.writerow(["Task"] + distraction_sets)
+        writer.writerow(["Task"] + list(VARIATION_NAMES))
         for task in tasks:
-            writer.writerow([str(task)] + [matrix.get((task, ds)) for ds in distraction_sets])
+            writer.writerow([str(task)] + [matrix.get((task, ds)) for ds in VARIATION_NAMES])
     print(f"Wrote CSV table to {path}")
 
 
 def row_exists(rows: list[dict[str, str]], row: dict[str, str]) -> bool:
-    keys = ["checkpoint_path","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes"]
+    keys = ["checkpoint_path","pc_hostname","now","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes"]
     for r in rows:
         if all(r[key] == row[key] for key in keys):
             return True
@@ -345,16 +354,14 @@ def main(argv: list[str]) -> int:
     print(f"Number of rows removed: {total_n_rows0 - total_n_rows1}")
     print()
 
-    tasks, distraction_sets, matrix = build_success_matrix(
+    tasks, matrix = build_success_matrix(
         rows,
-        distraction_sets=_iter_distraction_sets_in_order(),
         checkpoint_path=args.checkpoint_path,
         sort_by_success_rate=str2bool(args.sort_by_success_rate),
     )
 
     latex = render_latex_table(
         tasks,
-        distraction_sets,
         matrix,
         caption=args.caption,
         label=args.label,
@@ -366,7 +373,7 @@ def main(argv: list[str]) -> int:
     with open(out_tex, "w") as f:
         f.write(latex)
     print(f"Wrote LaTeX table to {out_tex}")
-    save_to_csv(tasks, distraction_sets, matrix, out_csv)
+    save_to_csv(tasks, matrix, out_csv)
     return 0
 
 

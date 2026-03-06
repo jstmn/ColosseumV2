@@ -64,7 +64,7 @@ class DistractionSet:
     background_texture_cfg: dict = field(default_factory=dict)
     background_color_cfg: dict = field(default_factory=dict)
     camera_pose_cfg: dict = field(default_factory=dict)
-    MO_mass_cfg: dict = field(default_factory=dict)
+    # MO_mass_cfg: dict = field(default_factory=dict)
     language_cfg: dict = field(default_factory=dict)
     pose_randomization_cfg: dict = field(default_factory=dict)
 
@@ -205,7 +205,7 @@ class DistractionSet:
             "background_texture_cfg",
             "background_color_cfg",
             "camera_pose_cfg",
-            "MO_mass_cfg",
+            # "MO_mass_cfg",
             "language_cfg",
             "pose_randomization_cfg",
         ]:
@@ -249,7 +249,7 @@ all_distractor_set = DistractionSet(
     MO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
     MO_texture_cfg = {"textures_directory": os.path.join(PACKAGE_ASSET_DIR, "textures"),},
     # MO_mass_cfg = {"mass_scale_range": (3, 8),},
-    MO_mass_cfg = {}, # ignored
+    # MO_mass_cfg = {}, # ignored
     MO_size_cfg = {"scale_range": (0.8, 1.2)},
     # 
     RO_color_cfg ={"color_range": ColorRange(low=(0, 0, 0, 1), high=(1, 1, 1, 1)),},
