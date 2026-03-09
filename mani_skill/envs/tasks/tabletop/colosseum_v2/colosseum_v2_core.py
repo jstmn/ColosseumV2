@@ -113,7 +113,6 @@ class DisabledVariationFactors:
     MO_color: bool = False
     MO_texture: bool = False
     MO_size: bool = False
-    MO_mass: bool = False
     RO_color: bool = False
     RO_texture: bool = False
     RO_size: bool = False
@@ -172,6 +171,10 @@ class PlacementRegion:
             x_lims=(center[0] - width[0] / 2, center[0] + width[0] / 2),
             y_lims=(center[1] - width[1] / 2, center[1] + width[1] / 2),
         )
+
+    @property
+    def center_xy(self) -> list[float]:
+        return [(self.x_lims[0] + self.x_lims[1]) / 2, (self.y_lims[0] + self.y_lims[1]) / 2]
 
     @property
     def width_x(self) -> float:

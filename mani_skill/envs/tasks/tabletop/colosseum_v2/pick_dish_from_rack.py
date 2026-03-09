@@ -9,7 +9,7 @@ from sapien.physx import PhysxMaterial
 import sapien
 
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.agents.robots import Fetch, Panda
+from mani_skill.agents.robots import Fetch, Panda, PandaWristCam
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
@@ -34,7 +34,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
     - The plate is outside the rack's outer bounds, flat on the table, and released by the robot.
     """
 
-    agent: Union[Panda, Fetch]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
+    agent: Union[PandaWristCam, Fetch]
 
     _rack_mesh_path = PACKAGE_ASSET_DIR / "dish_into_rack/dish_rack_with_connectors.stl"
     _plate_visual_mesh_path = (
@@ -77,18 +78,28 @@ class PickDishFromRackEnv(ColosseumV2Env):
         pose_randomization=True,
     )
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, -0.25, 0.35], target=[0.0, 0.0, 0.05])
+        pose1 = sapien_utils.look_at(eye=[0.3, -0.25, 0.35], target=[0.0, 0.0, 0.05])
+        pose2 = sapien_utils.look_at(eye=[-0.2, -0.15, 0.5], target=[0.0, 0.0, 0.05])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 2,
+                near=0.01,
+                far=100,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
                 width=224,
                 height=224,
                 fov=np.pi / 2,

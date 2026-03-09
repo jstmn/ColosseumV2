@@ -232,12 +232,6 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         counter += 1
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
         res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
-        # try:
-        # except Exception as e:
-        #     print(f"Cannot find valid solution because of an error in motion planning solution: {e}")
-        #     print("Traceback:")
-        #     print(''.join(traceback.format_tb(e.__traceback__)))
-        #     res = -1
 
         if res == -1:
             success = False

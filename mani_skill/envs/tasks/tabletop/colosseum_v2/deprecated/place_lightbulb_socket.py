@@ -18,7 +18,7 @@ from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import Distract
 class PickLightbulbPlaceSocketEnv(BaseEnv):
     """Pick up a lightbulb and place it into a lamp socket."""
     
-    SUPPORTED_ROBOTS = ["panda", "fetch"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
     
     socket_tolerance = 0.03
@@ -39,7 +39,7 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
             )
         ]
     
-    def __init__(self, *args, robot_uids="panda", num_envs=1, reconfiguration_freq=None, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", num_envs=1, reconfiguration_freq=None, **kwargs):
         raise NotImplementedError("This environment is not implemented yet")
         distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
         self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set

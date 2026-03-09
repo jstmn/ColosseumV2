@@ -97,7 +97,7 @@ class OpenCabinetEnv(ColosseumV2Env):
     - Door is static (not moving).
     """
 
-    SUPPORTED_ROBOTS = ["panda"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda"]
     agent: Union[Panda]
     handle_types = ["revolute", "revolute_unwrapped"]  # Cabinet doors use revolute joints
 
@@ -111,7 +111,6 @@ class OpenCabinetEnv(ColosseumV2Env):
         MO_color=True,
         MO_texture=True,
         MO_size=True,
-        MO_mass=True,
         RO_texture=True,
         RO_size=True,
         RO_color=True,
@@ -126,7 +125,7 @@ class OpenCabinetEnv(ColosseumV2Env):
     def __init__(
         self,
         *args,
-        robot_uids="panda",
+        robot_uids="panda_wristcam",
         robot_init_qpos_noise=0.0,  # No noise - IK handles initial configuration
         **kwargs,
     ):
@@ -157,11 +156,21 @@ class OpenCabinetEnv(ColosseumV2Env):
     @property
     def _default_sensor_configs(self):
         # Sensor camera with view of robot arm and cabinet handle
-        pose = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
+        pose1 = sapien_utils.look_at(eye=[-0.4, -0.5, 0.6], target=[0.0, 0.0, 0.35])
+        pose2 = sapien_utils.look_at(eye=[-0.2, -0.15, 0.8], target=[0.0, 0.0, 0.35])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 2,
+                near=0.01,
+                far=100,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
                 width=224,
                 height=224,
                 fov=np.pi / 2,

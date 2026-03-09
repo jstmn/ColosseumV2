@@ -33,13 +33,13 @@ class CookItemInPanEnv(ColosseumV2Env):
     - The food item is inside the pan, static, and released.
     """
 
-    SUPPORTED_ROBOTS = ["panda", "fetch"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
     def __init__(
         self,
         *args,
-        robot_uids="panda",
+        robot_uids="panda_wristcam",
         robot_init_qpos_noise=0.02,
         pan_glb_path=None,  # Uses default from PACKAGE_ASSET_DIR
         pan_scale=0.0018,  # STL is in mm, 1.5x bigger
@@ -196,8 +196,16 @@ class CookItemInPanEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.35, -0.3, 0.4], target=[0.0, 0.0, 0.0])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100)])
+        # pose = sapien_utils.look_at(eye=[0.35, -0.3, 0.4], target=[0.0, 0.0, 0.0])
+        # return self.update_camera_configs([CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[0.35, -0.3, 0.4], target=[0.0, 0.0, 0.0])
+        pose2 = sapien_utils.look_at(eye=[0.35, 0.3, 0.4], target=[0.0, 0.0, 0.0])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100),
+            ]
+        )
 
     @property
     def _default_human_render_camera_configs(self):

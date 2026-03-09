@@ -33,8 +33,8 @@ class RotateArrowEnv(ColosseumV2Env):
     arrow_spawnbox_ylength = 0.2
 
     # translation of the spawnbox from goal tee as upper left of spawnbox
-    arrow_spawnbox_xoffset = -0.4
-    arrow_spawnbox_yoffset = -0.3
+    arrow_spawnbox_xoffset = -0.3
+    arrow_spawnbox_yoffset = -0.2
     #  end randomizations - rotation around z is simply uniform
 
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
@@ -54,8 +54,9 @@ class RotateArrowEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0, 0.4], target=[-0.1, -0.1, 0])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[0.2, 0, 0.4], target=[self.arrow_spawnbox_xoffset, self.arrow_spawnbox_yoffset, 0])
+        pose2 = sapien_utils.look_at(eye=[0.0, 0.3, 0.4], target=[self.arrow_spawnbox_xoffset, self.arrow_spawnbox_yoffset, 0])
+        return self.update_camera_configs([CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100), CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100)])
 
     @property
     def _default_human_render_camera_configs(self):

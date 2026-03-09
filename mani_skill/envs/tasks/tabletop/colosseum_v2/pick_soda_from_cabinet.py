@@ -3,7 +3,8 @@ import numpy as np
 import sapien
 import torch
 import os
-from mani_skill.agents.robots import Fetch, Panda
+import pathlib
+from mani_skill.agents.robots import Fetch, Panda, PandaWristCam
 from mani_skill.envs.utils import randomization
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
@@ -33,7 +34,7 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
     """
 
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
-    agent: Union[Panda, Fetch]
+    agent: Union[PandaWristCam, Fetch]
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_size=True,
@@ -49,8 +50,14 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[0, 0, 0.1])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[-0.3, 0.2, 0.6], target=[0, 0, 0.25])
+        pose2 = sapien_utils.look_at(eye=[-0.3, -0.4, 0.6], target=[0, 0, 0.25])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100),
+            ]
+        )
 
     @property
     def _default_human_render_camera_configs(self):
@@ -172,7 +179,6 @@ class PickSodaFromCabinetEnv(ColosseumV2Env):
         Check if RoboCasa dataset is available.
         If not, provide helpful error message with download instructions.
         """
-        import pathlib
         
         # Check for a key RoboCasa fixture file
         robocasa_data_path = pathlib.Path.home() / ".maniskill" / "data" / "scene_datasets" / "robocasa_dataset"

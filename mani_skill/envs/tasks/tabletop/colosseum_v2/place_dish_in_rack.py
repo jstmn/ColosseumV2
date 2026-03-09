@@ -7,7 +7,7 @@ import sapien.render
 import torch
 
 from mani_skill import PACKAGE_ASSET_DIR
-from mani_skill.agents.robots import Fetch, Panda
+from mani_skill.agents.robots import Fetch, Panda, PandaWristCam
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
@@ -35,7 +35,8 @@ class PlaceDishInRackEnv(ColosseumV2Env):
     - The plate is upright and centered inside the dish rack while the robot releases it.
     """
 
-    agent: Union[Panda, Fetch]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
+    agent: Union[PandaWristCam, Fetch]
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_size=True,
@@ -74,7 +75,7 @@ class PlaceDishInRackEnv(ColosseumV2Env):
     _plate_support_radius = 0.015
     _plate_support_height = 0.0  # No pedestal - plate flush with table
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         # Use the default robot joint configuration with light noise.
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -91,11 +92,21 @@ class PlaceDishInRackEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.2, -0.2, 0.4], target=[-0.3, 0.0, 0.0])
+        pose1 = sapien_utils.look_at(eye=[0.2, -0.15, 0.5], target=[0.0, 0.0, 0.05])
+        pose2 = sapien_utils.look_at(eye=[0.1, 0.5, 0.4], target=[0.0, 0.0, 0.05])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 2,
+                near=0.01,
+                far=100,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
                 width=224,
                 height=224,
                 fov=np.pi / 2,

@@ -35,7 +35,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
     - Cube is in the robot's gripper and in the air.
     """
 
-    SUPPORTED_ROBOTS = ["panda"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda"]
     agent: Union[Panda]
     handle_types = ["prismatic"]  # Drawer joints
 
@@ -45,7 +45,7 @@ class PickCubeFromDrawerEnv(BaseEnv):
     def __init__(
         self,
         *args,
-        robot_uids="panda",
+        robot_uids="panda_wristcam",
         robot_init_qpos_noise=0.0,
         **kwargs,
     ):
