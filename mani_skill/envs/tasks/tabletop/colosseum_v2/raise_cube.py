@@ -78,7 +78,7 @@ class RaiseCubeEnv(ColosseumV2Env):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=self.sensor_cam_eye_pos, target=self.sensor_cam_target_pos)
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
+        return self.update_camera_configs([CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100)])
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

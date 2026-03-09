@@ -63,7 +63,7 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
         return self.update_camera_configs([
-            CameraConfig("base_camera", pose=pose, width=128, height=128, fov=np.pi / 2)
+            CameraConfig("base_camera", pose=pose, width=224, height=224, fov=np.pi / 2)
         ])
 
     @property

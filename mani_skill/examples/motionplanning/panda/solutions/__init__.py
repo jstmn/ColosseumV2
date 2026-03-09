@@ -15,7 +15,7 @@ from .open_drawer import solve as solveOpenDrawer
 from .raise_cube import solve as solveRaiseCube
 
 from .place_book_in_shelf import solve as solvePlaceBookInShelf
-from .hang_clothing_frame_on_pole import solve as solveHangClothingFrameOnPole
+# from .hang_clothing_frame_on_pole import solve as solveHangClothingFrameOnPole
 from .pick_soda_from_cabinet import solve as solvePickSodaFromCabinet
 from .rotate_arrow import solve as solveRotateArrow
 from .scoop_banana import solve as solveScoopBanana

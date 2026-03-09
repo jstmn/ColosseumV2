@@ -87,8 +87,8 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=224,
+                height=224,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,
