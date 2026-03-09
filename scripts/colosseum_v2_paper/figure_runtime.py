@@ -18,7 +18,7 @@ batch_size,frames_per_second,seconds_per_frame
 
 
 # Example usage:
-python scripts/generate_colosseum_v2_runtime_figure.py \
+python scripts/colosseum_v2_paper/figure_runtime.py \
     --timing-csvs logs/fps/rlbench_fps.csv logs/fps/maniskill_fps.csv \
     --model-names "Colosseum" "Colosseum-V2" \
     --output-filepath logs/fps/runtime_figure.png

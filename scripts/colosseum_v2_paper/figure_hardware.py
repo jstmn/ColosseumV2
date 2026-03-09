@@ -12,7 +12,7 @@ from numpy import isnan
 """ Compares sim performance vs hardware performance
 
 # Example usage:
-python scripts/generate_colosseum_v2_hardware_plots.py \
+python scripts/colosseum_v2_paper/figure_hardware.py \
     --sim-csv-filepath logs/results_single_arm.results.csv \
     --out-dir logs/hardware_plots
 """

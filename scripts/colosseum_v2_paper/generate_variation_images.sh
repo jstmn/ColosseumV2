@@ -21,19 +21,20 @@ ENV_ID="DualArmStack3Cube-v1"
 
 DISTRACTION_SETS=(
     # "none"
-    "all"
+    # "all"
     # "MO_color"
     # "RO_color"
-    "MO_texture"
-    "RO_texture"
-    # "MO_size"
-    # "RO_size"
-    "table_color"
-    "light_color"
-    "table_texture"
-    "distractor_object"
-    "background_texture"
-    "background_color"
+    # "MO_texture"
+    # "RO_texture"
+    "MO_size"
+    "RO_size"
+    # "table_color"
+    # "light_color"
+    # "table_texture"
+    # "distractor_object"
+    # "background_texture"
+    # "background_color"
+    "pose_randomization"
     # "camera_pose"
     # "MO_mass"
     # "language"
@@ -67,6 +68,7 @@ for DS in "${DISTRACTION_SETS[@]}"; do
 
     python scripts/extract_h5_images.py \
         --h5-file demos/${ENV_ID}/motionplanning/trajectory__${DS}.h5 \
-        --first-n 50 \
+        --first-n-trajectories 3 \
+        --first-n-timesteps 65 \
         --prefix "${DS}__${now}__"
 done

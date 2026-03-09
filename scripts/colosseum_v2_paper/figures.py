@@ -29,12 +29,20 @@ DualArmCubeHandover,0.0,0.0,0.5,0.0,0.0,0.0,0.0,,,,0.0,,0.5,0.0,1.0,0.0,0.0
 DualArmDrawerPlace,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,0.0,0.0,0.0,0.0,0.0
 
 
-
 # Example usage:
-python scripts/generate_colosseum_v2_paper_figures.py \
-    --result-csvs logs/results_bimanual.results.csv logs/results_single_arm.results.csv logs/results_single_arm_pi05.results.csv logs/results_bimanual_pi05.results.csv \
-    --model-names "ACT - Bimanual" "ACT - Single Arm" "Pi.0.5 - Single Arm" "Pi.0.5 - Bimanual" \
+python scripts/colosseum_v2_paper/figures.py \
+    --result-csvs logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv \
+    --model-names "ACT - Bimanual" "ACT - Single Arm" \
     --output-dir logs/
+
+
+# TEMP: pretend that Pi0.5 is ACT
+python scripts/colosseum_v2_paper/figures.py \
+    --result-csvs logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv \
+    --model-names "ACT - Bimanual" "ACT - Single Arm" "Pi0.5 - Bimanual" "Pi0.5 - Single Arm" \
+    --output-dir logs/
+
+
 """
 
 
@@ -54,7 +62,7 @@ DISTRACTION_SETS=(
     "background_texture",
     "background_color",
     "camera_pose",
-    "MO_mass",
+    "pose_randomization",
     "language"
 )
 
@@ -74,7 +82,7 @@ DISTRACTION_SET_DISPLAY_NAMES = {
     "background_texture": "Background Texture",
     "background_color": "Background Color",
     "camera_pose": "Camera Pose",
-    "MO_mass": "MO Mass",
+    "pose_randomization": "Pose Randomization",
     "language": "Language",
 }
 
@@ -97,7 +105,7 @@ LANGUAGE_DISTRACTION_SETS = [
 ACTION_DISTRACTION_SETS = [
     "MO_size",
     "RO_size",
-    "MO_mass",
+    "pose_randomization",
 ]
 assert len(VISION_DISTRACTION_SETS) + len(ACTION_DISTRACTION_SETS) + len(LANGUAGE_DISTRACTION_SETS) == len(DISTRACTION_SETS) - 2
 # ^ 2 not included are 'none' and 'all'
