@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import sapien.core as sapien
 from mani_skill.utils.registration import register_env
-from mani_skill.agents.robots.panda.dual_panda import DualPanda
+from mani_skill.agents.robots.panda.dual_panda_wristcam import DualPandaWristCam
 from mani_skill.utils.building import articulations
 import torch
 from mani_skill.sensors.camera import CameraConfig
@@ -20,8 +20,8 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
     """
     cube_half_size = 0.02
     # Explicitly tell ManiSkill to use the DualPanda agent
-    SUPPORTED_ROBOTS = ["dual_panda"]
-    agent: DualPanda # Type hinting for IDE support
+    SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
+    agent: DualPandaWristCam # Type hinting for IDE support
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_color=True,
@@ -32,16 +32,26 @@ class DualArmDrawerOpenEnv(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="dual_panda", **kwargs):
+    def __init__(self, *args, robot_uids="dual_panda_wristcam", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
+        pose1 = sapien_utils.look_at(eye=[-0.3, 0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
+        pose2 = sapien_utils.look_at(eye=[-0.3, -0.5, 1.0+0.83], target=[-0.1, 0, 0.2+0.83])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 3,
+                near=0.01,
+                far=10,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
                 width=224,
                 height=224,
                 fov=np.pi / 3,

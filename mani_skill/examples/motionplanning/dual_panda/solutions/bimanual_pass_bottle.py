@@ -17,6 +17,8 @@ def main():
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
         render_mode='human',  # Use 'human' for visualization
+        _env_id="DualArmPickBottle-v1",
+        reward_mode="none",
     )
     print("=== Testing Dual Panda Motion Planner ===\n")
 
@@ -26,6 +28,7 @@ def main():
         
     env.close()
     print("\n=== All tests completed ===")
+
 
 def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     env.reset(seed=seed)
@@ -87,7 +90,8 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     if res==-1:
         return res
             
-    grasp_pose = grasp_pose*sapien.Pose(p=[0.13,0,0.00])
+    # grasp_pose = grasp_pose*sapien.Pose(p=[0.2,0,0.00])
+    grasp_pose = grasp_pose*sapien.Pose(p=[0.1,0.0,-0.02])
     grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
     res = planner.move_to_pose_with_screw(
         grasp_pose,  # left

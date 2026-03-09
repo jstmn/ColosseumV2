@@ -780,7 +780,7 @@ class ColosseumV2Env(BaseEnv):
 
         # DualPanda includes a `table` link inside its URDF (`dual_panda_table.urdf`).
         # If users enable table color/texture randomization, apply it to that link's visuals as well.
-        if self._robot_uids == "dual_panda" and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
+        if ("dual_panda" in self._robot_uids) and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
             table_link = self.agent.robot.links_map.get("table", None)
             # PhysX link components have an `.entity` that holds render components.
             table_entities = [o.entity for o in table_link._objs]
@@ -905,7 +905,7 @@ class ColosseumV2Env(BaseEnv):
                 self._ds._internal["distractor_object_cfg"]["actors"][i].set_pose(Pose.create_from_pq(p=xyz))
 
     def _get_obs_extra(self, info: dict):
-        if self._robot_uids == "dual_panda":
+        if "dual_panda" in self._robot_uids:
             return dict(
                 left_arm_tcp=self.agent.tcp_1_pose.raw_pose,
                 right_arm_tcp=self.agent.tcp_2_pose.raw_pose,

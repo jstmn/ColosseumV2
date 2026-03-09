@@ -25,6 +25,7 @@ def build_ring_tripod(
     color: Optional[np.ndarray] = None,
     initial_pose: Optional[Pose] = None,
     return_builder: bool = False,
+    num_segments: int = 20,
 ) -> ActorBuilder | sapien.Entity:
     """
     Build a ring tripod actor - a square base with a vertical pole and a ring at the top.
@@ -157,7 +158,6 @@ def build_ring_tripod(
     
     # Build the ring at the top (torus approximation using cylinders arranged in a circle)
     ring_center_z = base_thickness + pole_height + ring_thickness/2 + ring_radius
-    num_segments = 16
     segment_angle = 2 * np.pi / num_segments
     segment_length = 2 * np.pi * ring_radius / num_segments
     

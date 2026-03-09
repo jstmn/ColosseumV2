@@ -19,7 +19,7 @@ class DualPandaThreadingEnv(ColosseumV2Env):
     A threading task environment for Dual Panda arms.
     One arm holds the needle, the other manipulates the ring tripod.
     """
-    SUPPORTED_ROBOTS = ["dual_panda"]
+    SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
     agent: DualPanda
     
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
@@ -27,16 +27,27 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="dual_panda", **kwargs):
+    def __init__(self, *args, robot_uids="dual_panda_wristcam", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
-    
+
+
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.2 + 0.83]) # 0.83: height of the table
+        pose1 = sapien_utils.look_at(eye=[0.6, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.1 + 0.83]) # 0.83: height of the table
+        pose2 = sapien_utils.look_at(eye=[-0.5, 0.0, 0.7 + 0.83], target=[-0.2, 0, 0.3 + 0.83]) # 0.83: height of the table
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 3,
+                near=0.01,
+                far=10,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
                 width=224,
                 height=224,
                 fov=np.pi / 3,
@@ -44,25 +55,23 @@ class DualPandaThreadingEnv(ColosseumV2Env):
                 far=10,
             )
         ])
-        
+
+
     @property
     def _default_human_render_camera_configs(self):
         """Configure camera for rendering videos and visualization"""
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    
     def _load_scene(self, options: dict):
         """Load the needle and ring tripod actors into the scene."""
         # Build the needle
         needle_builder = lambda: build_needle(
             self.scene,
             name="needle",
-            length=0.1,
-            shaft_radius=0.01,
+            length=0.125,
+            shaft_radius=0.02,
             tip_length=0.05,
-            eye_radius=0.01,
-            eye_distance_from_end=0.02,
             density=8000.0,
             color=np.array([0.3, 0.3, 0.3, 1.0]),
             initial_pose=sapien.Pose(p=[0.0, 0.0, 0.85]),
@@ -73,11 +82,11 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         ring_tripod_builder = lambda: build_ring_tripod(
             self.scene,
             name="ring_tripod",
-            base_size = 0.15,
+            base_size = 0.125,
             base_thickness = 0.01,
-            pole_height = 0.12,
-            pole_radius = 0.008,
-            ring_radius = 0.03,
+            pole_height = 0.15,
+            pole_radius = 0.01,
+            ring_radius = 0.05,
             ring_thickness = 0.01,
             density=1000.0,
             color=np.array([110/255, 38/255, 14/255, 1.0]),
@@ -93,14 +102,14 @@ class DualPandaThreadingEnv(ColosseumV2Env):
             # ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
             # ring_xyz[..., 1] -= 0.1
             # => x in [0.0, 0.2], y in [-0.1, 0.1]
-            PlacementRegion.from_center_and_width(center=(0.1, 0.0), width=(0.2, 0.2))
+            PlacementRegion.from_center_and_width(center=(0.2, 0.0), width=(0.1, 0.1))
         )
         self._needle_region = self.update_placement_region(
             # Ground-truth from legacy sampling:
             # needle_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
             # needle_xyz[..., 1] -= 0.1
             # => x in [0.0, 0.2], y in [-0.1, 0.1]
-            PlacementRegion.from_center_and_width(center=(0.1, 0.0), width=(0.2, 0.2))
+            PlacementRegion.from_center_and_width(center=(-0.3, 0.0), width=(0.1, 0.1))
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -184,21 +193,3 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         self.agent.reset(qpos)
     
     
-    
-
-if __name__ == "__main__":
-    env = gym.make(
-        "DualArmThreading-v1",
-        robot_uids="dual_panda",
-        obs_mode="state_dict",
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
-    
-    print("Threading Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    
-    while True:
-        env.render()
