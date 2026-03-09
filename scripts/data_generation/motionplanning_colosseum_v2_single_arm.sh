@@ -21,7 +21,7 @@ ENVS=(
     "CookItemInPan-v1"
     "RaiseCube-v1"
 )
-NUM_PROCS=10
+NUM_PROCS=7
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_ee_delta_pose
 OBS_MODE=rgb
@@ -33,7 +33,7 @@ for ENV_ID in "${ENVS[@]}"; do
     TRANSLATED_TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}.physx_cpu.h5
 
     if [ -f "$TRANSLATED_TRAJ_PATH" ]; then
-        echo -e "\033[1;33m Converted trajectory file $TRANSLATED_TRAJ_PATH already exists\033[0m"
+        echo -e "\033[1;32m Converted trajectory file $TRANSLATED_TRAJ_PATH already exists\033[0m"
         continue
     else
         echo -e "\033[1;33m Converted trajectory file $TRANSLATED_TRAJ_PATH does not exist\033[0m"
@@ -59,7 +59,7 @@ for ENV_ID in "${ENVS[@]}"; do
             --only-count-success \
             --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
     else
-        echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
+        echo -e "\033[1;32mTrajectory file $TRAJ_PATH already exists\033[0m"
     fi
 
     echo ""

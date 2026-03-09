@@ -68,13 +68,13 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    
     def _load_scene(self, options: dict):
         obj_builder = lambda: self.get_glb_asset_builder(
                                         os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
             initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
             object_type="MO",
-            scale=(0.06,0.06,0.08),
+            # scale=(0.06,0.06,0.08),
+            scale=(0.04,0.04,0.06),
         )
         self.obj = self.add_asset_to_scene(obj_builder, name="bottle", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.obj])

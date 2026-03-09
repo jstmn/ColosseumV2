@@ -25,13 +25,17 @@ def main():
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
         success = solve(env, seed=seed, debug=True, vis=True)
-        
+
     env.close()
     print("\n=== All tests completed ===")
 
 
 def solve(env:DualArmPickBottleEnv, seed, debug, vis):
     env.reset(seed=seed)
+
+    def dprint(s, *args, **kwargs):
+        if debug:
+            print(s, *args, **kwargs)
     
     planner = DualPandaMotionPlanningSolver(
         env,
@@ -39,28 +43,6 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         vis=vis,
         print_env_info=True
     )
-    
-        
-    # Get initial poses
-    tcp_1_pose = env.unwrapped.agent.tcp_1_pose
-    tcp_2_pose = env.unwrapped.agent.tcp_2_pose
-
-    # 1. Handle Position (p)
-    if hasattr(tcp_1_pose.p, 'cpu'):
-        p1 = tcp_1_pose.p.cpu().numpy().flatten()
-        p2 = tcp_2_pose.p.cpu().numpy().flatten()
-    else:
-        p1 = np.array(tcp_1_pose.p).flatten()
-        p2 = np.array(tcp_2_pose.p).flatten()
-
-    # 2. Handle Orientation (q)
-    if hasattr(tcp_1_pose.q, 'cpu'):
-        q1 = tcp_1_pose.q.cpu().numpy().flatten()
-        q2 = tcp_2_pose.q.cpu().numpy().flatten()
-    else:
-        q1 = np.array(tcp_1_pose.q).flatten()
-        q2 = np.array(tcp_2_pose.q).flatten()
-
 
     FINGER_LENGTH = 0.025
     env = env.unwrapped
@@ -76,85 +58,88 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         depth=FINGER_LENGTH,
     )
     closing, center = grasp_info["closing"], grasp_info["center"]
-    
+
     grasp_pose = env.agent.build_grasp_pose(approaching, closing, env.obj.pose.sp.p)
     grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
 
     grasp_1_approach_pose = grasp_pose*sapien.Pose(p=[0.15,0,-0.1])
     grasp_1_approach_pose.q = np.array([-0.5,0.5,0.5,0.5])
+    dprint("(1) [next] move_to_pose_with_screw(grasp_1_approach_pose)")
     res = planner.move_to_pose_with_screw(
         grasp_1_approach_pose,  # left
         arm_index=1
     )
 
-    if res==-1:
+    if res == -1:
         return res
-            
+
     # grasp_pose = grasp_pose*sapien.Pose(p=[0.2,0,0.00])
     grasp_pose = grasp_pose*sapien.Pose(p=[0.1,0.0,-0.02])
     grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
-    res = planner.move_to_pose_with_screw(
+    dprint("(2) [next] move_to_pose_with_screw(grasp_pose)")
+    # res = planner.move_to_pose_with_screw(
+    # ^ this isn't precise
+    res = planner.move_arm_to_pose_with_RRTConnect(
         grasp_pose,  # left
-        arm_index=1
+        arm_index=1,
+        refine_steps=3
     )
+    # ^ 
 
-    if res==-1:
+    if res == -1:
         return res
-    
+
+    dprint("(3) [next] close_gripper(arm_index=1, t=10)")
     planner.close_gripper(arm_index=1, t=10)
-    
-    lift_1 = sapien.Pose(
-        p=np.array([-0.333, -0.10, 1.5]),
-        q=np.array([-0.5,0.5,0.5,0.5])
-    )
-    
-    lift_2 = sapien.Pose(
-        p=np.array([-0.333, 0.10, 1.48]),
-        q=np.array([0.5,0.5,0.5,-0.5])
-    )
-    
+
+    lift_1 = sapien.Pose(p=np.array([-0.333, -0.10, 1.5]), q=np.array([-0.5,0.5,0.5,0.5]))
+    lift_2 = sapien.Pose(p=np.array([-0.333, 0.10, 1.48]), q=np.array([0.5,0.5,0.5,-0.5]))
+
+    dprint("(4) [next] move_to_pose_pair_with_RRTConnect(lift_2, lift_1)")
     res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1
     )
-    
+
     if res == -1:
         return res
-    
+
     # 5. Lift up
     lift_1 = sapien.Pose(
         p=np.array([-0.333, 0.04, 1.5]),
         q=np.array([-0.5,0.5,0.5,0.5])
     )
-    
+
     lift_2 = sapien.Pose(
         p=np.array([-0.333, 0.04, 1.48]),
         q=np.array([0.5,0.5,0.5,-0.5])
     )
-    
+    dprint("(5) [next] move_to_pose_pair_with_screw(lift_2, lift_1)")
     res = planner.move_to_pose_pair_with_screw(
         lift_2,  # left
         lift_1,  # right
     )
-    
+
     if res == -1:
         return res
-    
+
     # 6. Open grippers
+    dprint("(6) [next] close_gripper(arm_index=2, t=5)")
     planner.close_gripper(arm_index=2, t=5)
+    dprint("(7) [next] open_gripper(arm_index=1, t=5)")
     planner.open_gripper(arm_index=1, t=5)
     lift_2 = sapien.Pose(
         p=np.array([-0.333, 0.20, 1.48]),
         q=np.array([0.5,0.5,0.5,-0.5])
     )
+    dprint("(8) [next] move_to_pose_with_screw(lift_2)")
     res = planner.move_to_pose_with_screw(
         lift_2,
         arm_index=2
     )
-    
+
     if res == -1:
         return res
-    
     return res
 
 if __name__ == "__main__":

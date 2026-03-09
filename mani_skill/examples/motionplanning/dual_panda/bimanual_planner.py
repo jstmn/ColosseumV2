@@ -499,8 +499,7 @@ class BimanualPlanner:
         right_grasp_T,
         time_step=0.1,
         rrt_range=0.01,
-        planning_time=5,
-        verbose=False):
+        planning_time=5):
         
         constr_func, constr_jac = self.create_dual_arm_constraint_function(left_grasp_T, right_grasp_T)
         
@@ -510,13 +509,10 @@ class BimanualPlanner:
             time_step=time_step,
             rrt_range=rrt_range,
             planning_time=planning_time,
-            planner_name="RRTConnect",
-            no_simplification=True,
             constraint_function=constr_func,
             constraint_jacobian=constr_jac,
             constraint_tolerance=1e-3,
             fixed_joint_indices=[],  # Don't fix any joints
-            verbose=verbose,
         )
         
     def plan_dual_arm_screw_constrained(
@@ -769,15 +765,10 @@ class BimanualPlanner:
         rrt_range=0.25,
         planning_time=10,
         fix_joint_limits=True,
-        use_point_cloud=False,
-        use_attach=False,
-        planner_name="RRTConnect",
-        no_simplification=False,
         constraint_function=None,
         constraint_jacobian=None,
         constraint_tolerance=1e-3,
         fixed_joint_indices=None,
-        verbose=False,
         simplify_path = True,
         simplification_time=3.0
         
@@ -805,7 +796,7 @@ class BimanualPlanner:
         except AttributeError:
             return {"status": "IK Failed"}
 
-        if constraint_function is not None and constraint_jacobian is not None:    
+        if constraint_function is not None and constraint_jacobian is not None:
             status, path = self.planner.plan(
                 start_state=start_state,
                 goal_states=goal_states,
