@@ -74,7 +74,7 @@ class DualArmPickBottleEnv(ColosseumV2Env):
             initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
             object_type="MO",
             # scale=(0.06,0.06,0.08),
-            scale=(0.04,0.04,0.06),
+            scale=(0.05, 0.05, 0.05), # width_x, height, width_y
         )
         self.obj = self.add_asset_to_scene(obj_builder, name="bottle", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.obj])
@@ -82,7 +82,7 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         self._bottle_region = self.update_placement_region(
             # Ground-truth from legacy sampling: torch.rand((b, 2), device=self.device) * 0.3 - 0.1
             # => x,y in [-0.1, 0.2]
-            PlacementRegion.from_center_and_width(center=(0.05, 0.05), width=(0.3, 0.3))
+            PlacementRegion.from_center_and_width(center=(0.3, -0.2), width=(0.2, 0.2))
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -106,12 +106,8 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
         # qpos[9] = -0.5 # Move right shoulder
-        qpos = np.array([[-0.91468483, 1.3484983, 1.7634423, -0.29212227, 1.4077199, 0.20246091, -2.1234844, -1.8376316, -0.4342007, -2.153635, 2.806406, 3.0956528, -0.8288265, -0.23822546, 0.03999986, 0.03999938, 0.04, 0.04]])
+        qpos = np.array([-0.85111004, 1.0996069, 1.7567917, -0.96560955, 1.5549815, 0.20297752, -1.4204967, -2.270617, -0.24237108, -2.0752032, 2.153124, 3.4605966, -0.89348775, -0.16404274, 0.03999997, 0.039999403, 0.04, 0.04])
         self.agent.reset(qpos)
-
-
-
-
 
 
     def evaluate(self):
@@ -122,6 +118,6 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         offset_2 = pos_2 - obj_pos
         dist_1 = torch.linalg.norm(offset_1, dim=-1)
         dist_2 = torch.linalg.norm(offset_2, dim=-1)
-        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)        
+        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)
         success = torch.logical_and(dist_2 <= dist_1, grasped_2)
         return {"grasping_bottle": grasped_2, "success": success}

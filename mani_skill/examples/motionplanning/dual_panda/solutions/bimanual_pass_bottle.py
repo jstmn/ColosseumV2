@@ -64,7 +64,7 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
 
     grasp_1_approach_pose = grasp_pose*sapien.Pose(p=[0.15,0,-0.1])
     grasp_1_approach_pose.q = np.array([-0.5,0.5,0.5,0.5])
-    dprint("(1) [next] move_to_pose_with_screw(grasp_1_approach_pose)")
+    dprint("\n(1) [next] move_to_pose_with_screw(grasp_1_approach_pose)")
     res = planner.move_to_pose_with_screw(
         grasp_1_approach_pose,  # left
         arm_index=1
@@ -74,28 +74,32 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         return res
 
     # grasp_pose = grasp_pose*sapien.Pose(p=[0.2,0,0.00])
-    grasp_pose = grasp_pose*sapien.Pose(p=[0.1,0.0,-0.02])
-    grasp_pose.q = np.array([-0.5,0.5,0.5,0.5])
-    dprint("(2) [next] move_to_pose_with_screw(grasp_pose)")
-    # res = planner.move_to_pose_with_screw(
-    # ^ this isn't precise
-    res = planner.move_arm_to_pose_with_RRTConnect(
+    grasp_pose = grasp_pose*sapien.Pose(p=[0.025, -0.05, 0.02]) # x: bottle z, z: bottle x
+    grasp_pose.q = np.array([-0.5, 0.5, 0.5, 0.5])
+    dprint("\n(2) [next] move_to_pose_with_screw(grasp_pose)")
+    res = planner.move_to_pose_with_screw(
         grasp_pose,  # left
         arm_index=1,
-        refine_steps=3
+        refine_steps=2
     )
-    # ^ 
+    # ^ this isn't precise
+    # res = planner.move_arm_to_pose_with_RRTConnect(
+    #     grasp_pose,  # left
+    #     arm_index=1,
+    #     refine_steps=3
+    # )
+    # ^ seed configuration fails for IK, so end up with a crazy motion.
 
     if res == -1:
         return res
 
-    dprint("(3) [next] close_gripper(arm_index=1, t=10)")
-    planner.close_gripper(arm_index=1, t=10)
+    dprint("\n(3) [next] close_gripper(arm_index=1, t=10)")
+    planner.close_gripper(arm_index=1, t=4)
 
     lift_1 = sapien.Pose(p=np.array([-0.333, -0.10, 1.5]), q=np.array([-0.5,0.5,0.5,0.5]))
     lift_2 = sapien.Pose(p=np.array([-0.333, 0.10, 1.48]), q=np.array([0.5,0.5,0.5,-0.5]))
 
-    dprint("(4) [next] move_to_pose_pair_with_RRTConnect(lift_2, lift_1)")
+    dprint("\n(4) [next] move_to_pose_pair_with_RRTConnect(lift_2, lift_1)")
     res = planner.move_to_pose_pair_with_RRTConnect(
         lift_2,  # left
         lift_1
@@ -114,7 +118,7 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         p=np.array([-0.333, 0.04, 1.48]),
         q=np.array([0.5,0.5,0.5,-0.5])
     )
-    dprint("(5) [next] move_to_pose_pair_with_screw(lift_2, lift_1)")
+    dprint("\n(5) [next] move_to_pose_pair_with_screw(lift_2, lift_1)")
     res = planner.move_to_pose_pair_with_screw(
         lift_2,  # left
         lift_1,  # right
@@ -124,15 +128,15 @@ def solve(env:DualArmPickBottleEnv, seed, debug, vis):
         return res
 
     # 6. Open grippers
-    dprint("(6) [next] close_gripper(arm_index=2, t=5)")
+    dprint("\n(6) [next] close_gripper(arm_index=2, t=5)")
     planner.close_gripper(arm_index=2, t=5)
-    dprint("(7) [next] open_gripper(arm_index=1, t=5)")
+    dprint("\n(7) [next] open_gripper(arm_index=1, t=5)")
     planner.open_gripper(arm_index=1, t=5)
     lift_2 = sapien.Pose(
         p=np.array([-0.333, 0.20, 1.48]),
         q=np.array([0.5,0.5,0.5,-0.5])
     )
-    dprint("(8) [next] move_to_pose_with_screw(lift_2)")
+    dprint("\n(8) [next] move_to_pose_with_screw(lift_2)")
     res = planner.move_to_pose_with_screw(
         lift_2,
         arm_index=2

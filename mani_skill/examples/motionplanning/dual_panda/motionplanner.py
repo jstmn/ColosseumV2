@@ -270,6 +270,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             move_group="dual_arm",
             joint_vel_limits=np.ones(18) * self.joint_vel_limits,  # 18 DOF (9 per arm)
             joint_acc_limits=np.ones(18) * self.joint_acc_limits,
+            debug=self.debug,
         )
         
         # Set base pose (usually identity for fixed-base robots)
@@ -300,7 +301,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
     def follow_path(self, result, refine_steps: int = 0, arm_index: int = None):
         """
         Execute a planned path.
-        
+
         Args:
             result: Planning result containing position and velocity trajectories
             refine_steps: Additional steps to hold final position
@@ -324,17 +325,24 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             else:
                 arm_1_pose = qpos_18d[0:7]
                 arm_2_pose = qpos_18d[9:16]
-                
+
             g1_val = 1 if self.gripper_1_state == self.OPEN else -1
             g2_val = 1 if self.gripper_2_state == self.OPEN else -1
-                        
+
             action = np.hstack([arm_1_pose, g1_val, arm_2_pose, g2_val])
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
-            
+
+            if self.debug:
+                target_qpos = np.hstack([arm_1_pose, arm_2_pose])
+                current_qpos_arm = np.hstack([current_qpos[0:7], current_qpos[9:16]])
+                q_error = target_qpos - current_qpos_arm
+                q_error = (q_error + np.pi) % (2 * np.pi) - np.pi
+                print(f"follow_path() [{self.elapsed_steps:3}] q_error: {np.rad2deg(q_error)}")
+
             if self.vis:
                 self.base_env.render_human()
-                
+
         return obs, reward, terminated, truncated, info
     
     def move_to_pose_pair_with_RRTConnect(
@@ -562,8 +570,9 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         
         qpos = self.robot.get_qpos()[0, :18].cpu().numpy()
         qpos = self._convert_qpos_sapien_to_planner(qpos)
-        
-        for i in range(t):
+
+        self.render_wait()
+        for _ in range(t):
             if self.control_mode == "pd_joint_pos":
                 action = np.hstack([qpos[0:7], g1_val, qpos[9:16], g2_val])
             else:
@@ -576,7 +585,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             
             if self.vis:
                 self.base_env.render_human()
-        self.render_wait()
         return obs, reward, terminated, truncated, info
     
     def plan_dual_arm_constrained_motion(
@@ -714,14 +722,15 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
         self,
         left_pose: sapien.Pose,
         right_pose: sapien.Pose,
-        dry_run: bool = False
+        dry_run: bool = False,
+        refine_steps: int = 0
     ):
         """
         Move both arms linearly (screw motion).
         """
         left_pose = to_sapien_pose(left_pose)
         right_pose = to_sapien_pose(right_pose)
-        
+
         self._update_grasp_visual(right_pose, left_pose)
 
         # Get current qpos
@@ -755,13 +764,14 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
 
         if dry_run: return result
         self.render_wait()
-        return self.follow_path(result)
+        return self.follow_path(result, refine_steps=refine_steps)
     
     def move_to_pose_with_screw(
         self,
         pose: sapien.Pose,
         arm_index: int, 
-        dry_run: bool = False
+        dry_run: bool = False,
+        refine_steps: int = 0
     ):
         """
         Move a single arm linearly (screw motion).
@@ -789,15 +799,6 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             curr_pose_R = self.planner.pinocchio_model.get_link_pose(self.planner.link_name_2_idx["panda_1_hand_tcp"])
             right_target = np.concatenate([curr_pose_R[:3], curr_pose_R[3:]])
 
-        def screw_vis_callback(q_planner):
-            if self.vis:
-                # Convert planner qpos back to SAPIEN qpos
-                q_sapien = self._convert_qpos_planner_to_sapien(q_planner)
-                # Update the actual robot in the scene
-                self.robot.set_qpos(q_sapien)
-                # Render the frame
-                self.base_env.render_human()
-        
         # Call Planner
         result = self.planner.plan_screw(
             target_pose_L=left_target,
@@ -810,7 +811,7 @@ class DualPandaMotionPlanningSolver(BaseMotionPlanningSolver):
             return -1
         if dry_run: return result
         self.render_wait()
-        return self.follow_path(result, arm_index=arm_index)
+        return self.follow_path(result, arm_index=arm_index, refine_steps=refine_steps)
 
     def _sync_planner_robot_state(self):
         """

@@ -34,4 +34,9 @@
     <disable_collisions link1="panda_1_leftfinger" link2="panda_2_rightfinger" reason="Default"/>
     <disable_collisions link1="panda_2_leftfinger" link2="panda_1_rightfinger" reason="Default"/>
     <disable_collisions link1="panda_2_link5" link2="panda_2_link7" reason="Default"/>
+
+    <!--  -->
+    <disable_collisions link1="panda_1_link5" link2="panda1_camera_link" reason="Default"/>
+    <disable_collisions link1="panda_2_link5" link2="panda_2_hand" reason="Default"/>
+    <disable_collisions link1="panda_2_link5" link2="panda_2_rightfinger" reason="Default"/>
 </robot>

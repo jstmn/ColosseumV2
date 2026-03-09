@@ -25,6 +25,7 @@ class BimanualPlanner:
             joint_vel_limits: Optional[Sequence[float] | np.ndarray] = None,
             joint_acc_limits: Optional[Sequence[float] | np.ndarray] = None,
             include_mobile_base: bool = False, 
+            debug: bool = False,
             **kwargs
             ):
         if joint_vel_limits is None:
@@ -35,7 +36,7 @@ class BimanualPlanner:
         self.urdf = str(urdf)
         urdf = self.replace_package_keyword(package_keyword_replacement)
         self.urdf = str(urdf)
-        self.debug = False
+        self.debug = debug
         if self.debug:
             print(self.urdf)
         # Handle SRDF
@@ -261,6 +262,7 @@ class BimanualPlanner:
         collision_function,
         articulation: Optional[ArticulatedModel] = None,
         qpos: Optional[np.ndarray] = None,
+        verbose=False,
     ) -> list:
         if articulation is None:
             articulation = self.robot
@@ -277,9 +279,10 @@ class BimanualPlanner:
         self,
         articulation: Optional[ArticulatedModel] = None,
         qpos: Optional[np.ndarray] = None,
+        verbose=False,
     ) -> list:
         return self.check_for_collision(
-            self.planning_world.self_collide, articulation, qpos
+            self.planning_world.self_collide, articulation, qpos, verbose
         )
 
     def check_for_env_collision(
@@ -300,7 +303,7 @@ class BimanualPlanner:
 
         left_idx = self.link_name_2_idx.get(left_link_name, -1)
         right_idx = self.link_name_2_idx.get(right_link_name, -1)
-        
+
         if left_idx == -1 or right_idx == -1:
             if self.debug:
                 print(f"Error: Could not find link names {left_link_name} or {right_link_name}")
@@ -308,11 +311,11 @@ class BimanualPlanner:
 
         # Use all active indices for IK (Mobile base joints are gone, so just use move_group indices)
         active_indices = self.move_group_joint_indices
-        
+
         # Converts List (User) OR mplib.Pose (Wrapper) -> pin.SE3
         def to_pin_SE3(pose_input):
             if pose_input is None: return None
-            
+
             # Case A: Input is a list [x, y, z, qw, qx, qy, qz] (from User)
             if isinstance(pose_input, (list, np.ndarray)):
                 pos = np.array(pose_input[:3])
@@ -331,7 +334,7 @@ class BimanualPlanner:
                 R = mat[:3, :3]
                 t = mat[:3, 3]
                 return pinocchio.SE3(R, t)
-        
+
         target_L_se3 = to_pin_SE3(left_target_pose)
         target_R_se3 = to_pin_SE3(right_target_pose)
         for attempt in range(attempts):
@@ -343,13 +346,14 @@ class BimanualPlanner:
                 q[active_indices] = random_full_q[active_indices]
                 if self.debug:
                     print(f"  [IK] Attempt {attempt+1}: Restarting with random configuration...")
+
             for i in range(max_iter):
                 q = np.array(q, dtype=np.float64)
                 self.pinocchio_model.compute_forward_kinematics(q)
                 self.pinocchio_model.compute_full_jacobian(q)
                 error_stack = []
                 J_stack = []
-                
+
                 if target_L_se3 is not None:
                     mplib_pose_L = self.pinocchio_model.get_link_pose(left_idx)
                     curr_L_se3 = to_pin_SE3(mplib_pose_L)
@@ -358,7 +362,7 @@ class BimanualPlanner:
                     error_stack.append(err_L)
                     J_L = self.pinocchio_model.get_link_jacobian(left_idx, local=True)
                     J_stack.append(J_L[:, active_indices])
-                
+
                 if target_R_se3 is not None:
                     mplib_pose_R = self.pinocchio_model.get_link_pose(right_idx)
                     curr_R_se3 = to_pin_SE3(mplib_pose_R)
@@ -368,26 +372,32 @@ class BimanualPlanner:
                     J_R = self.pinocchio_model.get_link_jacobian(right_idx, local=True)
                     J_stack.append(J_R[:, active_indices])
                 if not error_stack:
-                    
                     return "Failed", q
+
                 err_total = np.concatenate(error_stack)
-                
+
                 if np.linalg.norm(error_stack) < threshold:
+                    if self.debug:
+                        print(f"  [IK] Attempt {attempt}: Converged in {i} iterations. Final error: {np.linalg.norm(err_total)}")
                     return q
-                
+
                 J_total = np.vstack(J_stack)
                 damp = 1e-3
                 JJt = J_total @ J_total.T
                 dq = J_total.T @ np.linalg.inv(JJt + damp * np.eye(len(err_total))) @ err_total
-                
+
                 q[active_indices] += dq*step_size
                 if i == 0:
                     limits = self.pinocchio_model.get_joint_limits()
                     limits_stack = np.vstack(limits)
                     lower_lim = limits_stack[:, 0]
                     upper_lim = limits_stack[:, 1]
-                
+
                 q = np.clip(q, lower_lim, upper_lim)
+
+            if self.debug:
+                print(f"  [IK] Attempt {attempt}: Failed to converge in {max_iter} iterations. Final error: {np.linalg.norm(err_total)}")
+
         if self.debug:
             return "Failed"
 
@@ -771,11 +781,10 @@ class BimanualPlanner:
         fixed_joint_indices=None,
         simplify_path = True,
         simplification_time=3.0
-        
     ):
         if fixed_joint_indices is None:
             fixed_joint_indices = []
-        
+
         n = current_qpos.shape[0]
         if fix_joint_limits:
             for i in range(n):
@@ -785,11 +794,24 @@ class BimanualPlanner:
                     current_qpos[i] = self.joint_limits[i][1] - 1e-3
 
         current_qpos = self.pad_qpos(current_qpos)
-        
+
         self.robot.set_qpos(current_qpos, True)
-        
+
+        self_collision = self.check_for_self_collision()
+        env_collision = self.check_for_env_collision()
+        if len(self_collision) > 0:
+            if self.debug:
+                for c in self_collision:
+                    print(f"[DEBUG] Self Collision: {c.link_name1} <--> {c.link_name2}")
+            return {"status": "Self Collision"}
+
+        if len(env_collision) > 0:
+            if self.debug:
+                for c in env_collision:
+                    print(f"[DEBUG] Env Collision: {c.link_name1} <--> {c.link_name2}")
+            return {"status": "Env Collision"}
+
         goal_qpos_ = goal_qposes
-        
         start_state = current_qpos.astype(np.float64)
         try:
             goal_states = [gq.astype(np.float64) for gq in goal_qpos_]
@@ -922,12 +944,13 @@ class BimanualPlanner:
                 R = mat[:3, :3]
                 t = mat[:3, 3]
                 return pinocchio.SE3(R, t)
-            
+
         target_L_se3 = to_pin_se3(target_pose_L)
         target_R_se3 = to_pin_se3(target_pose_R)
         path = [current_qpos.copy()]
         q = current_qpos.copy()
         gripper_values = {idx: q[idx] for idx in gripper_indices}
+
         # 2. Iterative Descent (Differential IK)
         for step in range(max_steps):
             if visualize_callback is not None and step % 10 == 0: 
@@ -975,6 +998,8 @@ class BimanualPlanner:
             # Use raw error for convergence, but clamped error for movement
             full_error = np.concatenate(error_stack)
             if np.linalg.norm(full_error) < threshold:
+                if self.debug:
+                    print(f"[DEBUG] Reached Target with error: {np.linalg.norm(full_error)}. full_error: {full_error}")
                 break # Reached Target
             
             # --- Solve J * dq = error ---
@@ -1005,19 +1030,31 @@ class BimanualPlanner:
                         if self.debug:
                             print(f"[DEBUG] Collision: {c.link_name1} <--> {c.link_name2}")
                     return {"status": "Collision"}
-            
+
             path.append(q.copy())
-            
+
+        if step >= max_steps - 1:
+            if self.debug:
+                print(f"[DEBUG] Reached max steps")
+            return {"status": "Failed (Max steps)"}
+
         # 3. Parameterize Path (Compute Time, Velocity, Acceleration)
         path = np.array(path)
         if len(path) < 2:
-             return {"status": "Failed (Path too short)"}
-        if len(path) > 5:
-            # Simple box filter for smoothing
-            path_smooth = np.copy(path)
-            for i in range(1, len(path)-1):
-                path_smooth[i] = (path[i-1] + path[i] + path[i+1]) / 3.0
-            path = path_smooth
+            if self.debug:
+                print(f"[DEBUG] Path too short")
+            return {"status": "Failed (Path too short)"}
+
+        # if len(path) > 5:
+        #     # Simple box filter for smoothing
+        #     path_smooth = np.copy(path)
+        #     for i in range(1, len(path)-1):
+        #         path_smooth[i] = (path[i-1] + path[i] + path[i+1]) / 3.0
+        #     path = path_smooth
+
+        #     if self.debug:
+        #         print(f"[DEBUG] smoothing path")
+
         try:
             # reuse your existing TOPP function
             times, pos, vel, acc, duration = self.TOPP(path, time_step)
