@@ -31,18 +31,10 @@ DualArmDrawerPlace,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,0.0,0.0,0.0,0.0,0.0
 
 # Example usage:
 python scripts/colosseum_v2_paper/figures.py \
-    --result-csvs logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv \
-    --model-names "ACT - Bimanual" "ACT - Single Arm" \
+    --result-csvs logs/parsed_ACT/bimanual.formatted.csv logs/parsed_pi0/bimanual.formatted.csv \
+                  logs/parsed_ACT/single_arm.formatted.csv logs/parsed_pi0/single_arm.formatted.csv \
+    --model-names "ACT - Bimanual" "Pi0.5 - Bimanual" "ACT - Single Arm" "Pi0.5 - Single Arm" \
     --output-dir logs/
-
-
-# TEMP: pretend that Pi0.5 is ACT
-python scripts/colosseum_v2_paper/figures.py \
-    --result-csvs logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv logs/parsed_ACT/bimanual.formatted.csv logs/parsed_ACT/single_arm.formatted.csv \
-    --model-names "ACT - Bimanual" "ACT - Single Arm" "Pi0.5 - Bimanual" "Pi0.5 - Single Arm" \
-    --output-dir logs/
-
-
 """
 
 
