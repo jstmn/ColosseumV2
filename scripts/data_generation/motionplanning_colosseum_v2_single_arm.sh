@@ -1,7 +1,8 @@
 # !/bin/bash
 
 DISTRACTION_SET=none
-# ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
+
+# bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh
 
 ENVS=(
     "PickSodaFromCabinet-v1"
