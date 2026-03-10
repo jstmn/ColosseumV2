@@ -17,7 +17,7 @@ import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solveHangClothingFrameOnPole, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer
 from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
@@ -42,7 +42,7 @@ MP_SOLUTIONS = {
     "StackCube-v2": solveStackCube,                 # new
 
     "PlaceBookInShelf-v1": solvePlaceBookInShelf,
-    "HangClothingFrameOnPole-v1": solveHangClothingFrameOnPole,
+    # "HangClothingFrameOnPole-v1": solveHangClothingFrameOnPole,
     "PickSodaFromCabinet-v1": solvePickSodaFromCabinet,
     "RotateArrow-v1": solveRotateArrow,
     "ScoopBanana-v1": solveScoopBanana,
@@ -126,9 +126,9 @@ DISTRACTION_SET=distractor_object
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
-    --num-traj 10 \
+    --num-traj 5 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 1 \
+    --num-procs 2 \
     --obs-mode "rgb" \
     --reward-mode "none" \
     --random-seed \
@@ -136,6 +136,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --traj-name "trajectory" --vis \
     --save-video      # <- optional
     # --vis           # <- optional
+
 
 # Convert to ee_delta_pos with:
 python mani_skill/trajectory/replay_trajectory.py \
@@ -232,12 +233,6 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         counter += 1
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
         res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
-        # try:
-        # except Exception as e:
-        #     print(f"Cannot find valid solution because of an error in motion planning solution: {e}")
-        #     print("Traceback:")
-        #     print(''.join(traceback.format_tb(e.__traceback__)))
-        #     res = -1
 
         if res == -1:
             success = False

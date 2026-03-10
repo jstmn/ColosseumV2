@@ -1,6 +1,6 @@
 import numpy as np
 import sapien
-
+import gymnasium as gym
 from mani_skill.envs.tasks.tabletop.colosseum_v2.place_dish_in_rack import PlaceDishInRackEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import (
     PandaArmMotionPlanningSolver,
@@ -156,16 +156,16 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
         return result
 
     # Close gripper with maximum force and longer duration to prevent slipping
-    planner.close_gripper(t=25, gripper_state=-1.0)  # Close for 25 steps with full force
+    planner.close_gripper(t=4, gripper_state=-1.0)  # Close for 25 steps with full force
 
     # Let physics settle after grasping to ensure firm grip
-    qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for i in range(10):  # Hold position longer
-        if planner.control_mode == "pd_joint_pos":
-            action = np.hstack([qpos, -1.0])
-        else:
-            action = np.hstack([qpos, qpos * 0, -1.0])
-        env_sim.step(action)
+    # qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
+    # for i in range(10):  # Hold position longer
+    #     if planner.control_mode == "pd_joint_pos":
+    #         action = np.hstack([qpos, -1.0])
+    #     else:
+    #         action = np.hstack([qpos, qpos * 0, -1.0])
+    #     env_sim.step(action)
 
     is_grasped = env_sim.agent.is_grasping(env_sim.plate)[0].item()
 
@@ -188,12 +188,12 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
         print(f"\n=== STEP 3: LIFT ===")
 
     # Smaller lift height to reduce motion magnitude
-    lift_pose = sapien.Pose([0, 0, 0.06]) * grasp_pose
-    res = move_or_abort(lift_pose)
+    # lift_pose = sapien.Pose([0, 0, 0.06]) * grasp_pose
+    # res = move_or_abort(lift_pose)
 
-    if debug:
-        plate_after_lift = env_sim.plate.pose.p[0].cpu().numpy()
-        print(f"✓ Lifted plate to: {plate_after_lift}")
+    # if debug:
+    #     plate_after_lift = env_sim.plate.pose.p[0].cpu().numpy()
+    #     print(f"✓ Lifted plate to: {plate_after_lift}")
 
 
     # Lift up by 20cm in Z
@@ -292,23 +292,23 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
         print(f"\n=== STEP 7: RELEASE ===")
 
     # Hold position briefly before release to let physics settle
-    qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for _ in range(5):
-        if planner.control_mode == "pd_joint_pos":
-            action = np.hstack([qpos, -1.0])
-        else:
-            action = np.hstack([qpos, qpos * 0, -1.0])
-        env_sim.step(action)
+    # qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
+    # for _ in range(5):
+    #     if planner.control_mode == "pd_joint_pos":
+    #         action = np.hstack([qpos, -1.0])
+    #     else:
+    #         action = np.hstack([qpos, qpos * 0, -1.0])
+    #     env_sim.step(action)
 
     planner.open_gripper()
 
     # Let plate settle after release
-    for _ in range(20):
-        if planner.control_mode == "pd_joint_pos":
-            action = np.hstack([qpos, 1.0])  # Keep gripper open
-        else:
-            action = np.hstack([qpos, qpos * 0, 1.0])
-        env_sim.step(action)
+    # for _ in range(20):
+    #     if planner.control_mode == "pd_joint_pos":
+    #         action = np.hstack([qpos, 1.0])  # Keep gripper open
+    #     else:
+    #         action = np.hstack([qpos, qpos * 0, 1.0])
+    #     env_sim.step(action)
 
     if debug:
         final_plate_pos = env_sim.plate.pose.p[0].cpu().numpy()
@@ -336,3 +336,21 @@ def solve(env: PlaceDishInRackEnv, seed=None, debug=False, vis=False, allow_rrt=
 
     planner.close()
     return res
+
+
+def main():
+    env = gym.make(
+        "PlaceDishInRack-v1",
+        obs_mode="none",
+        control_mode="pd_joint_pos",
+        render_mode="rgb_array",
+        reward_mode="none",
+        _env_id="PlaceDishInRack-v1",
+    )
+    for seed in range(100):
+        res = solve(env, seed=seed, debug=True, vis=True)
+        print(res)
+    env.close()
+
+if __name__ == "__main__":
+    main()

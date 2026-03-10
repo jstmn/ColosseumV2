@@ -37,7 +37,7 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
     - The robot is not grasping the cube.
     """
 
-    SUPPORTED_ROBOTS = ["panda"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda"]
     agent: Panda
     handle_types = ["prismatic"]  # Drawer joints
 
@@ -46,7 +46,6 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
         MO_color=True,
         MO_texture=True,
-        MO_mass=True,
         RO_color=True,
         RO_texture=True,
         RO_size=True,
@@ -55,7 +54,7 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
     def __init__(
         self,
         *args,
-        robot_uids="panda",
+        robot_uids="panda_wristcam",
         robot_init_qpos_noise=0.0,
         **kwargs,
     ):
@@ -82,18 +81,14 @@ class PlaceCubeInDrawerEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0.1, 0.6], target=[-0.1, 0.0, 0.1])
-        return self.update_camera_configs([
-            CameraConfig(
-                "base_camera",
-                pose=pose,
-                width=128,
-                height=128,
-                fov=np.pi / 2,
-                near=0.01,
-                far=100,
-            )
-        ])
+        pose1 = sapien_utils.look_at(eye=[0.3, 0.1, 0.6], target=[-0.1, 0.0, 0.1])
+        pose2 = sapien_utils.look_at(eye=[-0.2, 0.0, 0.8], target=[-0.1, 0.0, 0.1])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100),
+            ]
+        )
 
     def _load_agent(self, options: dict):
         # Robot positioned perpendicular to cabinet (at -Y, facing +Y)

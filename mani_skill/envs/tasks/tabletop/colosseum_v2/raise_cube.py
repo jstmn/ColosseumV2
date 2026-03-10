@@ -38,7 +38,7 @@ class RaiseCubeEnv(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
 
         # 
         self.robot_init_qpos_noise = robot_init_qpos_noise
@@ -48,13 +48,7 @@ class RaiseCubeEnv(ColosseumV2Env):
             cfg = PICK_CUBE_CONFIGS["panda"]
         self.cube_half_size = cfg["cube_half_size"]
         self.goal_thresh = cfg["goal_thresh"]
-        # self.cube_spawn_half_size = cfg["cube_spawn_half_size"]
-        # self.cube_spawn_center = cfg["cube_spawn_center"]
-        # self.max_goal_height = cfg["max_goal_height"]
-        self.sensor_cam_eye_pos = cfg["sensor_cam_eye_pos"]
         self.sensor_cam_target_pos = cfg["sensor_cam_target_pos"]
-        # self.human_cam_eye_pos = cfg["human_cam_eye_pos"]
-        # self.human_cam_target_pos = cfg["human_cam_target_pos"]
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
 
@@ -77,8 +71,13 @@ class RaiseCubeEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=self.sensor_cam_eye_pos, target=self.sensor_cam_target_pos)
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[0.2,  -0.3, 0.3], target=self.sensor_cam_target_pos)
+        pose2 = sapien_utils.look_at(eye=[0.1,  0.3,  0.3], target=self.sensor_cam_target_pos)
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100)
+            ])
 
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):

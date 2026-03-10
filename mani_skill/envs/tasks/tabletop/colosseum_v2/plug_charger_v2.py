@@ -35,7 +35,7 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
     _peg_size = [8e-3, 0.75e-3, 3.2e-3]  # charger peg half size
     _peg_gap = 7e-3  # charger peg gap
     # _clearance = 5e-4  # single side clearance
-    _clearance = 2 * 5e-4  # single side clearance
+    _clearance = 5 * 5e-4  # single side clearance
     # ^NOTE: This is doubled compared to PlugCharger-v1
     _receptacle_size = [1e-2, 5e-2, 5e-2]  # receptacle half size 
 
@@ -61,9 +61,11 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
+        pose1 = sapien_utils.look_at(eye=[-0.3, 0.1, 0.1], target=[-0.1, 0, 0.1])
+        pose2 = sapien_utils.look_at(eye=[-0.1, -0.5, 0.3], target=[-0.1, 0, 0.1])
         return self.update_camera_configs([
-            CameraConfig("base_camera", pose=pose, width=128, height=128, fov=np.pi / 2)
+            CameraConfig("external1_camera", pose=pose1, width=224, height=224, fov=np.pi / 2),
+            CameraConfig("external2_camera", pose=pose2, width=224, height=224, fov=np.pi / 2),
         ])
 
     @property
@@ -85,30 +87,24 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
 
         # peg
         mat = sapien.render.RenderMaterial()
-        mat.set_base_color([1, 1, 1, 1])
+        color = (np.array([12, 42, 160, 255]) / 255).tolist()
+        mat.set_base_color(color)
         mat.metallic = 1.0
         mat.roughness = 0.0
         mat.specular = 1.0
         builder.add_box_collision(sapien.Pose([peg_size[0], gap, 0]), peg_size)
-        builder.add_box_visual(
-            sapien.Pose([peg_size[0], gap, 0]), peg_size, material=mat
-        )
+        builder.add_box_visual(sapien.Pose([peg_size[0], gap, 0]), peg_size, material=mat)
         builder.add_box_collision(sapien.Pose([peg_size[0], -gap, 0]), peg_size)
-        builder.add_box_visual(
-            sapien.Pose([peg_size[0], -gap, 0]), peg_size, material=mat
-        )
+        builder.add_box_visual(sapien.Pose([peg_size[0], -gap, 0]), peg_size, material=mat)
 
         # base
         mat = sapien.render.RenderMaterial()
-        mat.set_base_color([1, 1, 1, 1])
+        mat.set_base_color(color)
         mat.metallic = 0.0
         mat.roughness = 0.1
         builder.add_box_collision(sapien.Pose([-base_size[0], 0, 0]), base_size)
-        builder.add_box_visual(
-            sapien.Pose([-base_size[0], 0, 0]), base_size, material=mat
-        )
+        builder.add_box_visual(sapien.Pose([-base_size[0], 0, 0]), base_size, material=mat)
         builder.initial_pose = sapien.Pose(p=[0, 0, self._base_size[2]])
-        # return builder.build(name="charger")
         return builder
 
     def _get_receptacle_builder(self, peg_size, receptacle_size, gap):
@@ -121,7 +117,7 @@ class PlugChargerColosseumV2Env(ColosseumV2Env):
         dz = peg_size[2] + sz
 
         mat = sapien.render.RenderMaterial()
-        mat.set_base_color([1, 1, 1, 1])
+        mat.set_base_color([0.9, 0.9, 0.9, 1])
         mat.metallic = 0.0
         mat.roughness = 0.1
 

@@ -43,7 +43,7 @@ class HammerNailEnv(ColosseumV2Env):
       are not available.
     - Nail and block are procedurally built primitives."""
 
-    SUPPORTED_ROBOTS = ["panda", "fetch"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(RO_size=True)
@@ -51,7 +51,7 @@ class HammerNailEnv(ColosseumV2Env):
     def __init__(
         self,
         *args,
-        robot_uids: Union[str, Sequence[str]] = "panda",
+        robot_uids: Union[str, Sequence[str]] = "panda_wristcam",
         robot_init_qpos_noise: float = 0.0,  # No noise to prevent self-collision
         **kwargs,
     ):
@@ -149,13 +149,23 @@ class HammerNailEnv(ColosseumV2Env):
     @property
     def _default_sensor_configs(self):
         # View from front-right to see sideways hammering action
-        pose = sapien_utils.look_at(eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0])
+        pose1 = sapien_utils.look_at(eye=[0.5, 0.5, 0.3], target=[-0.1, 0.1, 0.0])
+        pose2 = sapien_utils.look_at(eye=[0.75, 0.0, 0.5], target=[-0.1, 0.1, 0.0])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
-                width=128,
-                height=128,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 3,
+                near=0.01,
+                far=10,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
+                width=224,
+                height=224,
                 fov=np.pi / 3,
                 near=0.01,
                 far=10,

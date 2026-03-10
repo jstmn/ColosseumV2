@@ -25,7 +25,7 @@ class DualArmPickBottleEnv(ColosseumV2Env):
     """
     cube_half_size = 0.02
     # Explicitly tell ManiSkill to use the DualPanda agent
-    SUPPORTED_ROBOTS = ["dual_panda"]
+    SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
     agent: DualPanda # Type hinting for IDE support
     
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
@@ -34,18 +34,28 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="dual_panda", **kwargs):
+    def __init__(self, *args, robot_uids="dual_panda_wristcam", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.75, 0.0, 0.75 + 0.83], target=[-0.2, 0, 0.3 + 0.83]) # 0.83: height of the table
+        pose1 = sapien_utils.look_at(eye=[0.75, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.2 + 0.83]) # 0.83: height of the table
+        pose2 = sapien_utils.look_at(eye=[-0.5, 0.0, 0.5 + 0.83], target=[-0.2, 0, 0.2 + 0.83]) # 0.83: height of the table
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
-                width=128,
-                height=128,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 3,
+                near=0.01,
+                far=10,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
+                width=224,
+                height=224,
                 fov=np.pi / 3,
                 near=0.01,
                 far=10,
@@ -58,13 +68,13 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         pose = sapien_utils.look_at(eye=[0.6, 0.2, 0.4+0.83], target=[-0.1, 0, 0.1+0.83])
         return CameraConfig("render_camera", pose, 512, 512, 1, 0.01, 100)
 
-    
     def _load_scene(self, options: dict):
         obj_builder = lambda: self.get_glb_asset_builder(
                                         os.path.join(PACKAGE_ASSET_DIR,"pick_bottle/plastic_bottle.glb"),
             initial_pose=sapien.Pose(p=[0.055, -0.158, 0.], q=[0.854,0.471,0.212,0.068]),
             object_type="MO",
-            scale=(0.06,0.06,0.08),
+            # scale=(0.06,0.06,0.08),
+            scale=(0.05, 0.05, 0.05), # width_x, height, width_y
         )
         self.obj = self.add_asset_to_scene(obj_builder, name="bottle", physics_type="dynamic", object_type="MO")
         self.load_scene_hook(manipulation_objects=[self.obj])
@@ -72,7 +82,7 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         self._bottle_region = self.update_placement_region(
             # Ground-truth from legacy sampling: torch.rand((b, 2), device=self.device) * 0.3 - 0.1
             # => x,y in [-0.1, 0.2]
-            PlacementRegion.from_center_and_width(center=(0.05, 0.05), width=(0.3, 0.3))
+            PlacementRegion.from_center_and_width(center=(0.3, -0.2), width=(0.2, 0.2))
         )
 
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
@@ -96,7 +106,7 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         # Example: Set arms to a ready position (optional)
         # qpos[0] = 0.5  # Move left shoulder
         # qpos[9] = -0.5 # Move right shoulder
-        qpos = np.array([0.066, 1.571, 0.573, 0, 0.158, 0, -2.084, -2.749, 1.701, 0, 1.763, 2.356, -1.882, 0.785, 0.04, 0.04, 0.04, 0.04])
+        qpos = np.array([-0.85111004, 1.0996069, 1.7567917, -0.96560955, 1.5549815, 0.20297752, -1.4204967, -2.270617, -0.24237108, -2.0752032, 2.153124, 3.4605966, -0.89348775, -0.16404274, 0.03999997, 0.039999403, 0.04, 0.04])
         self.agent.reset(qpos)
 
 
@@ -108,33 +118,6 @@ class DualArmPickBottleEnv(ColosseumV2Env):
         offset_2 = pos_2 - obj_pos
         dist_1 = torch.linalg.norm(offset_1, dim=-1)
         dist_2 = torch.linalg.norm(offset_2, dim=-1)
-        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)        
+        grasped_2 = self.agent.is_grasping(self.obj, arm_index=2)
         success = torch.logical_and(dist_2 <= dist_1, grasped_2)
         return {"grasping_bottle": grasped_2, "success": success}
-
-
-
-# 2. Main Execution Block
-if __name__ == "__main__":
-    # Now you can load this safe environment
-    env = gym.make(
-        "DualArmPickBottle-v1", 
-        robot_uids="dual_panda", # Force the dual panda
-        obs_mode="state_dict", 
-        control_mode="pd_joint_delta_pos",
-        render_mode="human"
-    )
-
-    print("Environment Created Successfully!")
-    obs, _ = env.reset()
-    
-    print(f"Observation Keys: {obs.keys()}")
-    if "agent" in obs:
-        print(f"Joint Positions Shape: {obs['agent']['qpos'].shape}")
-    
-    # NOW you can run your IK loop here
-    # 2. You MUST run a loop, or the window will close immediately
-    while True:
-        env.render()  # <--- Updates the GUI
-    
-    env.close()

@@ -4,7 +4,6 @@ from .peg_insertion_side_v2 import PegInsertionSideColosseumV2
 from .dual_panda_stack_cube import TwoRobotStackCube
 from .place_dish_in_rack import PlaceDishInRackEnv
 from .pick_dish_from_rack import PickDishFromRackEnv
-from .hang_clothing_frame_on_pole import HangClothingFrameOnPoleEnv
 from .cook_item_in_pan import CookItemInPanEnv
 from .open_cabinet import OpenCabinetEnv
 from .scoop_banana import ScoopBananaEnv

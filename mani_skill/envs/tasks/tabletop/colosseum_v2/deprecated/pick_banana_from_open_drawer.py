@@ -49,9 +49,9 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.0, 0, 0.8], target=[0.15, 0, 0.2])
         # pose2 = sapien_utils.look_at(eye=[-0.3, 0.3, 0.6], target=[0.15, 0, 0.2])
-            # CameraConfig("side_camera", pose2, 128, 128, np.pi / 2, 0.01, 100)
+            # CameraConfig("side_camera", pose2, 224, 224, np.pi / 2, 0.01, 100)
         return self.update_camera_configs([
-            CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100),
+            CameraConfig("base_camera", pose, 224, 224, np.pi / 2, 0.01, 100),
         ])
 
     @property

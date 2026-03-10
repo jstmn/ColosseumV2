@@ -1,5 +1,7 @@
 # !/bin/bash
 
+# bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh
+
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
@@ -17,7 +19,7 @@ ENVS=(
     "DualArmStackCube-v1"
     "DualArmStack3Cube-v1"
 )
-NUM_PROCS=10
+NUM_PROCS=5
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_joint_pos
 OBS_MODE=rgb

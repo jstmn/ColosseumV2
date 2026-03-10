@@ -102,8 +102,13 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.35, 0.0, 0.3], target=[0, 0, 0.1])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[0.35, -0.4, 0.3], target=[0, 0, 0.1])
+        pose2 = sapien_utils.look_at(eye=[-0.2, 0.0, 0.3], target=[0, 0, 0.1])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100), CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100)
+            ]
+        )
 
     @property
     def _default_human_render_camera_configs(self):

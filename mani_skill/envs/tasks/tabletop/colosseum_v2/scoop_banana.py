@@ -29,7 +29,7 @@ class ScoopBananaEnv(ColosseumV2Env):
 
     _sample_video_link = "https://github.com/haosulab/ManiSkill/raw/main/figures/environment_demos/PullCubeTool-v1_rt.mp4"
 
-    SUPPORTED_ROBOTS = ["panda", "fetch"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     SUPPORTED_REWARD_MODES = ("normalized_dense", "dense", "sparse", "none")
     agent: Union[Panda, Fetch]
 
@@ -45,7 +45,7 @@ class ScoopBananaEnv(ColosseumV2Env):
 
     DISABLED_VARIATION_FACTORS = DisabledVariationFactors()
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
@@ -58,16 +58,23 @@ class ScoopBananaEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.25, 0.25, 0.5], target=[0.0, 0.0, 0.1])
+        pose1 = sapien_utils.look_at(eye=[-0.25, 0.25, 0.4], target=[0.0, 0.0, 0.1])
+        pose2 = sapien_utils.look_at(eye=[-0.2, -0.4, 0.4], target=[0.0, 0.0, 0.1])
         return self.update_camera_configs([
             CameraConfig(
-                "base_camera",
-                pose=pose,
-                # width=600,
-                # height=600,
-                # shader_pack="rt",
-                width=128,
-                height=128,
+                "external1_camera",
+                pose=pose1,
+                width=224,
+                height=224,
+                fov=np.pi / 2,
+                near=0.01,
+                far=100,
+            ),
+            CameraConfig(
+                "external2_camera",
+                pose=pose2,
+                width=224,
+                height=224,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,

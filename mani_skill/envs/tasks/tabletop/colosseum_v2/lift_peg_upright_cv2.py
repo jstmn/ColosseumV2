@@ -27,7 +27,7 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
     - the absolute value of the peg's y euler angle is within 0.08 of $\pi$/2 and the z position of the peg is within 0.005 of its half-length (0.12).
     """
 
-    SUPPORTED_ROBOTS = ["panda", "fetch"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
     peg_half_width = 0.025
@@ -39,14 +39,20 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
     @property
     def _default_sensor_configs(self):
-        pose = look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
+        pose1 = look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
+        pose2 = look_at(eye=[0.0, 0.3, 0.5], target=[-0.1, 0, 0.1])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100),
+            ]
+        )
 
     @property
     def _default_human_render_camera_configs(self):

@@ -60,7 +60,7 @@ class PourSphereEnv(BaseEnv):
     _robot_base_pos = np.array([-0.5, 0.0, 0])
     _cup_mesh_path = PACKAGE_ASSET_DIR / "pour_sphere/hollow_cylinder_with_floor.stl"
 
-    def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
         self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
@@ -89,8 +89,8 @@ class PourSphereEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=224,
+                height=224,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,

@@ -39,7 +39,7 @@ class PlaceBookEnv(ColosseumV2Env):
         MO_size=True,
         RO_size=True,
     )
-    DEFAULT_BOOK_REGION = PlacementRegion(x_lims=(-0.2, 0.0), y_lims=(-0.4, -0.2))
+    DEFAULT_BOOK_REGION = PlacementRegion(x_lims=(-0.2, -0.1), y_lims=(-0.4, -0.2))
     DEFAULT_SHELF_REGION = PlacementRegion(x_lims=(-0.4, -0.2), y_lims=(-0.4, -0.2))
 
     def __init__(
@@ -52,8 +52,14 @@ class PlaceBookEnv(ColosseumV2Env):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[-0.3, 0, 0.6], target=[-0.1, 0, -0.1])
-        return self.update_camera_configs([CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)])
+        pose1 = sapien_utils.look_at(eye=[-0.5, -0.1, 0.5], target=self.DEFAULT_SHELF_REGION.center_xy + [0.1])
+        pose2 = sapien_utils.look_at(eye=[-0.5, -0.5, 0.5], target=self.DEFAULT_SHELF_REGION.center_xy + [0.1])
+        return self.update_camera_configs(
+            [
+                CameraConfig("external1_camera", pose1, 224, 224, np.pi / 2, 0.01, 100),
+                CameraConfig("external2_camera", pose2, 224, 224, np.pi / 2, 0.01, 100),
+            ]
+        )
 
     @property
     def _default_human_render_camera_configs(self):

@@ -145,7 +145,7 @@ def solve(env:TwoRobotStackCube, seed, debug, vis):
     if result == -1:
         return result
     
-    result = planner.open_gripper(arm_index=2, t=10)
+    result = planner.open_gripper(arm_index=2, t=4)
     
     return result
 

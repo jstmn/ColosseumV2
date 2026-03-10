@@ -253,6 +253,7 @@ def replay_cpu_sim(
     args: Args, env: RecordEpisode, ori_env, pbar, episodes, trajectories
 ):
     successful_replays = 0
+    failed_replays = 0
 
     target_success = args.success_count if args.success_count is not None else len(episodes)
 

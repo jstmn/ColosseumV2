@@ -126,7 +126,7 @@ class ObjectInCabinetEnv(BaseEnv):
     - The robot is not grasping the banana
     """
 
-    SUPPORTED_ROBOTS = ["panda"]
+    SUPPORTED_ROBOTS = ["panda_wristcam", "panda"]
     agent: Union[Panda]
 
     handle_types = ["revolute", "revolute_unwrapped"]
@@ -140,7 +140,7 @@ class ObjectInCabinetEnv(BaseEnv):
     def __init__(
         self,
         *args,
-        robot_uids="panda",
+        robot_uids="panda_wristcam",
         robot_init_qpos_noise=0.0,  # No noise - using fixed qpos
         object_model_id="011_banana",
         **kwargs,
@@ -193,8 +193,8 @@ class ObjectInCabinetEnv(BaseEnv):
             CameraConfig(
                 "base_camera",
                 pose=pose,
-                width=128,
-                height=128,
+                width=224,
+                height=224,
                 fov=np.pi / 2,
                 near=0.01,
                 far=100,

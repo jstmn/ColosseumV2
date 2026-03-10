@@ -113,7 +113,6 @@ class DisabledVariationFactors:
     MO_color: bool = False
     MO_texture: bool = False
     MO_size: bool = False
-    MO_mass: bool = False
     RO_color: bool = False
     RO_texture: bool = False
     RO_size: bool = False
@@ -172,6 +171,10 @@ class PlacementRegion:
             x_lims=(center[0] - width[0] / 2, center[0] + width[0] / 2),
             y_lims=(center[1] - width[1] / 2, center[1] + width[1] / 2),
         )
+
+    @property
+    def center_xy(self) -> list[float]:
+        return [(self.x_lims[0] + self.x_lims[1]) / 2, (self.y_lims[0] + self.y_lims[1]) / 2]
 
     @property
     def width_x(self) -> float:
@@ -360,7 +363,7 @@ class ColosseumV2Env(BaseEnv):
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
         env_id: str | None = kwargs.pop("_env_id", None)
-        assert env_id is not None, "env_id must be provided"
+        assert env_id is not None, "'_env_id' must be provided"
         self._env_id = env_id
 
         max_n_distractor_objects = kwargs.pop("max_n_distractor_objects", 1000)
@@ -777,7 +780,7 @@ class ColosseumV2Env(BaseEnv):
 
         # DualPanda includes a `table` link inside its URDF (`dual_panda_table.urdf`).
         # If users enable table color/texture randomization, apply it to that link's visuals as well.
-        if self._robot_uids == "dual_panda" and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
+        if ("dual_panda" in self._robot_uids) and (self._ds.table_color_enabled() or self._ds.table_texture_enabled()):
             table_link = self.agent.robot.links_map.get("table", None)
             # PhysX link components have an `.entity` that holds render components.
             table_entities = [o.entity for o in table_link._objs]
@@ -902,7 +905,7 @@ class ColosseumV2Env(BaseEnv):
                 self._ds._internal["distractor_object_cfg"]["actors"][i].set_pose(Pose.create_from_pq(p=xyz))
 
     def _get_obs_extra(self, info: dict):
-        if self._robot_uids == "dual_panda":
+        if "dual_panda" in self._robot_uids:
             return dict(
                 left_arm_tcp=self.agent.tcp_1_pose.raw_pose,
                 right_arm_tcp=self.agent.tcp_2_pose.raw_pose,
