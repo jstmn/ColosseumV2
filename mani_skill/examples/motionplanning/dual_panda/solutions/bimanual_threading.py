@@ -1,39 +1,52 @@
 import gymnasium as gym
 import numpy as np
 import sapien
-import time
+from termcolor import cprint
 from mani_skill.examples.motionplanning.dual_panda.motionplanner import DualPandaMotionPlanningSolver
 from mani_skill.envs.tasks import DualPandaThreadingEnv
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 from mani_skill.utils.structs.pose import Pose
 
+
 def main():
     """
     Test the dual panda motion planner with various scenarios.
+
+    python mani_skill/examples/motionplanning/dual_panda/solutions/bimanual_threading.py
     """
-    env:DualPandaThreadingEnv = gym.make(
+    env = gym.make(
         'DualArmThreading-v1',
         obs_mode='none',
         control_mode="pd_joint_pos",  # Use pd_joint_pos for motion planning
-        render_mode='human',  # Use 'human' for visualization
+        # render_mode='human',  # Use 'human' for visualization
+        render_mode='none',  # Use 'human' for visualization
+        reward_mode="none",
+        _env_id="DualArmThreading-v1",
     )
     print("=== Testing Dual Panda Motion Planner ===\n")
 
     for seed in range(10):  # Test with 3 different seeds
         print(f"\n--- Seed {seed} ---")
-        success = solve(env, seed=seed, debug=True, vis=True)
-        
-        if success:
-            print(f"✓ Test passed (seed={seed})")
+        # success = solve(env, seed=seed, debug=True, vis=True)
+        res = solve(env, seed=seed, debug=False, vis=False)
+        if res == -1:
+            cprint(f"✗ Test failed (seed={seed})", 'red')
         else:
-            print(f"✗ Test failed (seed={seed})")
-        
+            success = res[-1]["success"].item()
+            elapsed_steps = res[-1]["elapsed_steps"].item()
+            if success:
+                cprint(f"✓ Test passed (seed={seed}) {success} {elapsed_steps}", 'green')
+            else:
+                cprint(f"✗ Test failed (seed={seed}) {success} {elapsed_steps}", 'red')
+                print(res[-1])
+
     env.close()
     print("\n=== All tests completed ===")
 
-def solve(env:DualPandaThreadingEnv, seed, debug, vis):
+
+def solve(env: DualPandaThreadingEnv, seed, debug, vis):
     env.reset(seed=seed)
-    
+
     planner = DualPandaMotionPlanningSolver(
         env,
         debug=debug,
@@ -102,7 +115,7 @@ def solve(env:DualPandaThreadingEnv, seed, debug, vis):
     if result==-1:
         return result
     # ==== Grasp the peg
-    
+
     # ==== Grasp the ring tripod
     obb_tripod = get_actor_obb(env.ring_tripod)
     tripod_transform = env.ring_tripod.pose.sp.to_transformation_matrix()

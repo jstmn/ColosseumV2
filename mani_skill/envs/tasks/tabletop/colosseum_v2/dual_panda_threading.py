@@ -26,6 +26,9 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         MO_size=True,
         RO_size=True,
     )
+    needle_length = 0.125
+    ring_radius = 0.05
+    pole_height = 0.15
 
     def __init__(self, *args, robot_uids="dual_panda_wristcam", **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
@@ -69,7 +72,7 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         needle_builder = lambda: build_needle(
             self.scene,
             name="needle",
-            length=0.125,
+            length=self.needle_length,
             shaft_radius=0.02,
             tip_length=0.05,
             density=8000.0,
@@ -84,9 +87,9 @@ class DualPandaThreadingEnv(ColosseumV2Env):
             name="ring_tripod",
             base_size = 0.125,
             base_thickness = 0.01,
-            pole_height = 0.15,
+            pole_height = self.pole_height,
             pole_radius = 0.01,
-            ring_radius = 0.05,
+            ring_radius = self.ring_radius,
             ring_thickness = 0.01,
             density=1000.0,
             color=np.array([110/255, 38/255, 14/255, 1.0]),
@@ -98,17 +101,9 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         self.load_scene_hook(manipulation_objects=[self.needle], receiving_objects=[self.ring_tripod])
 
         self._ring_tripod_region = self.update_placement_region(
-            # Ground-truth from legacy sampling:
-            # ring_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
-            # ring_xyz[..., 1] -= 0.1
-            # => x in [0.0, 0.2], y in [-0.1, 0.1]
             PlacementRegion.from_center_and_width(center=(0.2, 0.0), width=(0.1, 0.1))
         )
         self._needle_region = self.update_placement_region(
-            # Ground-truth from legacy sampling:
-            # needle_xyz[..., :2] = torch.rand((b, 2), device=self.device) * 0.2
-            # needle_xyz[..., 1] -= 0.1
-            # => x in [0.0, 0.2], y in [-0.1, 0.1]
             PlacementRegion.from_center_and_width(center=(-0.3, 0.0), width=(0.1, 0.1))
         )
 
@@ -137,7 +132,7 @@ class DualPandaThreadingEnv(ColosseumV2Env):
             self.needle.set_pose(Pose.create_from_pq(p=needle_xyz))
             self.initialize_episode_hook(env_idx, mo_pose=self.needle.pose)
         self._initialize_agent()
-        
+
     def evaluate(self):
         """
         Evaluate if the needle is successfully threaded through the ring.
@@ -147,21 +142,10 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         needle_pose = self.needle.pose
         # The tripod actor's origin is at the base, the ring is at the top.
         # The offset of 0.165 is a magic number to get to the ring's center.
-        ring_center_pose = self.ring_tripod.pose * sapien.Pose(p=[0, 0, 0.165])
-
-        # Needle parameters (from build_needle call)
-        needle_length = 0.1
-        ring_radius = 0.03
-
-        # --- Get Needle Eye Position (Vectorized) ---
-        # Assuming the needle actor's length is along its local Z-axis and it's centered at its origin.
-        # The tip is at +Z = length/2.
-        needle_rot_mat = quaternion_to_matrix(needle_pose.q)
-        local_z_axis = torch.tensor([0, 0, 1.0], device=self.device)
-        needle_direction = needle_rot_mat @ local_z_axis
+        ring_center_pose = self.ring_tripod.pose * sapien.Pose(p=[0, 0, self.pole_height + self.ring_radius])
 
         # Position of the needle tip in world frame
-        tip_local_pos = torch.tensor([needle_length, 0, 0], device=self.device)
+        tip_local_pos = torch.tensor([self.needle_length, 0, 0], device=self.device)
         needle_tip_pos = needle_pose.p + quaternion_apply(needle_pose.q, tip_local_pos)
 
         # --- Get Ring Plane and Center (Vectorized) ---
@@ -181,11 +165,18 @@ class DualPandaThreadingEnv(ColosseumV2Env):
         distance_to_ring_center = torch.linalg.norm(projection_on_plane - ring_center, dim=1)
 
         plane_tolerance = 0.05  # 5cm tolerance
-        ring_margin = 0.001  # 0.1cm margin inside the ring
         is_near_plane = distance_to_plane < plane_tolerance
-        is_within_ring = distance_to_ring_center < (ring_radius - ring_margin)
+        ring_margin = 0.0
+        is_within_ring = distance_to_ring_center < (self.ring_radius - ring_margin)
         success = is_near_plane * is_within_ring
-        return {"is_near_plane": is_near_plane, "is_within_ring": is_within_ring, "success": success}
+
+        return {
+            "is_near_plane": is_near_plane,
+            "is_within_ring": is_within_ring,
+            "distance_to_ring_center": distance_to_ring_center,
+            "ring_radius - ring_margin": self.ring_radius - ring_margin,
+            "success": success,
+        }
 
     def _initialize_agent(self):
         """Reset the dual panda arms to a neutral position."""

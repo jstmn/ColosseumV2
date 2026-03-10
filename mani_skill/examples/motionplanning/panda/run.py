@@ -128,7 +128,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 5 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 1 \
+    --num-procs 2 \
     --obs-mode "rgb" \
     --reward-mode "none" \
     --random-seed \
@@ -136,6 +136,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --traj-name "trajectory" --vis \
     --save-video      # <- optional
     # --vis           # <- optional
+
 
 # Convert to ee_delta_pos with:
 python mani_skill/trajectory/replay_trajectory.py \
