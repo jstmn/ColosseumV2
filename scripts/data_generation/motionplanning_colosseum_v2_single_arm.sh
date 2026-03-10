@@ -21,7 +21,7 @@ ENVS=(
     "CookItemInPan-v1"
     "RaiseCube-v1"
 )
-NUM_PROCS=7
+NUM_PROCS=5
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_ee_delta_pose
 OBS_MODE=rgb

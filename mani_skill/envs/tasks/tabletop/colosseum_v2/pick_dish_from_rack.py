@@ -43,8 +43,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
     )
     _plate_mesh_source_radius = 0.5  # Radius of the raw OBJ (measured once offline)
     _plate_mesh_source_height = 0.2494586706161499  # OBJ height once flattened
+    # _plate_mesh_source_height = 0.1  # OBJ height once flattened
     _plate_mesh_flat_quat = [np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]  # Rotate mesh so Z is the plate normal
-    _rack_scale = 0.0015  # Rack to match
 
     # Plate geometry parameters (meters) - SAME AS PLACE_DISH_IN_RACK
     _plate_outer_radius = 0.09  # Desired radius after scaling the OBJ
@@ -59,7 +59,6 @@ class PickDishFromRackEnv(ColosseumV2Env):
     _plate_extent = np.array(
         [_plate_outer_radius * 2, _plate_outer_radius * 2, _plate_total_height]
     )
-    _plate_spawn_buffer = 0.002  # Small buffer to prevent initial interpenetration
 
     _rack_extent = np.array([0.12060600281, 0.16782440567, 0.085])  # Normal rack size
     _plate_goal_offset = np.array([0.0, 0.0, 0.15])  # Above rack slots (same as place task)
@@ -174,10 +173,16 @@ class PickDishFromRackEnv(ColosseumV2Env):
                 half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
                 pose=sapien.Pose(p=base_center)
             )
+            # builder.add_box_visual(
+            #     half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
+            #     pose=sapien.Pose(p=base_center),
+            #     material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0])
+            # )
 
             # Vertical divider positions and heights (extracted from STL)
             rack_width = self._rack_extent[0]  # Width for dividers to span across
-            divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+            # divider_y_positions = [-0.105254, -0.046585, 0.015046, 0.074831]  # 4 dividers
+            divider_y_positions = [-0.12, -0.04, 0.04, 0.12]  # 4 dividers
             divider_heights = [0.125304, 0.122871, 0.122871, 0.125304]
             divider_z_centers = [-0.001098, -0.002315, -0.002315, -0.001098]
             divider_thickness = 0.003  # 3mm thick
@@ -189,11 +194,17 @@ class PickDishFromRackEnv(ColosseumV2Env):
                     half_size=[rack_width / 2, divider_thickness, height / 2],
                     pose=sapien.Pose(p=[0, y_pos, z_center])
                 )
+                # builder.add_box_visual(
+                #     half_size=[rack_width / 2, divider_thickness, height / 2],
+                #     pose=sapien.Pose(p=[0, y_pos, z_center]),
+                #     material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0])
+                # )
 
             # Keep the visual mesh (now centered at origin)
+            rack_scale = 0.0015  # Rack to match
             builder.add_visual_from_file(
                 filename=str(self._rack_mesh_path),
-                scale=[self._rack_scale] * 3,
+                scale=[rack_scale] * 3,
             )
             builder.initial_pose = sapien.Pose()
             return builder
@@ -233,7 +244,8 @@ class PickDishFromRackEnv(ColosseumV2Env):
             # When plate is vertical (after 90° rotation around X), its radius extends in Z direction
             # Bottom of plate = center_z - plate_outer_radius
             # Position center so bottom is at table level (bottom won't clip through)
-            plate_pos[:, 2] = table_top_z + self._plate_outer_radius  # Center at radius height
+            drop_height = 0.05
+            plate_pos[:, 2] = table_top_z + self._plate_outer_radius + drop_height  # Center at radius height
 
             # Plate vertical - normal pointing in +X direction (perpendicular to dividers)
             # Dividers run in X (left-right), plate face should be perpendicular to Y (front-back)
@@ -255,8 +267,15 @@ class PickDishFromRackEnv(ColosseumV2Env):
             # Save initial pose so we can hold the plate in place each step
             self._plate_initial_pose = plate_pose
             self._plate_gravity_enabled = False
-        
+
             self.initialize_episode_hook(env_idx, mo_pose=plate_pose, ro_pose=rack_pose)
+
+        self._initialize_agent()
+
+    def _initialize_agent(self):
+        qpos_0 = np.array([0.038014565, -0.05580395, 0.02353088, -2.1653874, 0.04206629, 2.127178, -0.7543587, 0.04, 0.04])
+        self.agent.reset(qpos_0)
+
 
     def step(self, action):
         # Zero plate velocity each step to cancel gravity accumulation,
@@ -285,22 +304,22 @@ class PickDishFromRackEnv(ColosseumV2Env):
         table_top_z = table_z + float(self.table_scene_builders[0].table_height)
 
         # Check that plate is above table surface
-        above_table = plate_pos[:, 2] > table_top_z - 0.01
+        plate_above_table = plate_pos[:, 2] > table_top_z - 0.01
 
         rack_pos = self.dish_rack.pose.p
         rack_half = torch.tensor(
             self._rack_extent / 2.0, device=self.device, dtype=plate_pos.dtype
         )
-        within_x = torch.abs(plate_pos[:, 0] - rack_pos[:, 0]) <= rack_half[0]
-        within_y = torch.abs(plate_pos[:, 1] - rack_pos[:, 1]) <= rack_half[1]
+        # within_x = torch.abs(plate_pos[:, 0] - rack_pos[:, 0]) <= rack_half[0]
+        # within_y = torch.abs(plate_pos[:, 1] - rack_pos[:, 1]) <= rack_half[1]
+        # within_z = torch.abs(plate_pos[:, 2] - rack_pos[:, 2]) <= rack_half[2]
+        # plate_outside_rack = ~(within_x & within_y & within_z)
         within_z = torch.abs(plate_pos[:, 2] - rack_pos[:, 2]) <= rack_half[2]
-        plate_outside_rack = ~(within_x & within_y & within_z)
+        plate_outside_rack = ~(within_z)
 
-        success = plate_outside_rack & above_table
+        success = plate_above_table & plate_outside_rack
 
         return {
             "success": success,
-            "plate_close_to_goal": plate_outside_rack,
-            "above_table": above_table,
             "plate_outside_rack": plate_outside_rack,
         }

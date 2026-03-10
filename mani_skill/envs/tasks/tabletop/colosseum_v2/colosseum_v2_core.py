@@ -363,7 +363,7 @@ class ColosseumV2Env(BaseEnv):
         self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs
     ):
         env_id: str | None = kwargs.pop("_env_id", None)
-        assert env_id is not None, "env_id must be provided"
+        assert env_id is not None, "'_env_id' must be provided"
         self._env_id = env_id
 
         max_n_distractor_objects = kwargs.pop("max_n_distractor_objects", 1000)

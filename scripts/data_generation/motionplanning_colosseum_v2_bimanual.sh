@@ -17,7 +17,7 @@ ENVS=(
     "DualArmStackCube-v1"
     "DualArmStack3Cube-v1"
 )
-NUM_PROCS=7
+NUM_PROCS=5
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_joint_pos
 OBS_MODE=rgb
