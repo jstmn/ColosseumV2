@@ -173,11 +173,6 @@ class PickDishFromRackEnv(ColosseumV2Env):
                 half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
                 pose=sapien.Pose(p=base_center)
             )
-            # builder.add_box_visual(
-            #     half_size=[base_width / 2, base_depth / 2, base_thickness / 2],
-            #     pose=sapien.Pose(p=base_center),
-            #     material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0])
-            # )
 
             # Vertical divider positions and heights (extracted from STL)
             rack_width = self._rack_extent[0]  # Width for dividers to span across
@@ -194,11 +189,6 @@ class PickDishFromRackEnv(ColosseumV2Env):
                     half_size=[rack_width / 2, divider_thickness, height / 2],
                     pose=sapien.Pose(p=[0, y_pos, z_center])
                 )
-                # builder.add_box_visual(
-                #     half_size=[rack_width / 2, divider_thickness, height / 2],
-                #     pose=sapien.Pose(p=[0, y_pos, z_center]),
-                #     material=sapien.render.RenderMaterial(base_color=[0.8, 0.8, 0.8, 1.0])
-                # )
 
             # Keep the visual mesh (now centered at origin)
             rack_scale = 0.0015  # Rack to match

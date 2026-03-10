@@ -293,17 +293,17 @@ def solve(env: PourSphereEnv, seed=None, debug=False, vis=False):
             break
 
     # Hold to let sphere fall and settle
-    res = planner.close_gripper(t=100)
+    res = planner.close_gripper(t=4)
 
-    # Wait longer for sphere to settle on the table/in cup
-    qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
-    for _ in range(200):
-        if planner.control_mode == "pd_joint_pos":
-            action = np.hstack([qpos, -1.0])
-        else:
-            action = np.hstack([qpos, qpos * 0, -1.0])
-        obs, reward, terminated, truncated, info = env.step(action)
-    res = (obs, reward, terminated, truncated, info)
+    # # Wait longer for sphere to settle on the table/in cup
+    # qpos = env_sim.agent.robot.get_qpos()[0, : len(planner.planner.joint_vel_limits)].cpu().numpy()
+    # for _ in range(200):
+    #     if planner.control_mode == "pd_joint_pos":
+    #         action = np.hstack([qpos, -1.0])
+    #     else:
+    #         action = np.hstack([qpos, qpos * 0, -1.0])
+    #     obs, reward, terminated, truncated, info = env.step(action)
+    # res = (obs, reward, terminated, truncated, info)
 
     if debug:
         sphere_pos = env_sim.sphere.pose.p[0].cpu().numpy()

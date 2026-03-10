@@ -316,7 +316,7 @@ class PlaceDishInRackEnv(ColosseumV2Env):
                 self.plate_support.set_pose(support_pose)
 
             # Let the plate settle on the table for stable physics
-            for _ in range(50):
+            for _ in range(5):
                 self.scene.step()
 
             # Force the plate back to its intended flat pose in case it rolled during settling.
@@ -333,6 +333,12 @@ class PlaceDishInRackEnv(ColosseumV2Env):
             self.agent.reset(panda_qpos_above_plate)
 
             self.initialize_episode_hook(env_idx, mo_pose=plate_pose, ro_pose=rack_pose, qpos_0=panda_qpos_above_plate)
+        self._initialize_agent()
+
+    def _initialize_agent(self):
+        qpos_0 = np.array([0.038014565, -0.05580395, 0.02353088, -2.1653874, 0.04206629, 2.127178, -0.7543587, 0.04, 0.04])
+        self.agent.reset(qpos_0)
+
 
     def evaluate(self):
         plate_pos = self.plate.pose.p

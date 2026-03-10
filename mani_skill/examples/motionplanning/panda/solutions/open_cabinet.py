@@ -215,7 +215,7 @@ def _open_cabinet_with_planner(
         return -1
 
     # Phase 3: Grasp the handle
-    planner.close_gripper(t=25)  # Longer grasp time for stability in headless mode
+    planner.close_gripper(t=4)  # Longer grasp time for stability in headless mode
 
     # Extra settling steps to secure grip before pulling (hold current position)
     qpos = env_sim.agent.robot.get_qpos()[0, :7].cpu().numpy()
