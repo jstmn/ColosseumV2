@@ -27,6 +27,7 @@ from torch.utils.data.sampler import RandomSampler, BatchSampler
 from torch.utils.data.dataloader import DataLoader
 from act.utils import IterationBasedBatchSampler, worker_init_fn
 from act.make_env import make_eval_envs
+from act.utils import load_demo_dataset
 from diffusers.training_utils import EMAModel
 from act.detr.backbone import build_backbone
 from act.detr.transformer import build_transformer
@@ -73,8 +74,8 @@ class Args:
     """the id of the environment"""
     demo_path: str = 'pickcube.trajectory.rgbd.pd_joint_delta_pos.cpu.h5'
     """the path of demo dataset (pkl or h5)"""
-    num_demos: Optional[int] = None
-    """number of trajectories to load from the demo dataset"""
+    # num_demos: Optional[int] = None
+    # """number of trajectories to load from the demo dataset"""
     total_iters: int = 1_000_000
     """total timesteps of the experiment"""
     batch_size: int = 256
@@ -83,10 +84,6 @@ class Args:
     """ language_instruction for clip embedding"""
     internal_instruction: bool = False
     """ use pre-defiend language_instructions for clip embedding"""
-    is_multi_task: bool = False
-    """ use multi-task dataset"""
-    target_num_cams: int = 1
-    """ num of cameras"""
     
     # ACT specific arguments
     lr: float = 1e-4
@@ -155,6 +152,12 @@ class Args:
     """whether the dataset is multi-task. Must be set for evaluation"""
     target_num_cams: int | None = None
     """the number of cameras to use for the evaluation environments. Must be set for evaluation"""
+    no_eval: bool = False
+    """if True, skip creating evaluation envs and skip evaluation entirely"""
+    max_n_demos_in_dataset: int | None = None
+    """The maximum number of demos in the dataset. If the number of trajectories in the h5 file is greater than this, then a subset of `max_n_demos_in_dataset` 
+    episodes will be sampled from the .h5 to create a new dataset every X training steps.
+    """
 
     variation_factors_subset: list[str] = field(default_factory=list)
     """A subset of the variation factors to evaluate on, when running evaluations automatically. Runs on all 
@@ -292,15 +295,13 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
 
 
 class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
-    def __init__(self, data_path, num_queries, num_traj, internal_instruction, lang_instruction, is_multi_task, include_depth=True, args=None):
+    def __init__(self, data_path: str, num_queries: int, max_n_demos_in_dataset: int | None, internal_instruction, lang_instruction, is_multi_task, include_depth=True, args=None):
         self.args = args
-        if data_path[-4:] == '.pkl':
-            raise NotImplementedError()
-        else:
-            from act.utils import load_demo_dataset
-            trajectories = load_demo_dataset(data_path, num_traj=num_traj, concat=False)
-            # trajectories['observations'] is a list of np.ndarray (L+1, obs_dim)
-            # trajectories['actions'] is a list of np.ndarray (L, act_dim)
+        assert not data_path[-4:] == '.pkl'
+        trajectories, all_episodes_loaded = load_demo_dataset(data_path, max_n_demos_in_dataset=max_n_demos_in_dataset, concat=False)
+        self._all_episodes_loaded = all_episodes_loaded
+        # trajectories['observations'] is a list of np.ndarray (L+1, obs_dim)
+        # trajectories['actions'] is a list of np.ndarray (L, act_dim)
             
         print('Raw trajectory loaded, start to pre-process the observations...')
 
@@ -360,6 +361,11 @@ class SmallDemoDataset_ACTPolicy(Dataset): # Load everything into memory
         self.trajectories = trajectories
         self.delta_control = 'delta' in args.control_mode
         self.norm_stats = self.get_norm_stats() if not self.delta_control else None
+
+
+    @property
+    def all_episodes_loaded_in_dataset(self) -> bool:
+        return self._all_episodes_loaded
 
     def __getitem__(self, index):
         traj_idx, ts = self.slices[index]
@@ -502,6 +508,7 @@ class Agent(nn.Module):
             self.state_dim = 18
             self.act_dim = 9
         else:
+            assert env is not None, f"env is None"
             self.state_dim = env.single_observation_space['state'].shape[0]
             self.act_dim = env.single_action_space.shape[0]
         self.kl_weight = args.kl_weight
@@ -608,6 +615,32 @@ def save_ckpt(run_name, tag):
         'ema_agent': ema_agent.state_dict(),
     }, f'runs/{run_name}/checkpoints/{tag}.pt')
 
+
+def get_trainloader(args) -> tuple[DataLoader, SmallDemoDataset_ACTPolicy, bool]:
+    """Returns a DataLoader, and a bool indicating whether a new dataloader needs to be created at some cadence to RAM memory constraints.
+    """
+    # dataloader setup
+    dataset = SmallDemoDataset_ACTPolicy(
+        args.demo_path, 
+        args.num_queries, 
+        max_n_demos_in_dataset=args.max_n_demos_in_dataset, 
+        internal_instruction=args.internal_instruction, 
+        lang_instruction=args.lang_instruction, 
+        is_multi_task=is_multi_task,
+        include_depth=args.include_depth, 
+        args=args
+    )
+    sampler = RandomSampler(dataset, replacement=False)
+    batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
+    batch_sampler = IterationBasedBatchSampler(batch_sampler, args.total_iters)
+    return DataLoader(
+        dataset,
+        batch_sampler=batch_sampler,
+        num_workers=args.num_dataload_workers,
+        worker_init_fn=lambda worker_id: worker_init_fn(worker_id, base_seed=args.seed),
+    ), dataset, dataset.all_episodes_loaded_in_dataset
+
+
 if __name__ == "__main__":
     args = tyro.cli(Args)
 
@@ -688,38 +721,33 @@ if __name__ == "__main__":
     envs_by_task = None
 
     #Real tasks do not need eval_envs
-    if not args.real:
+    if args.real:
+        print("SKIPPING EVALUATION")
+    else:
         wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
-        envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
-
-
         #eval envs for each task
         if is_multi_task:
             envs_by_task = {}
-            for eid in demo_json.get("env_ids", []):
+            for eid in demo_json.get("env_ids"):
+                task_env_kwargs = env_kwargs.copy()
+                task_env_kwargs["_env_id"] = eid   # env_id 
+
                 envs_by_task[eid] = make_eval_envs(
-                    eid, args.num_eval_envs, args.sim_backend,
-                    env_kwargs, other_kwargs,
+                    eid,
+                    args.num_eval_envs,
+                    args.sim_backend,
+                    task_env_kwargs,
+                    other_kwargs,
                     video_dir=f'runs/{run_name}/videos' if args.capture_video else None,
                     wrappers=wrappers
                 )
-    else:
-        print("SKIP EVALUATION")
+            
+            # choose a random env. This env will be used by Agent() to check the observation, action dimensions
+            envs = envs_by_task[demo_json.get("env_ids")[0]]
+            
+        else:
+            envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=f'runs/{run_name}/videos' if args.capture_video else None, wrappers=wrappers)
 
-
-    # dataloader setup
-    dataset = SmallDemoDataset_ACTPolicy(args.demo_path, args.num_queries, num_traj=args.num_demos, internal_instruction=args.internal_instruction, lang_instruction=args.lang_instruction, is_multi_task = is_multi_task, include_depth=args.include_depth, args=args)
-    sampler = RandomSampler(dataset, replacement=False)
-    batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
-    batch_sampler = IterationBasedBatchSampler(batch_sampler, args.total_iters)
-    train_dataloader = DataLoader(
-        dataset,
-        batch_sampler=batch_sampler,
-        num_workers=args.num_dataload_workers,
-        worker_init_fn=lambda worker_id: worker_init_fn(worker_id, base_seed=args.seed),
-    )
-    if args.num_demos is None:
-        args.num_demos = dataset.num_traj
 
     obs_mode = "rgb+depth" if args.include_depth else "rgb"
 
@@ -798,7 +826,9 @@ if __name__ == "__main__":
     ema_agent = Agent(envs, args, is_multi_task).to(device)
 
     # Evaluation
-    
+    train_dataloader, dataset, all_episodes_in_loader = get_trainloader(args)
+    train_iter = iter(train_dataloader)
+
     eval_stats = None
     if dataset.norm_stats is not None:
         eval_stats = {k: (v.to(device) if torch.is_tensor(v) else v)
@@ -821,7 +851,20 @@ if __name__ == "__main__":
     best_eval_metrics = defaultdict(float)
     timings = defaultdict(float)
 
-    for cur_iter, data_batch in tqdm.tqdm(enumerate(train_dataloader), desc='Training', total=args.total_iters):
+    # for cur_iter, data_batch in tqdm.tqdm(enumerate(train_dataloader), desc='Training', total=args.total_iters):
+    for cur_iter in tqdm.tqdm(range(args.total_iters), desc='Training'):
+
+        # If all demonstrations can't be loaded do to memory constraints, we randomly sample new demos every 5000 iterations.
+        if (not all_episodes_in_loader) and (cur_iter > 0 and (cur_iter % 5000 == 0)):
+            train_dataloader, dataset, all_episodes_in_loader = get_trainloader(args)
+            train_iter = iter(train_dataloader)
+            print(f"INFO: Resampled dataset at iter {cur_iter}")
+        try:
+            data_batch = next(train_iter)
+        except StopIteration:
+            train_iter = iter(train_dataloader)
+            data_batch = next(train_iter)
+
         last_tick = time.time()
         # copy data from cpu to gpu
         obs_batch_dict = data_batch['observations']
@@ -857,9 +900,10 @@ if __name__ == "__main__":
             if not is_multi_task:
                 # --- [Single-task Evaluation] ---
                 eval_lang = args.lang_instruction
+                eval_langs = [eval_lang] * envs.num_envs
                 eval_metrics = evaluate(
                     args.num_eval_episodes, ema_agent, envs, eval_kwargs,
-                    lang_instruction=eval_lang,
+                    lang_instructions=eval_langs,
                     save_name="latest_eval"
                 )
             else:
@@ -869,10 +913,14 @@ if __name__ == "__main__":
 
                 for eid, task_envs in envs_by_task.items():
                     eval_lang = TASK_TEXT_MAP[eid] if args.internal_instruction else None
+                    eval_langs = [eval_lang] * task_envs.num_envs
                     
                     task_metrics = evaluate(
-                        args.num_eval_episodes, ema_agent, task_envs, eval_kwargs,
-                        lang_instruction=eval_lang,
+                        args.num_eval_episodes, 
+                        ema_agent, 
+                        task_envs, 
+                        eval_kwargs,
+                        lang_instructions=eval_langs,
                         save_name=f"latest_eval_{eid}"
                     )
 
