@@ -4,6 +4,7 @@ import os
 from functools import cached_property
 from typing import Any, Optional, Sequence, Tuple, Union
 
+from termcolor import cprint
 import dacite
 import gymnasium as gym
 import numpy as np
@@ -210,6 +211,12 @@ class BaseEnv(gym.Env):
         enhanced_determinism: bool = False,
         **kwargs
     ):
+        # Optionally, you can specify a list of cameras to include. All other cameras will be removed from the sensors.
+        # If not provided, all cameras will be included.
+        self._included_cameras: list[str] | None = kwargs.pop("included_cameras", None)
+        if self._included_cameras is not None:
+            assert len(self._included_cameras) > 0, "'included_cameras' cannot be empty"
+
         self._enhanced_determinism = enhanced_determinism
 
         self.num_envs = num_envs
@@ -835,6 +842,15 @@ class BaseEnv(gym.Env):
                 camera_config,
                 self.scene,
             )
+
+        if self._included_cameras is not None:
+            for cam in self._included_cameras:
+                assert cam in self._sensors.keys(), f"Camera {cam} not found in sensors"
+            to_delete = [x for x in list(self._sensors.keys()) if x not in self._included_cameras]
+            for name in to_delete:
+                del self._sensors[name]
+                cprint(f"WARNING: Removing camera: {name}", "yellow")
+            assert set(self._sensors.keys()) == set(self._included_cameras), f"{self._sensors.keys()} != {self._included_cameras}"
 
         self.scene.sensors = self._sensors
         self.scene.human_render_cameras = self._human_render_cameras

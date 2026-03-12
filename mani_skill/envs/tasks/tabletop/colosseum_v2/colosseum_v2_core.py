@@ -418,7 +418,6 @@ class ColosseumV2Env(BaseEnv):
 
 
 
-
     def _get_human_render_camera_config(self, eye: tuple[float, float, float], target: tuple[float, float, float]):
         """ Configures the human render camera. Shader options:
             - minimal: The fastest shader with minimal GPU memory usage. Note that the background will always be black (normally it is the color of the ambient light)

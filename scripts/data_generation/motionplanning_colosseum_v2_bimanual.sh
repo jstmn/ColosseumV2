@@ -1,9 +1,26 @@
 # !/bin/bash
 
 # bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh
+# bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh --included-cameras "external1_camera"
+# bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh --included-cameras "hand_camera external1_camera"
 
 DISTRACTION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
+
+INCLUDED_CAMERAS=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --included-cameras)
+            INCLUDED_CAMERAS="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
 
 ENVS=(
     "DualArmPickCube-v1"
@@ -25,6 +42,11 @@ TARGET_CONTROL_MODE=pd_joint_pos
 OBS_MODE=rgb
 REWARD_MODE=none
 
+INCLUDED_CAMERAS_ARG=""
+if [ -n "$INCLUDED_CAMERAS" ]; then
+    INCLUDED_CAMERAS_ARG="--included-cameras ${INCLUDED_CAMERAS}"
+fi
+
 for ENV_ID in "${ENVS[@]}"; do
 
     TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
@@ -32,6 +54,8 @@ for ENV_ID in "${ENVS[@]}"; do
         echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
         continue
     fi
+
+
 
     echo ""
     echo "----------------------------------------------------------------"
@@ -44,6 +68,7 @@ for ENV_ID in "${ENVS[@]}"; do
         --env-id ${ENV_ID} \
         --num-traj ${N_TRAJ} \
         --distraction-set ${DISTRACTION_SET} \
+        ${INCLUDED_CAMERAS_ARG} \
         --num-procs ${NUM_PROCS} \
         --obs-mode "rgb" \
         --reward-mode ${REWARD_MODE} \

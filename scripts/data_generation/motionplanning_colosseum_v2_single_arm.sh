@@ -1,8 +1,25 @@
 # !/bin/bash
 
 DISTRACTION_SET=none
+INCLUDED_CAMERAS=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --included-cameras)
+            INCLUDED_CAMERAS="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh
+# bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --included-cameras "hand_camera external1_camera"
+# bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --included-cameras "external1_camera"
 
 ENVS=(
     "PickSodaFromCabinet-v1"
@@ -28,6 +45,11 @@ TARGET_CONTROL_MODE=pd_ee_delta_pose
 OBS_MODE=rgb
 REWARD_MODE=none
 
+INCLUDED_CAMERAS_ARG=""
+if [ -n "$INCLUDED_CAMERAS" ]; then
+    INCLUDED_CAMERAS_ARG="--included-cameras ${INCLUDED_CAMERAS}"
+fi
+
 for ENV_ID in "${ENVS[@]}"; do
 
     TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
@@ -49,10 +71,12 @@ for ENV_ID in "${ENVS[@]}"; do
 
     if [ ! -f "$TRAJ_PATH" ]; then
 
+
         python mani_skill/examples/motionplanning/panda/run.py \
             --env-id ${ENV_ID} \
             --num-traj ${N_TRAJ} \
             --distraction-set ${DISTRACTION_SET} \
+            ${INCLUDED_CAMERAS_ARG} \
             --num-procs ${NUM_PROCS} \
             --obs-mode "rgb" \
             --reward-mode ${REWARD_MODE} \

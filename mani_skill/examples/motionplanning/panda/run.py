@@ -135,6 +135,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --only-count-success \
     --traj-name "trajectory" --vis \
     --save-video      # <- optional
+    # --included-cameras "external1_camera" \
     # --vis           # <- optional
 
 
@@ -167,11 +168,13 @@ def parse_args(args=None):
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
     parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
     parser.add_argument("--ignore-keys", nargs="*", default=[], help="keys to ignore when saving the trajectory")
+    parser.add_argument("--included-cameras", nargs="*", default=[], help="cameras to include in the trajectory")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
     distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
+    included_cameras = args.included_cameras if len(args.included_cameras) > 0 else None
     try:
         env = gym.make(
             env_id,
@@ -184,7 +187,8 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             viewer_camera_configs=dict(shader_pack=args.shader),
             sim_backend=args.sim_backend,
             distraction_set=distraction_set,
-            _env_id=env_id
+            _env_id=env_id,
+            included_cameras=included_cameras
         )
     except TypeError as e:
         assert "got an unexpected keyword argument 'distraction_set'" in str(e)
@@ -399,6 +403,7 @@ def main(args):
 
         # Merge trajectory files
         output_path = res[0][: -len("0.h5")] + "h5"
+        print(f"Saved trajectories to {output_path}")
         merge_trajectories(output_path, res)
         for h5_path in res:
             tqdm.write(f"Remove {h5_path}")
@@ -412,6 +417,7 @@ def main(args):
         else:
             seed = 0
         output_path = _main(args, start_seed=seed)
+        print(f"Saved trajectories to {output_path}")
 
     if args.ignore_keys is not None and len(args.ignore_keys) > 0:
         cprint(f"WARNING: Removing keys: {args.ignore_keys} from {output_path}", "yellow")
