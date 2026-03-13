@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, cast
+from matplotlib.projections.polar import PolarAxes
 
 """This script generates the figures for the Colosseum-V2 paper.
 
@@ -222,6 +223,76 @@ def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, f
     print(f"Saved clumped mean change barchart to {save_path}")
 
 
+def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: List[str], output_dir: str):
+    n_models = len(model_names)
+
+    # Compute per-model means clumped by modality.
+    mean_clumped_changes: Dict[str, Dict[str, float]] = {
+        model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+    }
+    for model in model_names:
+        mean_changes = mean_changes_from_none.get(model, {})
+        vision_vals = []
+        action_vals = []
+        language_vals = []
+        for ds in VISION_DISTRACTION_SETS:
+            vision_vals.append(float(mean_changes[ds]))
+        for ds in ACTION_DISTRACTION_SETS:
+            action_vals.append(float(mean_changes[ds]))
+        for ds in LANGUAGE_DISTRACTION_SETS:
+            language_vals.append(float(mean_changes[ds]))
+
+        mean_clumped_changes[model]["vision"] = -float(np.mean(vision_vals))
+        mean_clumped_changes[model]["action"] = -float(np.mean(action_vals))
+        mean_clumped_changes[model]["language"] = -float(np.mean(language_vals))
+
+    # Plot radar / radial chart.
+    categories = ["vision", "language", "action"]
+    display = {"vision": "Vision", "action": "Action", "language": "Language"}
+    values = [[mean_clumped_changes[model][c] for c in categories] for model in model_names]
+
+    # Angles for each axis (close the loop by repeating the first).
+    angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+    angles += angles[:1]
+
+    fig, ax0 = plt.subplots(figsize=(6.2, 5.2), subplot_kw={"polar": True})
+    ax = cast(PolarAxes, ax0)
+    ax.set_theta_offset(np.pi / 2)     # start at the top
+    ax.set_theta_direction(-1)         # clockwise
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels([display[c] for c in categories], fontsize=12)
+
+    # Choose symmetric radial limits around 0 so negative changes are visible.
+    flat_vals = [v for row in values for v in row] if values else [0.0]
+    max_abs = float(max(abs(float(v)) for v in flat_vals)) if flat_vals else 0.0
+    # r = max(1e-6, max_abs)  # avoid degenerate limits
+    # pad = 0.15 * r
+    # ax.set_ylim(-(r + pad), (r + pad))
+    ax.set_rlabel_position(180)  # move radial labels to the left
+    ax.grid(True, alpha=0.35)
+
+    # Plot each model.
+    cmap = plt.get_cmap("tab10")
+    color_cycle = cmap(np.linspace(0, 1, max(1, n_models)))
+    for i, model in enumerate(model_names):
+        v = [float(x) for x in values[i]]
+        v += v[:1]
+        color = color_cycle[i % len(color_cycle)]
+        ax.plot(angles, v, linewidth=2, label=model, color=color)
+        ax.fill(angles, v, color=color, alpha=0.10)
+
+    # ax.set_title("Mean Change in Success Rate (Clumped)", fontsize=13, pad=18)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=10, frameon=False)
+    plt.tight_layout()
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "mean_change_clumped_barchart_radial.png")
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    print(f"Saved clumped mean change barchart to {save_path}")
+
+
 def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: List[str], output_dir: str):
 
     # Plotting barchart
@@ -265,6 +336,8 @@ def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, floa
     print(f"Saved mean change barchart to {save_path}")
 
 
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--result-csvs", type=str, required=True, nargs="+")
@@ -275,3 +348,4 @@ if __name__ == "__main__":
     mean_changes_from_none = calculate_mean_changes_from_none(args.result_csvs, args.model_names)
     generate_mean_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
     generate_clumped_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
+    generate_clumped_change_figure_radial(mean_changes_from_none, args.model_names, args.output_dir)
