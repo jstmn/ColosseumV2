@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import h5py
+import numpy as np
 from mani_skill.utils.logging_utils import logger
 from mani_skill.utils.io_utils import dump_json, load_json
 
@@ -12,7 +13,7 @@ def merge_trajectories(output_path: str, traj_paths: list, recompute_id: bool = 
     merged_json_path = output_path.replace(".h5", ".json")
     merged_json_data = {"episodes": []}
     cnt = 0
-    max_episode_lengths = {}
+    episode_lengths_by_env = {}
 
     all_env_ids = set()
     merge_summary = []
@@ -48,8 +49,9 @@ def merge_trajectories(output_path: str, traj_paths: list, recompute_id: bool = 
         for ep in json_data["episodes"]:
             ep_length = ep.get("elapsed_steps", 0)
         
-            if cur_env_id not in max_episode_lengths or ep_length > max_episode_lengths[cur_env_id]:
-                max_episode_lengths[cur_env_id] = ep_length
+            if cur_env_id not in episode_lengths_by_env:
+                episode_lengths_by_env[cur_env_id] = []
+            episode_lengths_by_env[cur_env_id].append(ep_length)
 
             old_episode_id = ep["episode_id"]
             old_traj_id = f"traj_{old_episode_id}"
@@ -74,17 +76,18 @@ def merge_trajectories(output_path: str, traj_paths: list, recompute_id: bool = 
         merge_summary.append((cur_env_id, file_episode_cnt))
 
     print("\n" + "="*80)
-    print(f"{'Env ID':<35} | {'Count':<10} | {'Max Episode Length (Steps)':<10}")
+    print(f"{'Env ID':<35} | {'Count':<10} | {'Mean Episode Length':<10} | {'Std Episode Length':<10} | {'Max Episode Length':<10}")
     print("-" * 80)
     for task_name, count in merge_summary:
-        print(f"{task_name:<35} | {count:<10} | {max_episode_lengths[task_name]:<10}")
+        lens = episode_lengths_by_env[task_name]
+        print(f"{task_name:<35} | {count:<10} | {round(float(np.mean(lens)), 2):<10} | {round(float(np.std(lens)), 2):<10} | {round(float(np.max(lens)), 2):<10}")
     print("-" * 80)
     print(f"{'Total Merged Episodes':<35} | {cnt:<10}")
     print("="*80 + "\n")
 
     merged_json_data["multi_env"] = True
     merged_json_data["env_ids"] = sorted(list(all_env_ids))
-    merged_json_data["max_episode_lengths"] = max_episode_lengths 
+    merged_json_data["episode_lengths_by_env"] = episode_lengths_by_env
 
     merged_h5_file.close()
     dump_json(merged_json_path, merged_json_data, indent=2)

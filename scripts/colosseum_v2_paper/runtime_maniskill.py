@@ -11,7 +11,7 @@ from mani_skill.envs.tasks.tabletop.colosseum_v2.raise_cube import RaiseCubeEnv
 This script measures maniskill's FPS for difference batch sizes.
 
 # Example usage:
-python scripts/generate_colosseum_v2_maniskill_runtime_results.py \
+python scripts/colosseum_v2_paper/runtime_maniskill.py \
     --results_filepath "logs/fps/maniskill_fps.csv" --batch_sizes 1 2 3 4 5 6 7 8 9 10 20 30 40 50 100 250 500 750 1000 1250 1500 1750 2000 2250 2500 2750 3000
 
 """

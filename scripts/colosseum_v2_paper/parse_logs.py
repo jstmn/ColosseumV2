@@ -13,10 +13,25 @@ Key behavior:
   is **recomputed from totals**: (100 * sum_success / sum_episodes).
 - Rows with `num_sucessful_episodes < 0` are ignored (placeholders / incomplete runs).
 
-# Example usage:
 
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__table.csv --output-path logs/parsed/single_arm_1.25
-python scripts/parse_colosseum_v2_logs.py --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv --output-path logs/parsed/bimanual__1.25
+### Example usage:
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__PickSodaFromCabinet.csv logs/yggdrasil/results_single_arm__table.csv logs/slurm/results_single_arm__15x.csv \
+    --output-path logs/parsed_ACT/single_arm
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv logs/slurm/results_bimanual__15x.csv \
+    --output-path logs/parsed_ACT/bimanual
+
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_single_arm_v2_part2.csv logs/pi0/results_single_arm_v4.csv \
+    --output-path logs/parsed_pi0/single_arm
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_bimanual_v4_part2.csv logs/pi0/results_bimanual_v4.csv \
+    --output-path logs/parsed_pi0/bimanual
 """
 
 import argparse
@@ -86,28 +101,27 @@ ENV_ID_TO_FANCY_NAME = {
     "PlaceCubeInDrawer-v1":     "PlaceCubeInDrawer",
     "CookItemInPan-v1":     "CookItemInPan",
     # Bimanual
-    "DualArmPickCube-v1": "DualArmCubeHandover",
-    "DualArmPickBottle-v1":     "DualArmBottleHandover",
+    "DualArmPickCube-v1":    "DualArmCubeHandover",
+    "DualArmPickBottle-v1":  "DualArmBottleHandover",
     "DualArmLiftPot-v1":     "DualArmLiftPot",
-    "DualArmLiftTray-v1":     "DualArmLiftTray",
+    "DualArmLiftTray-v1":    "DualArmLiftTray",
     "DualArmPushBox-v1":     "DualArmPushBox",
     "DualArmPourPot-v1":     "DualArmPourPot",
-    "DualArmThreading-v1":     "DualArmThreading",
-    "DualArmPenCap-v1":     "DualArmPenCap",
-    "DualArmDrawerPlace-v1":     "DualArmDrawerPlace",
-    "DualArmDrawerOpen-v1":     "DualArmDrawerOpen",
-    "DualArmStackCube-v1":     "DualArmStackCube",
-    "DualArmStack3Cube-v1":     "DualArmStackTwoCubes",
+    "DualArmThreading-v1":   "DualArmThreading",
+    "DualArmPenCap-v1":      "DualArmPenCap",
+    "DualArmDrawerPlace-v1": "DualArmDrawerPlace",
+    "DualArmDrawerOpen-v1":  "DualArmDrawerOpen",
+    "DualArmStackCube-v1":   "DualArmStackCube",
+    "DualArmStack3Cube-v1":  "DualArmStackTwoCubes",
 }
-
 
 
 VARIATION_NAMES = (
     "none".lower(),
     "all".lower(),
     "MO_color".lower(),
-    "RO_color".lower(),
     "MO_texture".lower(),
+    "RO_color".lower(),
     "RO_texture".lower(),
     "table_color".lower(),
     "light_color".lower(),

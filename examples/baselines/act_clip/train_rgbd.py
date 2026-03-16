@@ -125,6 +125,8 @@ class Args:
     max_episode_steps: Optional[int] = None
     """Change the environments' max_episode_steps to this value. Sometimes necessary if the demonstrations being imitated are too short. Typically the default
     max episode steps of environments in ManiSkill are tuned lower so reinforcement learning agents can learn faster."""
+    max_episode_steps_from_lookup: bool = False
+    """If toggled, the max episode steps will be looked up from a hardcoded dictionary"""
     log_freq: int = 1000
     """the frequency of logging the training metrics"""
     eval_freq: int = 5000
