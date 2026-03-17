@@ -17,21 +17,14 @@ Key behavior:
 ### Example usage:
 
 python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/slurm/results_single_arm.csv logs/yggdrasil/results_single_arm__PickSodaFromCabinet.csv logs/yggdrasil/results_single_arm__table.csv logs/slurm/results_single_arm__15x.csv \
-    --output-path logs/parsed_ACT/single_arm
-
-python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/slurm/results_bimanual.csv logs/yggdrasil/results_bimanual__table.csv logs/slurm/results_bimanual__15x.csv \
+    --results-paths logs/yggdrasil/results_bimanual_act.csv logs/yggdrasil_2/results_bimanual_act.csv \
     --output-path logs/parsed_ACT/bimanual
 
-
 python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_single_arm_v2_part2.csv logs/pi0/results_single_arm_v4.csv \
-    --output-path logs/parsed_pi0/single_arm
+    --results-paths logs/yggdrasil/results_single_arm_act.csv logs/yggdrasil_2/results_single_arm_act.csv \
+    --output-path logs/parsed_ACT/single_arm
 
-python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_bimanual_v4_part2.csv logs/pi0/results_bimanual_v4.csv \
-    --output-path logs/parsed_pi0/bimanual
+
 """
 
 import argparse

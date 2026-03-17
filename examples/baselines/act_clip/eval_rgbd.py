@@ -439,11 +439,11 @@ if __name__ == "__main__":
             args.env_id,
             args.control_mode,
             args.include_depth,
-            args.num_eval_episodes,
+            n_episodes,
             args.max_episode_steps,
             "results_df",
             n_success,
-            f"{success_percentage:.2f}",
+            f"{success_percentage:.5f}",
         ]
         results_df.loc[len(results_df)] = new_row
         results_df.to_csv(args.results_path, index=False)
