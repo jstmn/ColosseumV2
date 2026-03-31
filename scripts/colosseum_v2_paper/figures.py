@@ -107,8 +107,6 @@ ACTION_DISTRACTION_SETS = [
 assert len(VISION_DISTRACTION_SETS) + len(ACTION_DISTRACTION_SETS) + len(LANGUAGE_DISTRACTION_SETS) == len(DISTRACTION_SETS) - 2
 # ^ 2 not included are 'none' and 'all'
 
-
-
 # Don't count tasks with none success rate below this threshold
 LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING = 10
 
@@ -117,11 +115,24 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
     mean_changes_from_none = {
         name: {} for name in model_names
     }
+    mean_absolute_sr = {
+        name: {} for name in model_names
+    }
+    for model_name, result_csv in zip(model_names, result_csvs):
+        df = pd.read_csv(result_csv)
+        df["Task"] = df["Task"].astype(str).str.strip()
+        df = df.set_index("Task", drop=True)
+        
+        # Allow distraction-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
+        col_by_lower = {str(c).strip().lower(): c for c in df.columns}
+        
+        for ds in DISTRACTION_SETS:
+            ds_col = col_by_lower.get(str(ds).lower(), ds)
+            mean_absolute_sr[model_name][ds] = df[ds_col].mean()
+
 
     for model_name, result_csv in zip(model_names, result_csvs):
         df = pd.read_csv(result_csv)
-        if "Task" not in df.columns:
-            raise ValueError(f"CSV {result_csv} missing required 'Task' column. Got columns: {list(df.columns)}")
 
         # Index by task name for easy lookup: df.loc[task, distraction_set]
         df["Task"] = df["Task"].astype(str).str.strip()
@@ -164,7 +175,7 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
                 change = success_rates[task][ds] - base
                 all_changes.append(change)
             mean_changes_from_none[model_name][ds] = float(np.mean(all_changes)) if all_changes else 0.0
-    return mean_changes_from_none
+    return mean_changes_from_none, mean_absolute_sr
 
 
 def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
@@ -235,7 +246,8 @@ def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict
         model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
     }
     for model in model_names:
-        mean_changes = mean_changes_from_none.get(model, {})
+        mean_changes = mean_changes_from_none.get(model)
+        assert isinstance(mean_changes, dict)
         vision_vals = []
         action_vals = []
         language_vals = []
@@ -253,11 +265,13 @@ def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict
     # Plot radar / radial chart.
     categories = ["vision", "language", "action"]
     display = {"vision": "Vision", "action": "Action", "language": "Language"}
-    values = [[mean_clumped_changes[model][c] for c in categories] for model in model_names]
+    values = {
+        model: [mean_clumped_changes[model][cat] for cat in categories] for model in model_names
+    }
 
     # Angles for each axis (close the loop by repeating the first).
     angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
-    angles += angles[:1]
+    angles.append(angles[0])
 
     fig, ax0 = plt.subplots(figsize=(6.2, 5.2), subplot_kw={"polar": True})
     ax = cast(PolarAxes, ax0)
@@ -275,11 +289,11 @@ def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict
     ax.grid(True, alpha=0.35)
 
     # Plot each model.
-    for i, model in enumerate(model_names):
-        v = [float(x) for x in values[i]]
-        v += v[:1]
-        ax.plot(angles, v, linewidth=2, label=model, color=COLOR_MAP[model])
-        ax.fill(angles, v, color=COLOR_MAP[model], alpha=0.10)
+    for model_name in model_names:
+        vals = values[model_name]
+        vals.append(vals[0])
+        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name])
+        ax.fill(angles, vals, color=COLOR_MAP[model_name], alpha=0.10)
 
     # ax.set_title("Mean Change in Success Rate (Clumped)", fontsize=13, pad=18)
     legend = ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
@@ -289,10 +303,178 @@ def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict
     plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "mean_change_clumped_barchart_radial.png")
+    save_path = os.path.join(output_dir, "radial_relative_to_none.png")
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     print(f"Saved clumped mean change barchart to {save_path}")
+
+
+def generate_radial_absolute(mean_absolute_sr: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
+
+    # Compute per-model means clumped by modality.
+    mean_clumped_absolute_sr: Dict[str, Dict[str, float]] = {
+        model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+    }
+    for model in model_names:
+        mean_srs = mean_absolute_sr.get(model)
+        assert isinstance(mean_srs, dict)
+        vision_vals = []
+        action_vals = []
+        language_vals = []
+        for ds in VISION_DISTRACTION_SETS:
+            vision_vals.append(float(mean_srs[ds]))
+        for ds in ACTION_DISTRACTION_SETS:
+            action_vals.append(float(mean_srs[ds]))
+        for ds in LANGUAGE_DISTRACTION_SETS:
+            language_vals.append(float(mean_srs[ds]))
+
+        mean_clumped_absolute_sr[model]["vision"] = float(np.mean(vision_vals))
+        mean_clumped_absolute_sr[model]["action"] = float(np.mean(action_vals))
+        mean_clumped_absolute_sr[model]["language"] = float(np.mean(language_vals))
+
+    # Plot radar / radial chart.
+    categories = ["vision", "language", "action"]
+    display = {"vision": "Vision", "action": "Action", "language": "Language"}
+    values = {
+        model: [mean_clumped_absolute_sr[model][cat] for cat in categories] for model in model_names
+    }
+
+    # Angles for each axis. Need to close the loop by repeating the first.
+    angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+    angles.append(angles[0])
+
+    fig, ax0 = plt.subplots(figsize=(6.2, 5.2), subplot_kw={"polar": True})
+    ax = cast(PolarAxes, ax0)
+    ax.set_theta_offset(np.pi / 2)     # start at the top
+    ax.set_theta_direction(-1)         # clockwise
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels([display[c] for c in categories], fontsize=14)
+    label_pads = {"vision": 4, "action": 15, "language": 25}
+    for tick, cat in zip(ax.xaxis.get_major_ticks(), categories):
+        tick.set_pad(label_pads[cat])
+    ax.tick_params(axis="y", labelsize=12)
+
+    ax.set_rlabel_position(180)  # move radial labels to the left
+    ax.grid(True, alpha=0.35)
+
+    # Plot each model.
+    for model_name in model_names:
+        vals = values[model_name]
+        vals.append(vals[0])
+        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name])
+        ax.fill(angles, vals, color=COLOR_MAP[model_name], alpha=0.10)
+
+    # ax.set_title("Mean Change in Success Rate (Clumped)", fontsize=13, pad=18)
+    legend = ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_edgecolor("#cccccc")
+    legend.get_frame().set_linewidth(0.8)
+    plt.tight_layout()
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "radial_absolute_sr.png")
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    print(f"Saved clumped mean change barchart to {save_path}")
+
+
+def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
+    # Compute per-model means clumped by modality.
+    mean_clumped_changes: Dict[str, Dict[str, float]] = {
+        model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+    }
+    mean_clumped_absolute_sr: Dict[str, Dict[str, float]] = {
+        model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+    }
+    # SR
+    for model in model_names:
+        mean_srs = mean_absolute_sr.get(model)
+        assert isinstance(mean_srs, dict)
+        vision_vals = []
+        action_vals = []
+        language_vals = []
+        for ds in VISION_DISTRACTION_SETS:
+            vision_vals.append(float(mean_srs[ds]))
+        for ds in ACTION_DISTRACTION_SETS:
+            action_vals.append(float(mean_srs[ds]))
+        for ds in LANGUAGE_DISTRACTION_SETS:
+            language_vals.append(float(mean_srs[ds]))
+
+        mean_clumped_absolute_sr[model]["vision"] = float(np.mean(vision_vals))
+        mean_clumped_absolute_sr[model]["action"] = float(np.mean(action_vals))
+        mean_clumped_absolute_sr[model]["language"] = float(np.mean(language_vals))
+
+    # Change
+    for model in model_names:
+        mean_changes = mean_changes_from_none.get(model)
+        assert isinstance(mean_changes, dict)
+        vision_vals = []
+        action_vals = []
+        language_vals = []
+        for ds in VISION_DISTRACTION_SETS:
+            vision_vals.append(float(mean_changes[ds]))
+        for ds in ACTION_DISTRACTION_SETS:
+            action_vals.append(float(mean_changes[ds]))
+        for ds in LANGUAGE_DISTRACTION_SETS:
+            language_vals.append(float(mean_changes[ds]))
+
+        mean_clumped_changes[model]["vision"] = -float(np.mean(vision_vals))
+        mean_clumped_changes[model]["action"] = -float(np.mean(action_vals))
+        mean_clumped_changes[model]["language"] = -float(np.mean(language_vals))
+
+    # Plot radar / radial chart.
+    categories = ["vision", "language", "action"]
+    display = {"vision": "Vision", "action": "Action", "language": "Language"}
+    values_delta = {
+        model: {
+            "delta": [mean_clumped_changes[model][cat] for cat in categories],
+            "abs": [mean_clumped_absolute_sr[model][cat] for cat in categories]
+        } for model in model_names
+    } 
+
+    # Angles for each axis (close the loop by repeating the first).
+    angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+    angles.append(angles[0])
+    # 
+
+    fig, axs = plt.subplots(figsize=(10, 4), ncols=2, subplot_kw={"polar": True})
+    for ax in axs:
+        ax.set_theta_offset(np.pi / 2)     # start at the top
+        ax.set_theta_direction(-1)         # clockwise
+        ax.set_theta_offset(np.pi / 2)     # start at the top
+        ax.set_theta_direction(-1)         # clockwise
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels([display[c] for c in categories], fontsize=14)
+        label_pads = {"vision": 4, "action": 15, "language": 25}
+        for tick, cat in zip(ax.xaxis.get_major_ticks(), categories):
+            tick.set_pad(label_pads[cat])
+        ax.tick_params(axis="y", labelsize=12)
+        ax.set_rlabel_position(180)  # move radial labels to the left
+        ax.grid(True, alpha=0.35)
+
+    # Plot each model.
+    for i, model in enumerate(model_names):
+        vals_delta = values_delta[model]["delta"]
+        vals_delta.append(vals_delta[0])
+        vals_abs = values_delta[model]["abs"]
+        vals_abs.append(vals_abs[0])
+        axs[0].plot(angles, vals_delta, linewidth=2, label=model, color=COLOR_MAP[model])
+        axs[0].fill(angles, vals_delta, color=COLOR_MAP[model], alpha=0.10)
+        axs[1].plot(angles, vals_abs, linewidth=2, label=model, color=COLOR_MAP[model])
+        axs[1].fill(angles, vals_abs, color=COLOR_MAP[model], alpha=0.10)
+
+    legend = axs[1].legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_edgecolor("#cccccc")
+    legend.get_frame().set_linewidth(0.8)
+    plt.tight_layout()
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "radial_two_plots.png")
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    print(f"Saved radial two plots to {save_path}")
 
 
 def generate_waterfall_plot(single_arm_csvs: list[str], single_arm_model_names: list[str], bimanual_csvs: list[str], bimanual_model_names: list[str], output_dir: str):
@@ -424,25 +606,27 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=str, required=True)
     args = parser.parse_args()
 
-    mean_changes_from_none = calculate_mean_changes_from_none(args.result_csvs, args.model_names)
+    mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(args.result_csvs, args.model_names)
     generate_mean_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
     generate_clumped_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
     generate_clumped_change_figure_radial(mean_changes_from_none, args.model_names, args.output_dir)
+    generate_radial_absolute(mean_absolute_sr, args.model_names, args.output_dir)
+    generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, args.model_names, args.output_dir)
 
     # Waterfall plots
-    act_indices = [x for x in range(len(args.result_csvs)) if "ACT" in args.model_names[x].upper()]
-    pi0_indices = [x for x in range(len(args.result_csvs)) if "PI" in args.model_names[x].upper()]
-    single_arm_indices = [x for x in range(len(args.result_csvs)) if "SINGLE" in args.model_names[x].upper()]
-    bimanual_indices = [x for x in range(len(args.result_csvs)) if "BIMANUAL" in args.model_names[x].upper()]
-    act_single_arm = list(x for x in act_indices if x in single_arm_indices)
-    pi0_single_arm = list(x for x in pi0_indices if x in single_arm_indices)
-    act_bimanual = list(x for x in act_indices if x in bimanual_indices)
-    pi0_bimanual = list(x for x in pi0_indices if x in bimanual_indices)
-    assert len(act_single_arm) == len(pi0_single_arm) == len(act_bimanual) == len(pi0_bimanual) == 1
-    generate_waterfall_plot(
-        single_arm_csvs=[ args.result_csvs[act_single_arm[0]], args.result_csvs[pi0_single_arm[0]]],
-        single_arm_model_names=[ args.model_names[act_single_arm[0]], args.model_names[pi0_single_arm[0]]],
-        bimanual_csvs=[args.result_csvs[act_bimanual[0]], args.result_csvs[pi0_bimanual[0]]],
-        bimanual_model_names=[args.model_names[act_bimanual[0]], args.model_names[pi0_bimanual[0]]],
-        output_dir=args.output_dir,
-    )
+    # act_indices = [x for x in range(len(args.result_csvs)) if "ACT" in args.model_names[x].upper()]
+    # pi0_indices = [x for x in range(len(args.result_csvs)) if "PI" in args.model_names[x].upper()]
+    # single_arm_indices = [x for x in range(len(args.result_csvs)) if "SINGLE" in args.model_names[x].upper()]
+    # bimanual_indices = [x for x in range(len(args.result_csvs)) if "BIMANUAL" in args.model_names[x].upper()]
+    # act_single_arm = list(x for x in act_indices if x in single_arm_indices)
+    # pi0_single_arm = list(x for x in pi0_indices if x in single_arm_indices)
+    # act_bimanual = list(x for x in act_indices if x in bimanual_indices)
+    # pi0_bimanual = list(x for x in pi0_indices if x in bimanual_indices)
+    # assert len(act_single_arm) == len(pi0_single_arm) == len(act_bimanual) == len(pi0_bimanual) == 1
+    # generate_waterfall_plot(
+    #     single_arm_csvs=[ args.result_csvs[act_single_arm[0]], args.result_csvs[pi0_single_arm[0]]],
+    #     single_arm_model_names=[ args.model_names[act_single_arm[0]], args.model_names[pi0_single_arm[0]]],
+    #     bimanual_csvs=[args.result_csvs[act_bimanual[0]], args.result_csvs[pi0_bimanual[0]]],
+    #     bimanual_model_names=[args.model_names[act_bimanual[0]], args.model_names[pi0_bimanual[0]]],
+    #     output_dir=args.output_dir,
+    # )
