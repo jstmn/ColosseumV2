@@ -42,46 +42,46 @@ conda activate maniskill_jm
 # OpenCabinet-v1                      | 73
 # PlaceCubeInDrawer-v1                | 99
 # PlaceBookInShelf-v1                 | 88
-# CookItemInPan-v1                    | 100       
-# RaiseCube-v1                        | 100       
+# CookItemInPan-v1                    | 100
+# RaiseCube-v1                        | 100
 # ------------------------------------------------------------
-# Total Merged Episodes               | 1402      
-# Max Episode Length (Steps)          | 702       
+# Total Merged Episodes               | 1402
+# Max Episode Length (Steps)          | 702
 # ============================================================
 
+LOGS_DIR="logs/yggdrasil_timing"
+mkdir -p $LOGS_DIR
 
 NOW=$(date +%H:%M:%S)
 
 while true; do
     python examples/baselines/act_clip/eval_rgbd.py \
-        --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
+        --checkpoint-path checkpoints/hyeonho_mar17/hyeonho_mar17_act_clip_single_arm_3cameras_15687623_checkpoints_best_eval_success_once.pt \
         --control-mode "pd_ee_delta_pose" \
         --no-include-depth \
         --sim-backend "physx_cuda" \
         --is-multi-task True \
-        --target-num-cams 1 \
+        --target-num-cams 3 \
         --num-eval-episodes 200 \
         --num-eval-envs 34 \
-        --max-episode-steps 350 \
+        --max-episode-steps-from-lookup \
         --internal-instruction \
         --distraction-set "BLANK" \
-        --results-path logs/yggdrasil/results_single_arm__table.csv
-        # --tasks-subset "PickSodaFromCabinet-v1" \
-        # --variation-factors-subset "none" \
+        --results-path $LOGS_DIR/results_single_arm__table.csv
 
     python examples/baselines/act_clip/eval_rgbd.py \
-        --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
+        --checkpoint-path checkpoints/hyeonho_mar17/hyeonho_mar17_act_clip_bimanual_4cameras_15689642_checkpoints_best_eval_success_once.pt \
         --control-mode "pd_joint_pos" \
         --no-include-depth \
         --sim-backend "physx_cuda" \
         --is-multi-task True \
-        --target-num-cams 1 \
+        --target-num-cams 4 \
         --num-eval-episodes 200 \
         --num-eval-envs 34 \
-        --max-episode-steps 850 \
+        --max-episode-steps-from-lookup \
         --internal-instruction \
         --distraction-set "BLANK" \
-        --results-path logs/yggdrasil/results_bimanual__table.csv
+        --results-path $LOGS_DIR/results_bimanual_act.csv
 
     # =============================== VIDEO MODE ===============================
     # python examples/baselines/act_clip/eval_rgbd.py \

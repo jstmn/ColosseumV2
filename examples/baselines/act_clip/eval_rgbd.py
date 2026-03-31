@@ -1,4 +1,5 @@
 import os
+from time import time
 from termcolor import cprint
 from pathlib import Path
 import random
@@ -242,13 +243,14 @@ MAX_EPISODE_STEPS_BY_TASK = {
 }
 
 
-
+def get_now_str():
+    return datetime.now().strftime("%Y:%m:%d__%H:%M:%S")
 
 
 def update_args_from_results(args: Args):
     assert args.results_path is not None
     expected_columns = [
-        "checkpoint_path","pc_hostname","now","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
+        "checkpoint_path","pc_hostname","now","t_final","duration_sec","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
     ]
     if not Path(args.results_path).exists():
         results_df = DataFrame(columns=expected_columns)
@@ -268,8 +270,7 @@ def update_args_from_results(args: Args):
     else:
         raise Exception(f"Unclear whether {args.results_path} is for bimanual or single arm tasks")
 
-    now = datetime.now().strftime("%Y:%m:%d__%H:%M:%S")
-    args.now = now
+    args.now = get_now_str()
     args.pc_hostname = socket.gethostname()
 
     # Filter tasks
@@ -302,6 +303,8 @@ def update_args_from_results(args: Args):
                 args.checkpoint_path,
                 args.pc_hostname,
                 args.now,
+                "final-time-not-set",
+                -1,
                 distraction_set.lower(),
                 task,
                 args.control_mode,
@@ -332,6 +335,7 @@ if __name__ == "__main__":
     assert os.path.exists(args.checkpoint_path), f"Checkpoint not found: {args.checkpoint_path}"
     assert args.is_multi_task is not None, "is_multi_task must be set for evaluation"
     assert args.target_num_cams is not None, "target_num_cams must be set for evaluation"
+    t0 = time()
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -435,6 +439,8 @@ if __name__ == "__main__":
             args.checkpoint_path,
             args.pc_hostname,
             args.now,
+            get_now_str(),
+            time() - t0,
             args.distraction_set.lower(),
             args.env_id,
             args.control_mode,
