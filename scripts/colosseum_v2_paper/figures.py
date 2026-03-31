@@ -476,6 +476,7 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
     legend.get_frame().set_edgecolor("#cccccc")
     legend.get_frame().set_linewidth(0.8)
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.1)
 
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "radial_two_plots.png")
