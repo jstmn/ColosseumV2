@@ -431,7 +431,7 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
         mean_clumped_changes[model]["language"] = -float(np.mean(language_vals))
 
     # Plot radar / radial chart.
-    categories = ["vision", "language", "action"]
+    categories = ["language", "vision", "action"]
     display = {"vision": "Vision", "action": "Action", "language": "Language"}
     values_delta = {
         model: {
@@ -444,16 +444,17 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
     angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
     angles.append(angles[0])
     # 
+    ticks_fontsize = 12
 
-    fig, axs = plt.subplots(figsize=(10, 4), ncols=2, subplot_kw={"polar": True})
+    fig, axs = plt.subplots(figsize=(10, 4.4), ncols=2, subplot_kw={"polar": True})
     for ax in axs:
         ax.set_theta_offset(np.pi / 2)     # start at the top
         ax.set_theta_direction(-1)         # clockwise
         ax.set_theta_offset(np.pi / 2)     # start at the top
         ax.set_theta_direction(-1)         # clockwise
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels([display[c] for c in categories], fontsize=14)
-        label_pads = {"vision": 4, "action": 15, "language": 25}
+        ax.set_xticklabels([display[c] for c in categories], fontsize=ticks_fontsize)
+        label_pads = {"vision": 10, "action": 8, "language": 0}
         for tick, cat in zip(ax.xaxis.get_major_ticks(), categories):
             tick.set_pad(label_pads[cat])
         ax.tick_params(axis="y", labelsize=12)
@@ -473,10 +474,11 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
 
     legend = axs[1].legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
     legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(1.0)
     legend.get_frame().set_edgecolor("#cccccc")
-    legend.get_frame().set_linewidth(0.8)
+    legend.get_frame().set_linewidth(1.0)
     plt.tight_layout()
-    plt.subplots_adjust(wspace=0.1)
+    plt.subplots_adjust(wspace=0.0)
 
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "radial_two_plots.png")
