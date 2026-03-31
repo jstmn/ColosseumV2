@@ -13,10 +13,9 @@ from numpy import isnan
 
 # Example usage:
 python scripts/colosseum_v2_paper/figure_hardware.py \
-    --sim-csv-filepath logs/results_single_arm.results.csv \
-    --out-dir logs/hardware_plots
+    --sim-csv-filepath logs/parsed_ACT/single_arm.formatted.csv \
+    --out-dir logs/
 """
-
 
 
 HARDWARE_ROWS = [
@@ -26,7 +25,7 @@ HARDWARE_ROWS = [
         "mo_size": 42.5,
         "light_color": 10,
         "distractor_object": 35,
-        "background_color": None,
+        "background_color": 50,
         "mo_color": 0,
     },
     {
@@ -100,8 +99,8 @@ if __name__ == "__main__":
     task_names = (
         "RaiseCube",
         "RotateArrow",
-        # "LiftPegUpright",
-        "OpenDrawer",
+        "LiftPegUpright",
+        # "OpenDrawer",
     )
     variation_names = (
         "none",
@@ -118,9 +117,9 @@ if __name__ == "__main__":
 
 
     # TITLE_FONTSIZE = 20
-    LABEL_FONTSIZE = 18
-    LEGEND_FONTSIZE = 15
-    TICK_FONTSIZE = 15
+    LABEL_FONTSIZE = 15
+    LEGEND_FONTSIZE = 12
+    TICK_FONTSIZE = 12
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     fig.subplots_adjust(right=0.55)
@@ -141,7 +140,7 @@ if __name__ == "__main__":
         "background_color": "P",
     }
 
-    
+
     all_x1s = []
     all_x2s = []
 
@@ -156,6 +155,12 @@ if __name__ == "__main__":
     print()
     print("-------------")
     for task_name in task_names:
+
+
+        task_x1s = []
+        task_x2s = []
+        none_scatter = None
+
         for variation_name in variation_names:
 
             hw_val = hardware_df.at[task_name, variation_name]
@@ -165,39 +170,55 @@ if __name__ == "__main__":
 
             if isnan(hw_val) or isnan(sim_val):
                 continue
-            print(f"{task_name}\t{variation_name}\t | hw, sim: ({hw_val}, {sim_val}) \t | \t delta:\t{delta}")
+            # print(f"{task_name}\t{variation_name}\t | hw, sim: ({hw_val}, {sim_val}) \t | \t delta:\t{delta}")
 
             deltas_by_variation[variation_name].append(delta)
             deltas_by_task[task_name].append(delta)
 
+            task_x1s.append(hw_val)
+            task_x2s.append(sim_val)
             all_x1s.append(hw_val)
             all_x2s.append(sim_val)
 
-            ax.scatter(
-                hw_val,
-                sim_val,
-                # label=f"{task_name} - {DISTRACTION_SET_DISPLAY_NAMES[variation_name]}",
-                color=task_colors[task_name],
-                marker=variation_markers[variation_name],
-                s=125,
-            )
+            color = task_colors[task_name]
+            if variation_name == "none":
+                none_scatter = ax.scatter(
+                    hw_val,
+                    sim_val,
+                    label=f"{task_name}",
+                    color=color,
+                    marker=variation_markers[variation_name],
+                    s=125,
+                )
+            else:
+                ax.scatter(
+                    hw_val,
+                    sim_val,
+                    label=None,
+                    color=color,
+                    marker=variation_markers[variation_name],
+                    s=125,
+                )
+        print(f"{task_name}: {task_x1s} {task_x2s}")
+        assert none_scatter is not None
+        best_fit_line = np.polyfit(task_x1s, task_x2s, 1)
+        x1_range = np.arange(min(task_x1s), max(task_x1s))
+        task_x2s_arr = np.array(task_x2s)
+        y_pred = np.polyval(best_fit_line, task_x1s)
+        R_squared = 1 - (np.sum((task_x2s_arr - y_pred) ** 2) / np.sum((task_x2s_arr - np.mean(task_x2s_arr)) ** 2))
+        print(f"R-squared: {R_squared}")
+        ax.plot(x1_range, np.polyval(best_fit_line, x1_range), color=color, linestyle="--")
+        none_scatter.set_label(f"{task_name} (R^2={R_squared:.3f})")
 
     print()
     print("Deltas by variation:")
     for var in variation_names:
         print(f"    {var}: {deltas_by_variation[var]}")
-    
+
     print()
     print("Deltas by task:")
     for task in task_names:
         print(f"    {task}: {deltas_by_task[task]}")
-
-
-    best_fit_line = np.polyfit(all_x1s, all_x2s, 1)
-    x1_range = np.arange(min(all_x1s), max(all_x1s))
-    R_squared = 1 - (np.sum((all_x1s - np.polyval(best_fit_line, all_x1s)) ** 2) / np.sum((all_x1s - np.mean(all_x1s)) ** 2))
-    print(f"R-squared: {R_squared}")
-    ax.plot(x1_range, np.polyval(best_fit_line, x1_range), color="black", linestyle="--", label=f"Best Fit Line (R^2={R_squared:.3f})")
 
 
     ax.legend(fontsize=LEGEND_FONTSIZE, loc="upper left")

@@ -16,14 +16,33 @@ Key behavior:
 
 ### Example usage:
 
-python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/yggdrasil/results_bimanual_act.csv logs/yggdrasil_2/results_bimanual_act.csv \
-    --output-path logs/parsed_ACT/bimanual
-
+# ACT
 python scripts/colosseum_v2_paper/parse_logs.py \
     --results-paths logs/yggdrasil/results_single_arm_act.csv logs/yggdrasil_2/results_single_arm_act.csv \
     --output-path logs/parsed_ACT/single_arm
 
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/yggdrasil/results_bimanual_act.csv logs/yggdrasil_2/results_bimanual_act.csv \
+    --output-path logs/parsed_ACT/bimanual
+
+# PI0.5
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_bimanual_2epochs.csv --output-path logs/parsed_pi0/bimanual_2epochs
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_single_arm_2epochs.csv --output-path logs/parsed_pi0/single_arm_2epochs
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_bimanual_5epochs.csv --output-path logs/parsed_pi0/bimanual_5epochs
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/results_single_arm_5epochs.csv --output-path logs/parsed_pi0/single_arm_5epochs
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/bimanual_pi05_1cam.csv --output-path logs/parsed_pi0/bimanual_1cam
+
+python scripts/colosseum_v2_paper/parse_logs.py \
+    --results-paths logs/pi0/single_arm_pi05_1cam.csv --output-path logs/parsed_pi0/single_arm_1cam
 
 """
 
@@ -31,7 +50,13 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-from typing import Iterable
+
+
+CELL_COLOR_MAP = {
+    "visual": "CFECFF",
+    "language": "FFCCCD",
+    "action": "E7FFF1",
+}
 
 
 def _escape_latex(s: str) -> str:
@@ -129,6 +154,31 @@ VARIATION_NAMES = (
     "language".lower(),
 )
 
+VISUAL_VARIATIONS = (
+    "MO_color".lower(),
+    "MO_texture".lower(),
+    "RO_color".lower(),
+    "RO_texture".lower(),
+    "table_color".lower(),
+    "light_color".lower(),
+    "table_texture".lower(),
+    "distractor_object".lower(),
+    "background_texture".lower(),
+    "background_color".lower(),
+    "camera_pose".lower(),
+)
+
+LANGUAGE_VARIATIONS = (
+    "language".lower(),
+)
+
+ACTION_VARIATIONS = (
+    "MO_size".lower(),
+    "RO_size".lower(),
+    "pose_randomization".lower(),
+)
+
+assert len(VISUAL_VARIATIONS) + len(LANGUAGE_VARIATIONS) + len(ACTION_VARIATIONS) == len(VARIATION_NAMES) - 2
 
 def _task_display_name(env_id: str) -> str:
     # Use the curated short names for presentation in tables.
@@ -210,7 +260,13 @@ def build_success_matrix(
                 none_sr[t] = None
                 continue
             succ, eps = pair
-            none_sr[t] = (100.0 * succ / eps) if eps > 0 else None
+            # success_pct = (100.0 * succ / eps) if eps > 0 else None
+            success_pct = succ / eps if eps > 0 else None
+            if success_pct is not None:
+                success_pct = min(success_pct, 1.0)
+                assert success_pct >= 0 and success_pct <= 1.0, f"Success percentage {success_pct} is out of range for task {t}. succ: {succ}, eps: {eps}"
+            none_sr[t] = success_pct
+
 
         task_order = sorted(task_order, key=lambda t: (none_sr[t] is None, -(none_sr[t] or 0.0)))
 
@@ -224,6 +280,7 @@ def build_success_matrix(
             succ, eps = pair
             success_pct = (100.0 * succ / eps) if eps > 0 else None
             if success_pct is not None:
+                success_pct = min(success_pct, 100.0)
                 success_pct = round_to(success_pct)
             matrix[(t, ds)] = success_pct
 
@@ -246,16 +303,30 @@ def render_latex_table(
 
         if x.upper() == "TASK":
             return to_bold("TASK")
+
+        cell_color = None
+        if x.lower() in VISUAL_VARIATIONS:
+            cell_color = CELL_COLOR_MAP["visual"]
+        elif x.lower() in LANGUAGE_VARIATIONS:
+            cell_color = CELL_COLOR_MAP["language"]
+        elif x.lower() in ACTION_VARIATIONS:
+            cell_color = CELL_COLOR_MAP["action"]
+        else:
+            assert x.lower() == "all" or x.lower() == "none", f"Unknown variation: {x.lower()}"
+
         escaped = _escape_latex(x)
         escaped = escaped.replace("_", " ").lower().capitalize()
-        return r"\rotatebox{90}{ " + to_bold(escaped) + " }"
+        base = r"\rotatebox{90}{ " + to_bold(escaped) + " }"
+        if cell_color is None:
+            return base
+        return r"\cellcolor[HTML]{" + cell_color + r"} {" + base + "}"
 
     # tabular spec: 1 left column + N right columns
-    tabular_spec = "l" + ("r" * len(VARIATION_NAMES))
+    # tabular_spec = "l" + ("r" * len(VARIATION_NAMES))
+    tabular_spec = "lrr|rrrrrrrrrrr|rrr|r"
     lines: list[str] = []
     lines.append(r"\centering")
     lines.append(rf"\begin{{tabular}}{{{tabular_spec}}}")
-    lines.append(r"\toprule")
     lines.append(" & ".join(  get_header_cell(x) for x in header_cells) + r" \\")
     lines.append(r"\midrule")
     # & \rotatebox{90}{NONE}  < we want to rotate the columns 90 deg
