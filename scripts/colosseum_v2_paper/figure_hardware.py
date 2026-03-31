@@ -108,8 +108,6 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
     print("\nHardware:")
     print(hardware_df)
 
-
-    # TITLE_FONTSIZE = 20
     LABEL_FONTSIZE = 15
     LEGEND_FONTSIZE = 12
     TICK_FONTSIZE = 12
@@ -131,8 +129,6 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         "mo_color": "D",            # diamond
         "background_color": "P",    # plus (filled)
     }
-
-
     all_x1s = []
     all_x2s = []
     deltas_by_perturbation = {var: [] for var in perturbation_names}
@@ -141,13 +137,6 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
     print()
     print("-------------")
     for task_name in task_names:
-
-
-        task_x1s = []
-        task_x2s = []
-        none_scatter = None
-
-        for perturbation_name in perturbation_names:
 
         task_x1s = []
         task_x2s = []
@@ -160,7 +149,6 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
             delta = hw_val - sim_val
             if isnan(hw_val) or isnan(sim_val):
                 continue
-            # print(f"{task_name}\t{perturbation_name}\t | hw, sim: ({hw_val}, {sim_val}) \t | \t delta:\t{delta}")
 
             deltas_by_perturbation[perturbation_name].append(delta)
             deltas_by_task[task_name].append(delta)
@@ -197,7 +185,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         R_squared = 1 - (np.sum((task_x2s_arr - y_pred) ** 2) / np.sum((task_x2s_arr - np.mean(task_x2s_arr)) ** 2))
         print(f"R-squared: {R_squared}")
         ax.plot(x1_range, np.polyval(best_fit_line, x1_range), color=color, linestyle="--")
-        none_scatter.set_label(f"{task_name} (R^2={R_squared:.3f})")
+        none_scatter.set_label(f"{task_name} (R²={R_squared:.3f})")
 
     print()
     print("Deltas by perturbation:")
@@ -282,7 +270,7 @@ def plot_by_perturbation(sim_csv_filepath: str, out_dir: str):
         var_sim = []
         first_scatter = None
 
-        display_name = PERTURBATION_SET_DISPLAY_NAMES.get(perturbation_name.lower(), perturbation_name)
+        display_name = DISTRACTION_SET_DISPLAY_NAMES.get(perturbation_name.lower(), perturbation_name)
         color = perturbation_colors[perturbation_name]
 
         for task_name in task_names:
@@ -342,7 +330,7 @@ def plot_by_perturbation(sim_csv_filepath: str, out_dir: str):
         )
         for t in task_names
     ]
-    perturbation_legend = ax.legend(fontsize=LEGEND_FONTSIZE, loc="upper right", title="perturbation")
+    perturbation_legend = ax.legend(fontsize=LEGEND_FONTSIZE, loc="upper right", title="Perturbation")
     ax.add_artist(perturbation_legend)
     ax.legend(handles=task_legend_handles, fontsize=LEGEND_FONTSIZE, loc="lower right", title="Task")
 
