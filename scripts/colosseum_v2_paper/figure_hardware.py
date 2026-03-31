@@ -122,12 +122,12 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         "OpenDrawer": "#CC00CC",     # vivid magenta
     }
     variation_markers = {
-        "none": "o",
-        "mo_size": "X",
-        "light_color": "s",
-        "distractor_object": "^",
-        "mo_color": "D",
-        "background_color": "P",
+        "none": "o",                # circle
+        "mo_size": "X",             # x (filled)
+        "light_color": "s",         # square
+        "distractor_object": "^",   # triangle_up
+        "mo_color": "D",            # diamond
+        "background_color": "P",    # plus (filled)
     }
     all_x1s = []
     all_x2s = []

@@ -42,6 +42,12 @@ COLOR_MAP = {
     "Pi0.5 - Single Arm": "#0070ff", # this one is pretty good - more muted than 0000ff so doesn't stand out as much
 }
 
+LINE_STYLE_MAP = {
+    "ACT - Bimanual": None,
+    "Pi0.5 - Bimanual": "--",
+    "ACT - Single Arm": None,
+    "Pi0.5 - Single Arm": "--",
+}
 
 DISTRACTION_SETS=(
     "none",
@@ -142,7 +148,7 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
         # Allow distraction-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
         col_by_lower = {str(c).strip().lower(): c for c in df.columns}
 
-        success_rates: Dict[str, Dict[str, float]] = {}
+        success_rates = {}
         for task in df.index:
             success_rates[task] = {}
             for distraction_set in DISTRACTION_SETS:
@@ -292,7 +298,7 @@ def generate_clumped_change_figure_radial(mean_changes_from_none: Dict[str, Dict
     for model_name in model_names:
         vals = values[model_name]
         vals.append(vals[0])
-        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name])
+        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name], linestyle=LINE_STYLE_MAP.get(model_name))
         ax.fill(angles, vals, color=COLOR_MAP[model_name], alpha=0.10)
 
     # ax.set_title("Mean Change in Success Rate (Clumped)", fontsize=13, pad=18)
@@ -362,7 +368,7 @@ def generate_radial_absolute(mean_absolute_sr: Dict[str, Dict[str, float]], mode
     for model_name in model_names:
         vals = values[model_name]
         vals.append(vals[0])
-        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name])
+        ax.plot(angles, vals, linewidth=2, label=model_name, color=COLOR_MAP[model_name], linestyle=LINE_STYLE_MAP.get(model_name))
         ax.fill(angles, vals, color=COLOR_MAP[model_name], alpha=0.10)
 
     # ax.set_title("Mean Change in Success Rate (Clumped)", fontsize=13, pad=18)
@@ -460,9 +466,9 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
         vals_delta.append(vals_delta[0])
         vals_abs = values_delta[model]["abs"]
         vals_abs.append(vals_abs[0])
-        axs[0].plot(angles, vals_delta, linewidth=2, label=model, color=COLOR_MAP[model])
+        axs[0].plot(angles, vals_delta, linewidth=2, label=model, color=COLOR_MAP[model], linestyle=LINE_STYLE_MAP.get(model))
         axs[0].fill(angles, vals_delta, color=COLOR_MAP[model], alpha=0.10)
-        axs[1].plot(angles, vals_abs, linewidth=2, label=model, color=COLOR_MAP[model])
+        axs[1].plot(angles, vals_abs, linewidth=2, label=model, color=COLOR_MAP[model], linestyle=LINE_STYLE_MAP.get(model))
         axs[1].fill(angles, vals_abs, color=COLOR_MAP[model], alpha=0.10)
 
     legend = axs[1].legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
@@ -617,19 +623,19 @@ if __name__ == "__main__":
     generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, args.model_names, args.output_dir)
 
     # Waterfall plots
-    # act_indices = [x for x in range(len(args.result_csvs)) if "ACT" in args.model_names[x].upper()]
-    # pi0_indices = [x for x in range(len(args.result_csvs)) if "PI" in args.model_names[x].upper()]
-    # single_arm_indices = [x for x in range(len(args.result_csvs)) if "SINGLE" in args.model_names[x].upper()]
-    # bimanual_indices = [x for x in range(len(args.result_csvs)) if "BIMANUAL" in args.model_names[x].upper()]
-    # act_single_arm = list(x for x in act_indices if x in single_arm_indices)
-    # pi0_single_arm = list(x for x in pi0_indices if x in single_arm_indices)
-    # act_bimanual = list(x for x in act_indices if x in bimanual_indices)
-    # pi0_bimanual = list(x for x in pi0_indices if x in bimanual_indices)
-    # assert len(act_single_arm) == len(pi0_single_arm) == len(act_bimanual) == len(pi0_bimanual) == 1
-    # generate_waterfall_plot(
-    #     single_arm_csvs=[ args.result_csvs[act_single_arm[0]], args.result_csvs[pi0_single_arm[0]]],
-    #     single_arm_model_names=[ args.model_names[act_single_arm[0]], args.model_names[pi0_single_arm[0]]],
-    #     bimanual_csvs=[args.result_csvs[act_bimanual[0]], args.result_csvs[pi0_bimanual[0]]],
-    #     bimanual_model_names=[args.model_names[act_bimanual[0]], args.model_names[pi0_bimanual[0]]],
-    #     output_dir=args.output_dir,
-    # )
+    act_indices = [x for x in range(len(args.result_csvs)) if "ACT" in args.model_names[x].upper()]
+    pi0_indices = [x for x in range(len(args.result_csvs)) if "PI" in args.model_names[x].upper()]
+    single_arm_indices = [x for x in range(len(args.result_csvs)) if "SINGLE" in args.model_names[x].upper()]
+    bimanual_indices = [x for x in range(len(args.result_csvs)) if "BIMANUAL" in args.model_names[x].upper()]
+    act_single_arm = list(x for x in act_indices if x in single_arm_indices)
+    pi0_single_arm = list(x for x in pi0_indices if x in single_arm_indices)
+    act_bimanual = list(x for x in act_indices if x in bimanual_indices)
+    pi0_bimanual = list(x for x in pi0_indices if x in bimanual_indices)
+    assert len(act_single_arm) == len(pi0_single_arm) == len(act_bimanual) == len(pi0_bimanual) == 1
+    generate_waterfall_plot(
+        single_arm_csvs=[ args.result_csvs[act_single_arm[0]], args.result_csvs[pi0_single_arm[0]]],
+        single_arm_model_names=[ args.model_names[act_single_arm[0]], args.model_names[pi0_single_arm[0]]],
+        bimanual_csvs=[args.result_csvs[act_bimanual[0]], args.result_csvs[pi0_bimanual[0]]],
+        bimanual_model_names=[args.model_names[act_bimanual[0]], args.model_names[pi0_bimanual[0]]],
+        output_dir=args.output_dir,
+    )

@@ -1,16 +1,18 @@
 import argparse
-from time import time
+import psutil
+from time import time, sleep
 import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
-
+from pathlib import Path
 import rlbench
 import gymnasium as gym
 import multiprocessing as mp
 from typing import Any
 from rlbench.action_modes.action_mode import JointPositionActionMode
+import numpy as np
 
 
 """
@@ -31,8 +33,8 @@ source ~/.bashrc
 pip install git+https://github.com/stepjam/RLBench.git
 
 # Example usage:
-python scripts/generate_colosseum_v2_rlbench_runtime_results.py \
-    --results_filepath "logs/fps/rlbench_fps.csv" --batch_size 1
+python scripts/colosseum_v2_paper/runtime_rlbench.py \
+    --results_filepath "logs/fps/rlbench_fps.csv" --batch_size 10
 
 """
 
@@ -45,6 +47,10 @@ def _measure_fps_subprocess(raw_results, process_id: int, env_id: str, n_steps: 
     )
     env.reset()
 
+    raw_results[process_id] = {
+        "started": True,
+        "timing_data": None
+    }
     timing_data = {i: 0.0 for i in range(n_steps)}
 
     for i in range(n_steps):
@@ -53,7 +59,7 @@ def _measure_fps_subprocess(raw_results, process_id: int, env_id: str, n_steps: 
         # runs in microseconds so it's negligible compared to the 10+ seconds from RLBench.
         timing_data[i] = time()
 
-    raw_results[process_id] = timing_data
+    raw_results[process_id] = {"started": True, "timing_data": timing_data}
     env.close()
     print(f"process {process_id} finished")
 
@@ -80,6 +86,20 @@ def measure_runtime_fps(
         p.start()
         procs.append((process_id, p))
 
+    # measure cpu usage
+    while True:
+        for process_id, result in raw_results.items():
+            if "started" in result and not result["started"]:
+                sleep(0.01)
+                print("waiting for process ", process_id, " to start")
+                continue
+        print("all processes started")
+        break
+    sleep(1.0)
+    usage = psutil.cpu_percent(percpu=True, interval=1.0)
+    print("cpu usage: ", usage)
+
+    #
     for process_id, p in procs:
         p.join()
 
@@ -89,7 +109,10 @@ def measure_runtime_fps(
     # environments are running. After doing this, we need to calculate how many steps were taken in each environment.
     min_t0 = float('inf')
     max_t1 = float('-inf')
-    for process_id, timing_data in raw_results.items():
+    for process_id, result in raw_results.items():
+        assert result["started"], f"process {process_id} did not start"
+        assert result["timing_data"] is not None, f"process {process_id} did not return timing data"
+        timing_data = result["timing_data"]
         for i in range(n_steps):
             if timing_data[i] < min_t0:
                 min_t0 = timing_data[i]
@@ -99,7 +122,8 @@ def measure_runtime_fps(
     assert min_t0 < max_t1
 
     n_steps_taken = 0
-    for process_id, timing_data in raw_results.items():
+    for process_id, data in raw_results.items():
+        timing_data = data["timing_data"]
         for i in range(n_steps):
             if timing_data[i] > min_t0 and timing_data[i] < max_t1:
                 n_steps_taken += 1
@@ -109,7 +133,7 @@ def measure_runtime_fps(
     print("new data: ", batch_size, fps, seconds_per_frame)
     print()
 
-    DF_COLS = ["batch_size", "frames_per_second", "seconds_per_frame"]
+    DF_COLS = ["batch_size", "frames_per_second", "seconds_per_frame", "per_core_cpu_usage"]
     if os.path.exists(results_filepath):
         df = pd.read_csv(results_filepath)
         assert list(df.columns) == DF_COLS, f"CSV columns must be exactly {DF_COLS} (in order), got {list(df.columns)}"
@@ -120,6 +144,8 @@ def measure_runtime_fps(
         "batch_size": batch_size,
         "frames_per_second": fps,
         "seconds_per_frame": seconds_per_frame,
+        "per_core_cpu_usage": usage,
+        "average_cpu_usage": np.mean(usage),
     }
     df.to_csv(results_filepath, index=False)
     print(df)
@@ -134,5 +160,6 @@ if __name__ == "__main__":
     parser.add_argument("--n_steps", type=int, default=20)
     parser.add_argument("--batch_size", type=int, required=True)
     args = parser.parse_args()
+    Path(args.results_filepath).parent.mkdir(parents=True, exist_ok=True)
 
     measure_runtime_fps(args.results_filepath, args.batch_size, env_id=args.env_id, n_steps=args.n_steps)
