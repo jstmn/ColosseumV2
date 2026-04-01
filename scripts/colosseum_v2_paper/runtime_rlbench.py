@@ -14,6 +14,10 @@ from typing import Any
 from rlbench.action_modes.action_mode import JointPositionActionMode
 import numpy as np
 
+import sys
+sys.path.append("examples/baselines/act_clip")
+from eval_rgbd import MAX_EPISODE_STEPS_BY_TASK
+
 
 """
 This script measures maniskill's FPS for difference batch sizes. Note that you need to run each environment in a 
@@ -98,7 +102,6 @@ def measure_runtime_fps(
                 continue
         print("all processes started")
         break
-    sleep(1.0)
     usage = psutil.cpu_percent(percpu=True, interval=1.0)
     print("cpu usage: ", usage)
 
@@ -116,32 +119,40 @@ def measure_runtime_fps(
         assert result["started"], f"process {process_id} did not start"
         assert result["timing_data"] is not None, f"process {process_id} did not return timing data"
         timing_data = result["timing_data"]
-        for i in range(n_steps):
-            if timing_data[i] < min_t0:
-                min_t0 = timing_data[i]
-            if timing_data[i] > max_t1:
-                max_t1 = timing_data[i]
+        min_t0 = min(min_t0, min(timing_data.values()))
+        max_t1 = max(max_t1, max(timing_data.values()))
     print("min_t0: ", min_t0, "max_t1: ", max_t1, "time_delta: ", max_t1 - min_t0)
     assert min_t0 < max_t1
 
-    n_steps_taken = 0
-    for process_id, data in raw_results.items():
-        timing_data = data["timing_data"]
-        for i in range(n_steps):
-            if timing_data[i] > min_t0 and timing_data[i] < max_t1:
-                n_steps_taken += 1
+    n_steps_taken = n_steps * batch_size
     fps = n_steps_taken / (max_t1 - min_t0)
     seconds_per_frame = 1 / fps
 
-    print("new data: ", batch_size, fps, seconds_per_frame)
+    # Colosseumv1: 20 tasks x 17 axes of environmental perturbations.
+    NUM_VARIATIONS = 17  # includes none, all
+    N_TASKS = 20
+    TIMESTEPS_PER_TASK = 200
+    estimated_total_sim_time_seconds = N_TASKS * NUM_VARIATIONS * TIMESTEPS_PER_TASK * seconds_per_frame
+
+    print()
+    print("New data:")
+    print(f"  - batch_size:         {batch_size}")
+    print(f"  - frames_per_second:  {fps}")
+    print(f"  - seconds_per_frame:  {seconds_per_frame}")
+    print(f"  - per_core_cpu_usage: {usage}")
+    print(f"  - average_cpu_usage:  {np.mean(usage)}")
+    print(f"  - estimated_total_sim_time_sec: {estimated_total_sim_time_seconds}")
+    print(f"  - estimated_total_sim_time_min: {estimated_total_sim_time_seconds / 60}")
+    print(f"  - estimated_total_sim_time_hours: {estimated_total_sim_time_seconds / 3600}")
     print()
 
-    DF_COLS = ["batch_size", "frames_per_second", "seconds_per_frame", "per_core_cpu_usage"]
+    DF_COLS = ["batch_size", "frames_per_second", "seconds_per_frame", "per_core_cpu_usage", "average_cpu_usage", "estimated_total_sim_time_seconds", "estimated_total_sim_time_minutes", "estimated_total_sim_time_hours"]
     if os.path.exists(results_filepath):
         df = pd.read_csv(results_filepath)
         assert list(df.columns) == DF_COLS, f"CSV columns must be exactly {DF_COLS} (in order), got {list(df.columns)}"
     else:
         df = pd.DataFrame(columns=pd.Index(DF_COLS))
+
 
     df.loc[len(df)] = {
         "batch_size": batch_size,
@@ -149,6 +160,9 @@ def measure_runtime_fps(
         "seconds_per_frame": seconds_per_frame,
         "per_core_cpu_usage": usage,
         "average_cpu_usage": np.mean(usage),
+        "estimated_total_sim_time_seconds": estimated_total_sim_time_seconds,
+        "estimated_total_sim_time_minutes": estimated_total_sim_time_seconds / 60,
+        "estimated_total_sim_time_hours": estimated_total_sim_time_seconds / 3600,
     }
     df.to_csv(results_filepath, index=False)
     print(df)
