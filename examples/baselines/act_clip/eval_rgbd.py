@@ -169,22 +169,22 @@ TASK_TEXT_MAP = {
 ================================================================================
 Env ID                              | Count      | Mean Episode Length | Std Episode Length | Max Episode Length
 --------------------------------------------------------------------------------
-PickSodaFromCabinet-v1              | 96         | 193.57     | 2.5        | 198.0     
-PickDishFromRack-v1                 | 100        | 119.76     | 9.26       | 134.0     
-StackCubeColosseumV2-v1             | 100        | 107.14     | 8.97       | 130.0     
-PlaceDishInRack-v1                  | 70         | 251.36     | 19.07      | 322.0     
-LiftPegUprightColosseumV2-v1        | 97         | 198.42     | 6.51       | 225.0     
-RotateArrow-v1                      | 100        | 328.94     | 6.94       | 351.0     
-PegInsertionSideColosseumV2-v1      | 96         | 151.35     | 28.91      | 203.0     
-PlugChargerColosseumV2-v1           | 96         | 179.6      | 13.83      | 208.0     
-HammerNail-v1                       | 96         | 225.73     | 5.6        | 243.0     
-ScoopBanana-v1                      | 99         | 242.9      | 20.05      | 375.0     
-OpenDrawer-v1                       | 100        | 118.36     | 3.72       | 126.0     
-OpenCabinet-v1                      | 93         | 475.9      | 4.15       | 483.0     
-PlaceCubeInDrawer-v1                | 96         | 333.45     | 13.62      | 373.0     
-PlaceBookInShelf-v1                 | 100        | 182.5      | 8.54       | 202.0     
-CookItemInPan-v1                    | 100        | 473.93     | 15.12      | 560.0     
-RaiseCube-v1                        | 100        | 78.25      | 3.55       | 86.0      
+PickSodaFromCabinet-v1              | 96         | 193.57     | 2.5        | 198.0
+PickDishFromRack-v1                 | 100        | 119.76     | 9.26       | 134.0
+StackCubeColosseumV2-v1             | 100        | 107.14     | 8.97       | 130.0
+PlaceDishInRack-v1                  | 70         | 251.36     | 19.07      | 322.0
+LiftPegUprightColosseumV2-v1        | 97         | 198.42     | 6.51       | 225.0
+RotateArrow-v1                      | 100        | 328.94     | 6.94       | 351.0
+PegInsertionSideColosseumV2-v1      | 96         | 151.35     | 28.91      | 203.0
+PlugChargerColosseumV2-v1           | 96         | 179.6      | 13.83      | 208.0
+HammerNail-v1                       | 96         | 225.73     | 5.6        | 243.0
+ScoopBanana-v1                      | 99         | 242.9      | 20.05      | 375.0
+OpenDrawer-v1                       | 100        | 118.36     | 3.72       | 126.0
+OpenCabinet-v1                      | 93         | 475.9      | 4.15       | 483.0
+PlaceCubeInDrawer-v1                | 96         | 333.45     | 13.62      | 373.0
+PlaceBookInShelf-v1                 | 100        | 182.5      | 8.54       | 202.0
+CookItemInPan-v1                    | 100        | 473.93     | 15.12      | 560.0
+RaiseCube-v1                        | 100        | 78.25      | 3.55       | 86.0
 --------------------------------------------------------------------------------
 Total Merged Episodes               | 1539      
 ================================================================================
@@ -193,18 +193,18 @@ Total Merged Episodes               | 1539
 ================================================================================
 Env ID                              | Count      | Mean Episode Length | Std Episode Length | Max Episode Length
 --------------------------------------------------------------------------------
-DualArmPickCube-v1                  | 98         | 201.1      | 3.2        | 211.0     
-DualArmPickBottle-v1                | 98         | 130.72     | 6.23       | 154.0     
-DualArmLiftPot-v1                   | 98         | 98.06      | 6.94       | 112.0     
-DualArmLiftTray-v1                  | 98         | 104.72     | 4.43       | 117.0     
-DualArmPushBox-v1                   | 98         | 93.04      | 9.43       | 113.0     
-DualArmPourPot-v1                   | 98         | 200.72     | 3.5        | 209.0     
-DualArmThreading-v1                 | 100        | 164.97     | 6.92       | 182.0     
-DualArmPenCap-v1                    | 100        | 186.1      | 11.54      | 230.0     
-DualArmDrawerPlace-v1               | 100        | 186.35     | 4.0        | 195.0     
-DualArmDrawerOpen-v1                | 100        | 81.0       | 9.4        | 100.0     
-DualArmStackCube-v1                 | 100        | 137.03     | 7.27       | 154.0     
-DualArmStack3Cube-v1                | 100        | 242.08     | 10.5       | 260.0     
+DualArmPickCube-v1                  | 98         | 201.1      | 3.2        | 211.0
+DualArmPickBottle-v1                | 98         | 130.72     | 6.23       | 154.0
+DualArmLiftPot-v1                   | 98         | 98.06      | 6.94       | 112.0
+DualArmLiftTray-v1                  | 98         | 104.72     | 4.43       | 117.0
+DualArmPushBox-v1                   | 98         | 93.04      | 9.43       | 113.0
+DualArmPourPot-v1                   | 98         | 200.72     | 3.5        | 209.0
+DualArmThreading-v1                 | 100        | 164.97     | 6.92       | 182.0
+DualArmPenCap-v1                    | 100        | 186.1      | 11.54      | 230.0
+DualArmDrawerPlace-v1               | 100        | 186.35     | 4.0        | 195.0
+DualArmDrawerOpen-v1                | 100        | 81.0       | 9.4        | 100.0
+DualArmStackCube-v1                 | 100        | 137.03     | 7.27       | 154.0
+DualArmStack3Cube-v1                | 100        | 242.08     | 10.5       | 260.0
 --------------------------------------------------------------------------------
 Total Merged Episodes               | 1188      
 ================================================================================
