@@ -66,7 +66,7 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str]
             # query policy
             if ts % query_frequency == 0:
                 action_seq = agent.get_action(obs, lang_instruction=eval_lang)
-                
+
             # we assume ignore_terminations=True. Otherwise, some envs could be done
             # earlier, so we would need to temporally ensemble at corresponding timestep
             # for each env.
