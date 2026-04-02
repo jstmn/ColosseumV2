@@ -633,6 +633,33 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(args.result_csvs, args.model_names)
+
+    # First, print out some stats.
+    print()
+    act_bimanual_results = mean_changes_from_none["ACT - Bimanual"]
+    act_single_arm_results = mean_changes_from_none["ACT - Single Arm"]
+    pi0_bimanual_results = mean_changes_from_none["Pi0.5 - Bimanual"]
+    pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single Arm"]
+    act_deltas = []
+    pi0_deltas = []
+    for ds in DISTRACTION_SETS:
+        if 'none'.lower() in ds.lower():
+            continue
+        act_bimanual_result = act_bimanual_results[ds]
+        act_single_arm_result = act_single_arm_results[ds]
+        pi0_bimanual_result = pi0_bimanual_results[ds]
+        pi0_single_arm_result = pi0_single_arm_results[ds]
+        act_delta = abs(act_single_arm_result - act_bimanual_result)
+        pi0_delta = abs(pi0_single_arm_result - pi0_bimanual_result)
+        print(f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\tPi0.5 - Single/Bimanual: {pi0_delta:.4f}")
+        act_deltas.append(act_delta)
+        pi0_deltas.append(pi0_delta)
+    print(f"ACT - Single Arm, Bimanual: {np.mean(act_deltas):.4f}")
+    print(f"Pi0.5 - Bimanual, Single Arm: {np.mean(pi0_deltas):.4f}")
+    print()
+
+
+    # Generate plots
     generate_mean_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
     generate_clumped_change_figure(mean_changes_from_none, args.model_names, args.output_dir)
     generate_clumped_change_figure_radial(mean_changes_from_none, args.model_names, args.output_dir)
