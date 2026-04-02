@@ -445,6 +445,14 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
             "abs": [mean_clumped_absolute_sr[model][cat] for cat in categories]
         } for model in model_names
     } 
+    for model in model_names:
+        print(f"Model {model}:")
+        print(f"  - values_delta[model]['delta']:")
+        for val, cat in zip(values_delta[model]['delta'], categories):
+            print(f"      - {cat}: {val:.4f}")
+        print(f"  - values_delta[model]['abs']:")
+        for val, cat in zip(values_delta[model]['abs'], categories):
+            print(f"      - {cat}: {val:.4f}")
 
     # Angles for each axis (close the loop by repeating the first).
     angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()

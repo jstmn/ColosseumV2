@@ -27,12 +27,6 @@ python scripts/colosseum_v2_paper/parse_logs.py \
 
 # PI0.5
 python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_bimanual_2epochs.csv --output-path logs/parsed_pi0/bimanual_2epochs
-
-python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_single_arm_2epochs.csv --output-path logs/parsed_pi0/single_arm_2epochs
-
-python scripts/colosseum_v2_paper/parse_logs.py \
     --results-paths logs/pi0/results_bimanual_5epochs.csv --output-path logs/parsed_pi0/bimanual_5epochs
 
 python scripts/colosseum_v2_paper/parse_logs.py \
@@ -259,7 +253,6 @@ def build_success_matrix(
                 none_sr[t] = None
                 continue
             succ, eps = pair
-            # success_pct = (100.0 * succ / eps) if eps > 0 else None
             success_pct = succ / eps if eps > 0 else None
             if success_pct is not None:
                 success_pct = min(success_pct, 1.0)
