@@ -7,21 +7,23 @@ from matplotlib.axes import Axes
 import pandas as pd
 from pathlib import Path
 from typing import Any, Final, cast
+import sys
+sys.path.append("examples/baselines/act_clip")
+from eval_rgbd import MAX_EPISODE_STEPS_BY_TASK
 
 """This script generates the figures for the Colosseum-V2 paper.
 
 The provided csv should have the following format:
 
-batch_size,frames_per_second,seconds_per_frame
-1,71.64126893897986,0.01395843505859375
-2,132.72559500679085,0.007534341812133789
-
+batch_size,t_elapsed_sec,frames_per_second,seconds_per_frame,timesteps_per_task,rlbench_estimated_total_sim_time_seconds,rlbench_estimated_total_sim_time_minutes,rlbench_estimated_total_sim_time_hours
+1,46.517,21.498,0.047,200,15815.78,263.596,4.393
 
 # Example usage:
 python scripts/colosseum_v2_paper/figure_runtime.py \
-    --timing-csvs logs/fps/rlbench_fps.csv logs/fps/maniskill_fps.csv \
+    --timing-csvs logs/fps/rlbench_runtime.csv logs/fps/act_runtime.csv \
     --model-names "Colosseum" "Colosseum-V2" \
-    --output-filepath logs/fps/runtime_figure.png
+    --output-filepath logs/fps/runtime_figure.png \
+    --colosseum-v2-filepath logs/fps/act_runtime.csv --rlbench-filepath logs/fps/rlbench_runtime.csv
 """
 
 LEFT_PLOT_BS: Final[list[int]] = [
@@ -48,14 +50,14 @@ RIGHT_PLOT_BS: Final[list[int]] = [
             LEFT_PLOT_BS
             + [
                 100,
+                150,
+                200,
                 250,
-                500,
-                750,
-                1000,
-                1250,
-                1500,
-                1750,
-                2000,
+                300,
+                350,
+                400,
+                450,
+                500
             ]
         )
     )
@@ -68,13 +70,9 @@ def generate_runtime_figure(timing_csvs: list[str], model_names: list[str], outp
     This figure has two subplots. The left subplot is in the range [1, 50]. The right subplot is in the range [1, 2000].
     The x axes aren't uniform in terms of their actual values; they should be spaced evenly instead (categorical axis).
     """
-    if len(timing_csvs) != len(model_names):
-        raise ValueError(
-            f"`timing_csvs` and `model_names` must have same length, got "
-            f"{len(timing_csvs)} and {len(model_names)}"
-        )
+    assert len(timing_csvs) == len(model_names), f"Expected {len(model_names)} timing CSVs, got {len(timing_csvs)}"
 
-    DF_COLS = ["batch_size", "frames_per_second", "seconds_per_frame"]
+    DF_COLS = ["batch_size", "t_elapsed_sec", "frames_per_second", "seconds_per_frame", "timesteps_per_task", "rlbench_estimated_total_sim_time_seconds", "rlbench_estimated_total_sim_time_minutes", "rlbench_estimated_total_sim_time_hours"]
 
     def load_df(csv_path: str) -> pd.DataFrame:
         df = pd.read_csv(csv_path)
@@ -104,7 +102,7 @@ def generate_runtime_figure(timing_csvs: list[str], model_names: list[str], outp
 
     timing_dfs = [load_df(p) for p in timing_csvs]
 
-    fontsize = 15
+    fontsize = 14
 
     fig, (ax_left, ax_right) = plt.subplots(
         1,
@@ -128,11 +126,11 @@ def generate_runtime_figure(timing_csvs: list[str], model_names: list[str], outp
     plot_grouped_bars(ax_left, LEFT_PLOT_BS)
     plot_grouped_bars(ax_right, RIGHT_PLOT_BS)
 
-    tick_fontsize = fontsize-3
+    tick_fontsize = fontsize-2
 
     ax_left.set_xlabel("Number of Environments",  fontsize=fontsize)
     ax_right.set_xlabel("Number of Environments",  fontsize=fontsize)
-    ax_left.set_ylabel("Frames per second [FPS]", fontsize=fontsize)
+    ax_left.set_ylabel("ACT + Sim. Steps per Second [FPS]", fontsize=fontsize)
     for ax, bs_list in ((ax_left, LEFT_PLOT_BS), (ax_right, RIGHT_PLOT_BS)):
         ax.set_axisbelow(True)  # ensure grids are behind plotted artists
         ax.set_xticks(np.arange(len(bs_list), dtype=float))
@@ -163,7 +161,7 @@ def generate_runtime_figure(timing_csvs: list[str], model_names: list[str], outp
     ax_left.tick_params(axis="x", labelsize=tick_fontsize)
     ax_right.tick_params(axis="x", labelsize=tick_fontsize)
 
-    ax_left.legend(frameon=True, fontsize=fontsize)
+    ax_left.legend(frameon=True, fontsize=fontsize-1)
 
     out_path = Path(output_filepath)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,5 +175,41 @@ if __name__ == "__main__":
     parser.add_argument("--timing-csvs", type=str, required=True, nargs="+")
     parser.add_argument("--model-names", type=str, required=True, nargs="+")
     parser.add_argument("--output-filepath", type=str, required=True)
+    parser.add_argument("--colosseum-v2-filepath", type=str, required=False)
+    parser.add_argument("--rlbench-filepath", type=str, required=False)
     args = parser.parse_args()
     generate_runtime_figure(args.timing_csvs, args.model_names, args.output_filepath)
+
+    if args.colosseum_v2_filepath:
+        df = pd.read_csv(args.colosseum_v2_filepath)
+        _200_bs_fps = df[df["batch_size"] == 200]["frames_per_second"].values[0]
+        n_secs_total = 0
+        n_episode_evals = 200 # 200 is the number of episode evaluations for Colosseum-V2
+        n_variations = 17 # 17 is the number of variations for Colosseum-V2 (including none, all)
+        print(f"With a batch_size of 200, FPS={_200_bs_fps}")
+
+        # examples/baselines/act_clip/eval_rgbd.py has MAX_EPISODE_STEPS_BY_TASK
+        for task, max_n_steps in MAX_EPISODE_STEPS_BY_TASK.items():
+            n_secs_total += max_n_steps * n_episode_evals * n_variations / _200_bs_fps 
+        
+        print(f"Total estimated runtime for Colosseum-V2:")
+        print(f"  - {round(n_secs_total, 3)} seconds")
+        print(f"  - {round(n_secs_total / 60, 3)} minutes")
+        print(f"  - {round(n_secs_total / 3600, 3)} hours")
+
+    
+    if args.rlbench_filepath:
+        df = pd.read_csv(args.rlbench_filepath)
+        _20_fps = df[df["batch_size"] == 20]["frames_per_second"].values[0]
+        n_secs_total = 0
+        n_episode_evals = 20 # 20 is the number of episode evaluations for RLBench/Colosseum-V1
+        n_variations = 15 # 17 is the number of variations for Colosseum-V2 (including none, all)
+        n_tasks = 20
+        n_timesteps_per_task = 200
+        print(f"With a batch_size of 20, FPS={_20_fps}")
+        n_secs_total = n_episode_evals * n_variations * n_tasks * n_timesteps_per_task / _20_fps
+
+        print(f"Total estimated runtime for RLBench/Colosseum-V1:")
+        print(f"  - {round(n_secs_total, 3)} seconds")
+        print(f"  - {round(n_secs_total / 60, 3)} minutes")
+        print(f"  - {round(n_secs_total / 3600, 3)} hours")

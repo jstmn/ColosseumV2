@@ -47,6 +47,22 @@ from mani_skill.envs.tasks.tabletop import *
 # [batch x 4 x 4]
 OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
 
+
+""" Example usage:
+
+python examples/baselines/act_clip/train_rgbd.py \
+    --distraction-set "none" \
+    --sim-backend "physx_cuda" \
+    --demo-path demos/CookItemInPan-v1/motionplanning/trajectory__pd_joint_pos__100.rgb.pd_ee_delta_pose.physx_cpu.h5 \
+    --no-include-depth \
+    --internal-instruction \
+    --is-multi-task True \
+    --target-num-cams 3 \
+    --control-mode "pd_ee_delta_pose" \
+    --batch-size 4 \
+    --seed 42
+"""
+
 @dataclass
 class Args:
 
@@ -681,6 +697,7 @@ if __name__ == "__main__":
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
         distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        _env_id=args.env_id,
     )
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps

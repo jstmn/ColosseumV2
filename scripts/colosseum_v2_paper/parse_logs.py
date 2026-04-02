@@ -27,12 +27,6 @@ python scripts/colosseum_v2_paper/parse_logs.py \
 
 # PI0.5
 python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_bimanual_2epochs.csv --output-path logs/parsed_pi0/bimanual_2epochs
-
-python scripts/colosseum_v2_paper/parse_logs.py \
-    --results-paths logs/pi0/results_single_arm_2epochs.csv --output-path logs/parsed_pi0/single_arm_2epochs
-
-python scripts/colosseum_v2_paper/parse_logs.py \
     --results-paths logs/pi0/results_bimanual_5epochs.csv --output-path logs/parsed_pi0/bimanual_5epochs
 
 python scripts/colosseum_v2_paper/parse_logs.py \
@@ -50,7 +44,7 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-
+import numpy as np
 
 CELL_COLOR_MAP = {
     "visual": "CFECFF",
@@ -260,7 +254,6 @@ def build_success_matrix(
                 none_sr[t] = None
                 continue
             succ, eps = pair
-            # success_pct = (100.0 * succ / eps) if eps > 0 else None
             success_pct = succ / eps if eps > 0 else None
             if success_pct is not None:
                 success_pct = min(success_pct, 1.0)
@@ -345,6 +338,23 @@ def render_latex_table(
         for ds in VARIATION_NAMES:
             cells.append(_format_percent(matrix.get((task, ds)), decimals=decimals))
         lines.append(" & ".join(cells) + r" \\")
+
+    # Add a row: 'Mean change from none'
+    lines.append(r"\midrule")
+    cells = ["Mean \\% Change from None"]
+    for ds in VARIATION_NAMES:
+        pct_changes = []
+        for task in tasks:
+            none_sr = matrix.get((task, "none"))
+            ds_sr = matrix.get((task, ds))
+            if none_sr is None or none_sr < 10 or ds_sr is None:
+                continue
+            pct_change = (ds_sr - none_sr) / none_sr * 100
+            pct_changes.append(pct_change)
+        ave_pct_change = np.mean(pct_changes)
+        cells.append(_format_percent(ave_pct_change, decimals=decimals))
+    lines.append(" & ".join(cells) + r" \\")
+
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")

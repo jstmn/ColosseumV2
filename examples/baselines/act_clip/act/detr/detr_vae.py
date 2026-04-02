@@ -30,6 +30,12 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 
     return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
+def _count_params(m):
+    return sum(p.numel() for p in m.parameters())
+
+def _count_trainable(m):
+    return sum(p.numel() for p in m.parameters() if p.requires_grad)
+
 
 class DETRVAE(nn.Module):
     """ This is the DETR module that performs object detection """
@@ -45,6 +51,25 @@ class DETRVAE(nn.Module):
             self.input_proj = nn.Conv2d(backbones[0].num_channels, hidden_dim, kernel_size=1)
             self.backbones = nn.ModuleList(backbones)
             self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
+            # 
+            print("\n=== Vision Parameter Counts ===")
+            for i, b in enumerate(self.backbones):
+                print(f"\nBackbone {i}:")
+                # b is Joiner(backbone, position_embedding)
+                joiner = b
+                backbone = b[0]              # Backbone (wraps ResNet)
+                pos_enc = b[1]              # positional encoding
+                resnet = backbone.body      # actual torchvision ResNet
+                print("  ResNet (body) params:", _count_params(resnet))
+                print("  ResNet (trainable):", _count_trainable(resnet))
+                print("  Positional encoding params:", _count_params(pos_enc))
+                print("  Full Joiner params:", _count_params(joiner))
+
+            print("\nInput projection conv params:", _count_params(self.input_proj))
+
+            total_vision = sum(_count_params(b) for b in self.backbones) + _count_params(self.input_proj)
+            print("\nTOTAL vision params:", total_vision)
+            print("================================\n")
         else:
             self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
             self.backbones = None
@@ -79,7 +104,10 @@ class DETRVAE(nn.Module):
             self.lang_encoder.eval()
             for p in self.lang_encoder.parameters():
                 p.requires_grad = False
-                
+
+
+
+
     def train(self, mode: bool = True):
         super().train(mode)
         if hasattr(self, "lang_encoder") and self.lang_encoder is not None:
