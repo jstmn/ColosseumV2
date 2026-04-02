@@ -22,6 +22,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_processes", type=int, required=True)
     parser.add_argument("--results_filepath", type=str, required=True)
     parser.add_argument("--timesteps_per_task", type=int, required=True)
+    parser.add_argument("--num_eval_episodes", type=int, required=False)
     args = parser.parse_args()
 
     Path(args.results_filepath).parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,13 @@ if __name__ == "__main__":
         df = pd.DataFrame(columns=pd.Index(DF_COLS))
 
 
-    frames_per_second = args.timesteps_per_task * args.n_processes / args.t_elapsed_sec
+    if args.num_eval_episodes is not None:
+        # total number of frames = num_eval_episodes * timesteps_per_task
+        # total number of seconds = t_elapsed_sec
+        # frames_per_second = total number of frames / total number of seconds
+        frames_per_second = (args.num_eval_episodes * args.timesteps_per_task) / args.t_elapsed_sec
+    else:
+        frames_per_second = args.timesteps_per_task * args.n_processes / args.t_elapsed_sec
     seconds_per_frame = 1 / frames_per_second
 
 
