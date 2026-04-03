@@ -37,21 +37,21 @@ python scripts/colosseum_v2_paper/figures.py \
 """
 
 COLOR_MAP = {
-    "ACT - Single Arm": "#ffd700", # yellow
+    "ACT - Single-Arm": "#ffd700", # yellow
     "ACT - Bimanual": "#fe6e5a", # orange
-    "Pi0.5 - Single Arm": "#0070ff", # blue
+    "Pi0.5 - Single-Arm": "#0070ff", # blue
     "Pi0.5 - Bimanual": "#cd34b5", # purple
     # "ACT - Bimanual": "#ffd700",
     # "Pi0.5 - Bimanual": "#fe6e5a",
-    # "ACT - Single Arm": "#cd34b5",
-    # "Pi0.5 - Single Arm": "#0070ff", # this one is pretty good - more muted than 0000ff so doesn't stand out as much
+    # "ACT - Single-Arm": "#cd34b5",
+    # "Pi0.5 - Single-Arm": "#0070ff", # this one is pretty good - more muted than 0000ff so doesn't stand out as much
 }
 
 LINE_STYLE_MAP = {
     "ACT - Bimanual":  "--",
     "Pi0.5 - Bimanual":"--",
-    "ACT - Single Arm": None,
-    "Pi0.5 - Single Arm": None,
+    "ACT - Single-Arm": None,
+    "Pi0.5 - Single-Arm": None,
 }
 
 DISTRACTION_SETS=(
@@ -540,9 +540,9 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
         for ds in LANGUAGE_DISTRACTION_SETS:
             language_vals.append(float(mean_changes[ds]))
 
-        mean_clumped_changes[model]["vision"] = -float(np.mean(vision_vals))
-        mean_clumped_changes[model]["action"] = -float(np.mean(action_vals))
-        mean_clumped_changes[model]["language"] = -float(np.mean(language_vals))
+        mean_clumped_changes[model]["vision"] = float(np.mean(vision_vals))
+        mean_clumped_changes[model]["action"] = float(np.mean(action_vals))
+        mean_clumped_changes[model]["language"] = float(np.mean(language_vals))
 
     # Plot: left = grouped bar chart (delta), right = radial chart (abs SR).
     categories = ["language", "vision", "action"]
@@ -564,9 +564,9 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
 
     ticks_fontsize = 12
 
-    fig = plt.figure(figsize=(10, 4.4))
-    ax_bar = fig.add_subplot(1, 2, 1)
-    ax_radar = fig.add_subplot(1, 2, 2, polar=True)
+    fig = plt.figure(figsize=(11, 4.4))
+    ax_radar = fig.add_subplot(1, 2, 1, polar=True)
+    ax_bar = fig.add_subplot(1, 2, 2)
 
     # --- Left: grouped bar chart of robustness drop (delta) ---
     n_models = len(model_names)
@@ -618,20 +618,156 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
         ax_radar.plot(angles, vals_abs, linewidth=2, label=model, color=COLOR_MAP[model], linestyle=LINE_STYLE_MAP.get(model))
         ax_radar.fill(angles, vals_abs, color=COLOR_MAP[model], alpha=0.10)
 
-    # legend = ax_radar.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
-    legend = ax_radar.legend(loc="upper left", bbox_to_anchor=(-0.4, 1.15), fontsize=12, frameon=True)
+    # legend = ax_radar.legend(loc="upper right", bbox_to_anchor=(1.42, 1.15), fontsize=12, frameon=True)
+    legend = ax_radar.legend(loc="upper left", bbox_to_anchor=(-0.35, 1.1), fontsize=12, frameon=True)
     legend.get_frame().set_facecolor("white")
     legend.get_frame().set_alpha(1.0)
     legend.get_frame().set_edgecolor("#cccccc")
     legend.get_frame().set_linewidth(1.0)
     plt.tight_layout()
-    plt.subplots_adjust(wspace=0.0)
+    # plt.subplots_adjust(wspace=0.0)
+    plt.subplots_adjust(wspace=0.15)
+    # plt.subplots_adjust(wspace=0.6)
 
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "radial_two_plots_v2.png")
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     print(f"Saved radial two plots to {save_path}")
+
+
+# def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
+#     # Compute per-model means clumped by modality.
+#     mean_clumped_changes: Dict[str, Dict[str, float]] = {
+#         model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+#     }
+#     mean_clumped_absolute_sr: Dict[str, Dict[str, float]] = {
+#         model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
+#     }
+#     # SR
+#     for model in model_names:
+#         mean_srs = mean_absolute_sr.get(model)
+#         assert isinstance(mean_srs, dict)
+#         vision_vals = []
+#         action_vals = []
+#         language_vals = []
+#         for ds in VISION_DISTRACTION_SETS:
+#             vision_vals.append(float(mean_srs[ds]))
+#         for ds in ACTION_DISTRACTION_SETS:
+#             action_vals.append(float(mean_srs[ds]))
+#         for ds in LANGUAGE_DISTRACTION_SETS:
+#             language_vals.append(float(mean_srs[ds]))
+
+#         mean_clumped_absolute_sr[model]["vision"] = float(np.mean(vision_vals))
+#         mean_clumped_absolute_sr[model]["action"] = float(np.mean(action_vals))
+#         mean_clumped_absolute_sr[model]["language"] = float(np.mean(language_vals))
+
+#     # Change
+#     for model in model_names:
+#         mean_changes = mean_changes_from_none.get(model)
+#         assert isinstance(mean_changes, dict)
+#         vision_vals = []
+#         action_vals = []
+#         language_vals = []
+#         for ds in VISION_DISTRACTION_SETS:
+#             vision_vals.append(float(mean_changes[ds]))
+#         for ds in ACTION_DISTRACTION_SETS:
+#             action_vals.append(float(mean_changes[ds]))
+#         for ds in LANGUAGE_DISTRACTION_SETS:
+#             language_vals.append(float(mean_changes[ds]))
+
+#         mean_clumped_changes[model]["vision"] = -float(np.mean(vision_vals))
+#         mean_clumped_changes[model]["action"] = -float(np.mean(action_vals))
+#         mean_clumped_changes[model]["language"] = -float(np.mean(language_vals))
+
+#     # Plot: left = grouped bar chart (delta), right = radial chart (abs SR).
+#     categories = ["language", "vision", "action"]
+#     display = {"vision": "Vision", "action": "Action", "language": "Language"}
+#     values_delta = {
+#         model: {
+#             "delta": [mean_clumped_changes[model][cat] for cat in categories],
+#             "abs": [mean_clumped_absolute_sr[model][cat] for cat in categories]
+#         } for model in model_names
+#     }
+#     for model in model_names:
+#         print(f"Model {model}:")
+#         print(f"  - values_delta[model]['delta']:")
+#         for val, cat in zip(values_delta[model]['delta'], categories):
+#             print(f"      - {cat}: {val:.4f}")
+#         print(f"  - values_delta[model]['abs']:")
+#         for val, cat in zip(values_delta[model]['abs'], categories):
+#             print(f"      - {cat}: {val:.4f}")
+
+#     ticks_fontsize = 12
+
+#     fig = plt.figure(figsize=(10, 4.4))
+#     ax_bar = fig.add_subplot(1, 2, 1)
+#     ax_radar = fig.add_subplot(1, 2, 2, polar=True)
+
+#     # --- Left: grouped bar chart of robustness drop (delta) ---
+#     n_models = len(model_names)
+#     n_cats = len(categories)
+#     bar_width = 0.8 / n_models
+#     x = np.arange(n_cats)
+#     offsets = np.linspace(-(n_models - 1) / 2, (n_models - 1) / 2, n_models) * bar_width
+
+#     for i, model in enumerate(model_names):
+#         vals = values_delta[model]["delta"]
+#         ax_bar.bar(
+#             x + offsets[i],
+#             vals,
+#             width=bar_width,
+#             label=model,
+#             color=COLOR_MAP[model],
+#             edgecolor="white",
+#             linewidth=0.5,
+#         )
+
+#     ax_bar.set_xticks(x)
+#     ax_bar.set_xticklabels([display[c] for c in categories], fontsize=ticks_fontsize)
+#     ax_bar.tick_params(axis="y", labelsize=ticks_fontsize)
+#     ax_bar.set_ylabel("Mean Decrease vs. No Variation [%]", fontsize=ticks_fontsize)
+#     ax_bar.axhline(0, color="black", linewidth=0.8, linestyle="--", alpha=0.5)
+#     ax_bar.grid(axis="y", alpha=0.35)
+#     ax_bar.set_axisbelow(True)
+#     ax_bar.spines["top"].set_visible(False)
+#     ax_bar.spines["right"].set_visible(False)
+
+#     # --- Right: radial chart of absolute SR ---
+#     angles = np.linspace(0, 2 * np.pi, n_cats, endpoint=False).tolist()
+#     angles.append(angles[0])
+
+#     ax_radar.set_theta_offset(np.pi / 2)
+#     ax_radar.set_theta_direction(-1)
+#     ax_radar.set_xticks(angles[:-1])
+#     ax_radar.set_xticklabels([display[c] for c in categories], fontsize=ticks_fontsize)
+#     label_pads = {"vision": 10, "action": 8, "language": 0}
+#     for tick, cat in zip(ax_radar.xaxis.get_major_ticks(), categories):
+#         tick.set_pad(label_pads[cat])
+#     ax_radar.tick_params(axis="y", labelsize=ticks_fontsize)
+#     ax_radar.set_rlabel_position(180)
+#     ax_radar.grid(True, alpha=0.35)
+#     ax_radar.set_xlabel("Mean Absolute Success Rate [%]", fontsize=ticks_fontsize)
+
+#     for model in model_names:
+#         vals_abs = values_delta[model]["abs"] + [values_delta[model]["abs"][0]]
+#         ax_radar.plot(angles, vals_abs, linewidth=2, label=model, color=COLOR_MAP[model], linestyle=LINE_STYLE_MAP.get(model))
+#         ax_radar.fill(angles, vals_abs, color=COLOR_MAP[model], alpha=0.10)
+
+#     # legend = ax_radar.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15), fontsize=12, frameon=True)
+#     legend = ax_radar.legend(loc="upper left", bbox_to_anchor=(-0.4, 1.15), fontsize=12, frameon=True)
+#     legend.get_frame().set_facecolor("white")
+#     legend.get_frame().set_alpha(1.0)
+#     legend.get_frame().set_edgecolor("#cccccc")
+#     legend.get_frame().set_linewidth(1.0)
+#     plt.tight_layout()
+#     plt.subplots_adjust(wspace=0.0)
+
+#     os.makedirs(output_dir, exist_ok=True)
+#     save_path = os.path.join(output_dir, "radial_two_plots_v2.png")
+#     plt.savefig(save_path, bbox_inches="tight")
+#     plt.close()
+#     print(f"Saved radial two plots to {save_path}")
 
 
 def generate_waterfall_plot(single_arm_csvs: list[str], single_arm_model_names: list[str], bimanual_csvs: list[str], bimanual_model_names: list[str], output_dir: str):
@@ -763,15 +899,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     result_csvs = [args.act_single_arm_csv, args.act_bimanual_csv, args.pi0_single_arm_csv, args.pi0_bimanual_csv]
-    model_names = ["ACT - Single Arm", "ACT - Bimanual", "Pi0.5 - Single Arm", "Pi0.5 - Bimanual"]
+    model_names = ["ACT - Single-Arm", "ACT - Bimanual", "Pi0.5 - Single-Arm", "Pi0.5 - Bimanual"]
     mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(result_csvs, model_names)
 
     # First, print out some stats.
     print()
     act_bimanual_results = mean_changes_from_none["ACT - Bimanual"]
-    act_single_arm_results = mean_changes_from_none["ACT - Single Arm"]
+    act_single_arm_results = mean_changes_from_none["ACT - Single-Arm"]
     pi0_bimanual_results = mean_changes_from_none["Pi0.5 - Bimanual"]
-    pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single Arm"]
+    pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single-Arm"]
     act_deltas = []
     pi0_deltas = []
     for ds in DISTRACTION_SETS:
@@ -786,8 +922,8 @@ if __name__ == "__main__":
         print(f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\tPi0.5 - Single/Bimanual: {pi0_delta:.4f}")
         act_deltas.append(act_delta)
         pi0_deltas.append(pi0_delta)
-    print(f"ACT - Single Arm, Bimanual: {np.mean(act_deltas):.4f}")
-    print(f"Pi0.5 - Bimanual, Single Arm: {np.mean(pi0_deltas):.4f}")
+    print(f"ACT - Single-Arm, Bimanual: {np.mean(act_deltas):.4f}")
+    print(f"Pi0.5 - Bimanual, Single-Arm: {np.mean(pi0_deltas):.4f}")
     print()
 
 
@@ -802,7 +938,7 @@ if __name__ == "__main__":
     # Waterfall plots
     generate_waterfall_plot(
         single_arm_csvs=[args.act_single_arm_csv, args.pi0_single_arm_csv],
-        single_arm_model_names=["ACT - Single Arm", "Pi0.5 - Single Arm"],
+        single_arm_model_names=["ACT - Single-Arm", "Pi0.5 - Single-Arm"],
         bimanual_csvs=[args.act_bimanual_csv, args.pi0_bimanual_csv],
         bimanual_model_names=["ACT - Bimanual", "Pi0.5 - Bimanual"],
         output_dir=args.output_dir,
