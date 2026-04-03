@@ -191,13 +191,12 @@ if __name__ == "__main__":
         # examples/baselines/act_clip/eval_rgbd.py has MAX_EPISODE_STEPS_BY_TASK
         for task, max_n_steps in MAX_EPISODE_STEPS_BY_TASK.items():
             n_secs_total += max_n_steps * n_episode_evals * n_variations / _200_bs_fps 
-        
+
         print(f"Total estimated runtime for Colosseum-V2:")
         print(f"  - {round(n_secs_total, 3)} seconds")
         print(f"  - {round(n_secs_total / 60, 3)} minutes")
         print(f"  - {round(n_secs_total / 3600, 3)} hours")
 
-    
     if args.rlbench_filepath:
         df = pd.read_csv(args.rlbench_filepath)
         _20_fps = df[df["batch_size"] == 20]["frames_per_second"].values[0]
