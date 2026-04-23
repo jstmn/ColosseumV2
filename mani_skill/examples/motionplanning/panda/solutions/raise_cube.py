@@ -5,7 +5,7 @@ from mani_skill.envs.tasks.tabletop.colosseum_v2.raise_cube import RaiseCubeEnv
 from mani_skill.examples.motionplanning.panda.motionplanner import PandaArmMotionPlanningSolver
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb, get_actor_obb
 
-def solve(env: RaiseCubeEnv, seed=None, debug=False, vis=False):
+def solve(env: RaiseCubeEnv, seed=None, debug=False, vis=False, slow_down: bool = False, add_sinusoidal_noise: bool = False):
     env.reset(seed=seed)
     planner = PandaArmMotionPlanningSolver(
         env,
@@ -14,6 +14,8 @@ def solve(env: RaiseCubeEnv, seed=None, debug=False, vis=False):
         base_pose=env.unwrapped.agent.robot.pose,
         visualize_target_grasp_pose=vis,
         print_env_info=False,
+        slow_down=slow_down,
+        add_sinusoidal_noise=add_sinusoidal_noise,
     )
 
     FINGER_LENGTH = 0.025

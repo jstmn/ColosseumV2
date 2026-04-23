@@ -21,5 +21,7 @@ class PandaArmMotionPlanningSolver(TwoFingerGripperMotionPlanningSolver):
         print_env_info: bool = True,
         joint_vel_limits=0.9,
         joint_acc_limits=0.9,
+        slow_down: bool = False,
+        add_sinusoidal_noise: bool = False,
     ):
-        super().__init__(env, debug, vis, base_pose, visualize_target_grasp_pose, print_env_info, joint_vel_limits, joint_acc_limits)
+        super().__init__(env, debug, vis, base_pose, visualize_target_grasp_pose, print_env_info, joint_vel_limits, joint_acc_limits, slow_down, add_sinusoidal_noise)

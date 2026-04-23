@@ -128,13 +128,14 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 5 \
     --distraction-set ${DISTRACTION_SET} \
-    --num-procs 2 \
+    --num-procs 1 \
     --obs-mode "rgb" \
     --reward-mode "none" \
     --random-seed \
     --only-count-success \
     --traj-name "trajectory" --vis \
     --save-video      # <- optional
+    # --slow-down --add-sinusoidal-noise \
     # --included-cameras "external1_camera" \
     # --vis           # <- optional
 
@@ -167,6 +168,8 @@ def parse_args(args=None):
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
     parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
     parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
+    parser.add_argument("--slow-down", action="store_true", help="whether or not to slow down the path")
+    parser.add_argument("--add-sinusoidal-noise", action="store_true", help="whether or not to add sinusoidal noise to the path")
     parser.add_argument("--ignore-keys", nargs="*", default=[], help="keys to ignore when saving the trajectory")
     parser.add_argument("--included-cameras", nargs="*", default=[], help="cameras to include in the trajectory")
     return parser.parse_args()
@@ -236,7 +239,16 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     while True:
         counter += 1
         env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
-        res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
+        try:
+            res = solve(env, seed=seed, debug=False, vis=True if args.vis else False, slow_down=args.slow_down, add_sinusoidal_noise=args.add_sinusoidal_noise)
+        except TypeError as e:
+            res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
+        except Exception as e:
+            cprint(f"Unhandled error in motion planning solution", "red")
+            cprint(f"Error: {e}", "red")
+            cprint(f"Traceback: {traceback.format_exc()}", "red")
+            exit(1)
+
 
         if res == -1:
             success = False
