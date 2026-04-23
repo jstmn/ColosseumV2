@@ -82,7 +82,6 @@ class BaseMotionPlanningSolver:
     def _transform_pose_for_planning(self, target: sapien.Pose) -> sapien.Pose:
         return target
 
-    def follow_path(self, result, refine_steps: int = 0):
         n_step = result["position"].shape[0]
         for i in range(n_step + refine_steps):
             qpos = result["position"][min(i, n_step - 1)]
