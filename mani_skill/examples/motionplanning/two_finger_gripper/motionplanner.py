@@ -90,7 +90,6 @@ class TwoFingerGripperMotionPlanningSolver(BaseMotionPlanningSolver):
         for idx, action in enumerate(actions):
             obs, reward, terminated, truncated, info = self.env.step(action)
             self.elapsed_steps += 1
-            print(f"{idx} {self.elapsed_steps}")
             if self.vis:
                 self.base_env.render_human()
         return obs, reward, terminated, truncated, info
