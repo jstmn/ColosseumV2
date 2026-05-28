@@ -25,17 +25,24 @@ from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import BatchSampler, RandomSampler
 from torch.utils.tensorboard import SummaryWriter
 
+from diffusion_policy.utils import load_demo_dataset
 from diffusion_policy.conditional_unet1d import ConditionalUnet1D
 from diffusion_policy.evaluate import evaluate
 from diffusion_policy.make_env import make_eval_envs
 from diffusion_policy.plain_conv import PlainConv
-from diffusion_policy.utils import (IterationBasedBatchSampler,
-                                    build_state_obs_extractor, convert_obs,
-                                    worker_init_fn)
+from diffusion_policy.utils import IterationBasedBatchSampler, build_state_obs_extractor, convert_obs, worker_init_fn
 
 
 @dataclass
 class Args:
+    env_id: str
+    """the id of the environment"""
+    demo_path: str
+    """the path of demo dataset, it is expected to be a ManiSkill dataset h5py format file"""
+    obs_mode: str
+    """The observation mode to use for the environment, which dictates what visual inputs to pass to the model. Can be "rgb", "depth", or "rgb+depth"."""
+    control_mode: str
+    """the control mode to use for the evaluation environments. Must match the control mode of the demonstration dataset."""
     exp_name: Optional[str] = None
     """the name of this experiment"""
     seed: int = 1
@@ -52,13 +59,6 @@ class Args:
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
-
-    env_id: str = "PegInsertionSide-v1"
-    """the id of the environment"""
-    demo_path: str = (
-        "demos/PegInsertionSide-v1/trajectory.state.pd_ee_delta_pose.physx_cpu.h5"
-    )
-    """the path of demo dataset, it is expected to be a ManiSkill dataset h5py format file"""
     num_demos: Optional[int] = None
     """number of trajectories to load from the demo dataset"""
     total_iters: int = 1_000_000
@@ -83,8 +83,6 @@ class Args:
     )
 
     # Environment/experiment specific arguments
-    obs_mode: str = "rgb+depth"
-    """The observation mode to use for the environment, which dictates what visual inputs to pass to the model. Can be "rgb", "depth", or "rgb+depth"."""
     max_episode_steps: Optional[int] = None
     """Change the environments' max_episode_steps to this value. Sometimes necessary if the demonstrations being imitated are too short. Typically the default
     max episode steps of environments in ManiSkill are tuned lower so reinforcement learning agents can learn faster."""
@@ -102,8 +100,12 @@ class Args:
     """the simulation backend to use for evaluation environments. can be "cpu" or "gpu"""
     num_dataload_workers: int = 0
     """the number of workers to use for loading the training data in the torch dataloader"""
-    control_mode: str = "pd_joint_delta_pos"
-    """the control mode to use for the evaluation environments. Must match the control mode of the demonstration dataset."""
+    included_cameras: str = ""
+    """optional comma-separated camera names with no spaces (e.g. external1_camera,hand_camera); empty means use all cameras"""
+    predict_actor_pose_names: List[str] = field(default_factory=list)
+    """actor names whose poses should also be predicted by the model"""
+    predict_ee_pose: bool = False
+    """if true, also predict end-effector pose"""
 
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None
@@ -120,11 +122,11 @@ def reorder_keys(d, ref_dict):
 
 
 class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
-    def __init__(self, data_path, obs_process_fn, obs_space, include_rgb, include_depth, device, num_traj):
+    def __init__(self, data_path, obs_process_fn, obs_space, include_rgb, include_depth, device, num_traj, actor_names_to_predict: List[str] | None, should_predict_ee_pose: bool):
         self.include_rgb = include_rgb
         self.include_depth = include_depth
-        from diffusion_policy.utils import load_demo_dataset
-        trajectories = load_demo_dataset(data_path, num_traj=num_traj, concat=False)
+        trajectories = load_demo_dataset(data_path, actor_names_to_predict=actor_names_to_predict, should_predict_ee_pose=should_predict_ee_pose, num_traj=num_traj, concat=False)
+    
         # trajectories['observations'] is a list of dict, each dict is a traj, with keys in obs_space, values with length L+1
         # trajectories['actions'] is a list of np.ndarray (L, act_dim)
         print("Raw trajectory loaded, beginning observation pre-processing...")
@@ -242,7 +244,14 @@ class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
 
 
 class Agent(nn.Module):
-    def __init__(self, env: VectorEnv, args: Args):
+    def __init__(
+        self,
+        env: VectorEnv,
+        args: Args,
+        obs_state_dim: int | None = None,
+        state_keep_indices: Optional[List[int]] = None,
+        full_obs_state_dim: Optional[int] = None,
+    ):
         super().__init__()
         self.obs_horizon = args.obs_horizon
         self.act_horizon = args.act_horizon
@@ -255,8 +264,17 @@ class Agent(nn.Module):
             env.single_action_space.low == -1
         ).all()
         # denoising results will be clipped to [-1,1], so the action should be in [-1,1] as well
-        self.act_dim = env.single_action_space.shape[0]
-        obs_state_dim = env.single_observation_space["state"].shape[1]
+        self.env_act_dim = env.single_action_space.shape[0]
+        self.pose_target_dim = 7 * len(args.predict_actor_pose_names) + (
+            7 if args.predict_ee_pose else 0
+        )
+        self.act_dim = self.env_act_dim + self.pose_target_dim
+        if obs_state_dim is None:
+            obs_state_dim = env.single_observation_space["state"].shape[1]
+        assert obs_state_dim is not None
+        self.obs_state_dim = obs_state_dim
+        self.state_keep_indices = state_keep_indices
+        self.full_obs_state_dim = full_obs_state_dim
         total_visual_channels = 0
         self.include_rgb = "rgb" in env.single_observation_space.keys()
         self.include_depth = "depth" in env.single_observation_space.keys()
@@ -302,8 +320,23 @@ class Agent(nn.Module):
         visual_feature = visual_feature.reshape(
             batch_size, self.obs_horizon, visual_feature.shape[1]
         )  # (B, obs_horizon, D)
+        state_obs = obs_seq["state"]
+        if state_obs.shape[-1] != self.obs_state_dim:
+            assert (
+                self.state_keep_indices is not None
+                and self.full_obs_state_dim is not None
+                and state_obs.shape[-1] == self.full_obs_state_dim
+            ), (
+                f"Unexpected state dim {state_obs.shape[-1]} (expected {self.obs_state_dim} "
+                f"or full dim {self.full_obs_state_dim})"
+            )
+            state_obs = state_obs.index_select(
+                dim=-1,
+                index=torch.as_tensor(self.state_keep_indices, device=state_obs.device),
+            )
+
         feature = torch.cat(
-            (visual_feature, obs_seq["state"]), dim=-1
+            (visual_feature, state_obs), dim=-1
         )  # (B, obs_horizon, D+obs_state_dim)
         return feature.flatten(start_dim=1)  # (B, obs_horizon * (D+obs_state_dim))
 
@@ -376,7 +409,7 @@ class Agent(nn.Module):
         # only take act_horizon number of actions
         start = self.obs_horizon - 1
         end = start + self.act_horizon
-        return noisy_action_seq[:, start:end]  # (B, act_horizon, act_dim)
+        return noisy_action_seq[:, start:end, : self.env_act_dim]  # (B, act_horizon, env_act_dim)
 
 
 def save_ckpt(run_name, tag):
@@ -393,6 +426,13 @@ def save_ckpt(run_name, tag):
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
+
+    included_cameras = None
+    if args.included_cameras:
+        assert " " not in args.included_cameras, (
+            "--included-cameras should be comma-separated with no spaces, e.g. external1_camera,hand_camera"
+        )
+        included_cameras = [cam for cam in args.included_cameras.split(",") if cam]
 
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]
@@ -431,7 +471,9 @@ if __name__ == "__main__":
         reward_mode="sparse",
         obs_mode=args.obs_mode,
         render_mode="rgb_array",
-        human_render_camera_configs=dict(shader_pack="default")
+        human_render_camera_configs=dict(shader_pack="default"),
+        _env_id=args.env_id,
+        included_cameras=included_cameras,
     )
     assert args.max_episode_steps != None, "max_episode_steps must be specified as imitation learning algorithms task solve speed is dependent on the data you train on"
     env_kwargs["max_episode_steps"] = args.max_episode_steps
@@ -467,6 +509,7 @@ if __name__ == "__main__":
         % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
+
     obs_process_fn = partial(
         convert_obs,
         concat_fn=partial(np.concatenate, axis=-1),
@@ -474,7 +517,8 @@ if __name__ == "__main__":
             np.transpose, axes=(0, 3, 1, 2)
         ),  # (B, H, W, C) -> (B, C, H, W)
         state_obs_extractor=build_state_obs_extractor(args.env_id),
-        depth = "rgbd" in args.demo_path
+        depth="rgbd" in args.demo_path,
+        included_cameras=included_cameras,
     )
 
     # create temporary env to get original observation space as AsyncVectorEnv (CPU parallelization) doesn't permit that
@@ -483,6 +527,20 @@ if __name__ == "__main__":
     # determine whether the env will return rgb and/or depth data
     include_rgb = tmp_env.unwrapped.obs_mode_struct.visual.rgb
     include_depth = tmp_env.unwrapped.obs_mode_struct.visual.depth
+    # Build a mapping from full env flattened state dims to filtered state dims
+    # (filtered dims are what convert_obs keeps after removing 4x4 values).
+    state_keep_indices = []
+    full_obs_state_dim = 0
+    for state_component in build_state_obs_extractor(args.env_id)(tmp_env.unwrapped._init_raw_obs):
+        component = np.asarray(state_component)
+        if component.ndim >= 2:
+            feature_dim = int(np.prod(component.shape[1:]))
+        else:
+            feature_dim = int(np.prod(component.shape))
+        is_four_by_four = component.ndim >= 2 and component.shape[-2:] == (4, 4)
+        if not is_four_by_four:
+            state_keep_indices.extend(range(full_obs_state_dim, full_obs_state_dim + feature_dim))
+        full_obs_state_dim += feature_dim
     tmp_env.close()
 
     dataset = SmallDemoDataset_DiffusionPolicy(
@@ -492,7 +550,9 @@ if __name__ == "__main__":
         include_rgb=include_rgb,
         include_depth=include_depth,
         device=device,
-        num_traj=args.num_demos
+        num_traj=args.num_demos,
+        actor_names_to_predict=args.predict_actor_pose_names,
+        should_predict_ee_pose=args.predict_ee_pose,
     )
     sampler = RandomSampler(dataset, replacement=False)
     batch_sampler = BatchSampler(sampler, batch_size=args.batch_size, drop_last=True)
@@ -505,7 +565,15 @@ if __name__ == "__main__":
         persistent_workers=(args.num_dataload_workers > 0),
     )
 
-    agent = Agent(envs, args).to(device)
+    dataset_obs_state_dim = dataset.trajectories["observations"][0]["state"].shape[-1]
+
+    agent = Agent(
+        envs,
+        args,
+        obs_state_dim=dataset_obs_state_dim,
+        state_keep_indices=state_keep_indices,
+        full_obs_state_dim=full_obs_state_dim,
+    ).to(device)
 
     optimizer = optim.AdamW(
         params=agent.parameters(), lr=args.lr, betas=(0.95, 0.999), weight_decay=1e-6
@@ -523,7 +591,13 @@ if __name__ == "__main__":
     # accelerates training and improves stability
     # holds a copy of the model weights
     ema = EMAModel(parameters=agent.parameters(), power=0.75)
-    ema_agent = Agent(envs, args).to(device)
+    ema_agent = Agent(
+        envs,
+        args,
+        obs_state_dim=dataset_obs_state_dim,
+        state_keep_indices=state_keep_indices,
+        full_obs_state_dim=full_obs_state_dim,
+    ).to(device)
 
     best_eval_metrics = defaultdict(float)
     timings = defaultdict(float)

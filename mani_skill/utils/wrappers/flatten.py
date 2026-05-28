@@ -53,6 +53,8 @@ class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
                 depth_images.append(cam_data["depth"])
 
         if len(rgb_images) > 0:
+            img_dims = [rgb.shape for rgb in rgb_images]
+            assert all(img_dim == img_dims[0] for img_dim in img_dims), f"All RGB images must have the same shape, got: {img_dims}"
             rgb_images = torch.concat(rgb_images, axis=-1)
         if len(depth_images) > 0:
             depth_images = torch.concat(depth_images, axis=-1)

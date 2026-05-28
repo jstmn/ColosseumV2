@@ -96,10 +96,104 @@ def load_traj_hdf5(path, num_traj=None):
 
 
 def load_demo_dataset(
-    path, keys=["observations", "actions"], num_traj=None, concat=True
+    path, actor_names_to_predict: list[str] | None, should_predict_ee_pose: bool, keys=["observations", "actions"], num_traj=None, concat=True
 ):
+    """
+
+    From the docs (https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/custom_tasks/advanced.html#custom-extra-state):
+    
+    "Actor state is a flat 13 dimensional composed of 3D position, 4D quaternion, 3D linear velocity, and 3D angular velocity"
+
+    Trajectory structure:
+    /traj_8                  Group
+    /traj_8/actions          Dataset {79, 8}
+    /traj_8/env_states       Group
+    /traj_8/env_states/actors Group
+    /traj_8/env_states/actors/cube Dataset {80, 13}
+    /traj_8/env_states/actors/table Dataset {80, 13}
+    /traj_8/env_states/articulations Group
+    /traj_8/env_states/articulations/panda_wristcam Dataset {80, 31}
+    /traj_8/obs              Group
+    /traj_8/obs/agent        Group
+    /traj_8/obs/agent/qpos   Dataset {80, 9}
+    /traj_8/obs/agent/qvel   Dataset {80, 9}
+    /traj_8/obs/agent/world__T__ee Dataset {80, 4, 4}
+    /traj_8/obs/agent/world__T__root Dataset {80, 4, 4}
+    /traj_8/obs/extra        Group
+    /traj_8/obs/extra/tcp_pose Dataset {80, 7}
+    /traj_8/obs/sensor_data  Group
+    /traj_8/obs/sensor_data/external1_camera Group
+    /traj_8/obs/sensor_data/external1_camera/rgb Dataset {80, 224, 224, 3}
+    /traj_8/obs/sensor_data/external2_camera Group
+    /traj_8/obs/sensor_data/external2_camera/rgb Dataset {80, 224, 224, 3}
+    /traj_8/obs/sensor_data/hand_camera Group
+    /traj_8/obs/sensor_data/hand_camera/rgb Dataset {80, 128, 128, 3}
+    /traj_8/obs/sensor_param Group
+    /traj_8/obs/sensor_param/external1_camera Group
+    /traj_8/obs/sensor_param/external1_camera/cam2world_gl Dataset {80, 4, 4}
+    /traj_8/obs/sensor_param/external1_camera/extrinsic_cv Dataset {80, 3, 4}
+    /traj_8/obs/sensor_param/external1_camera/intrinsic_cv Dataset {80, 3, 3}
+    /traj_8/obs/sensor_param/external2_camera Group
+    /traj_8/obs/sensor_param/external2_camera/cam2world_gl Dataset {80, 4, 4}
+    /traj_8/obs/sensor_param/external2_camera/extrinsic_cv Dataset {80, 3, 4}
+    /traj_8/obs/sensor_param/external2_camera/intrinsic_cv Dataset {80, 3, 3}
+    /traj_8/obs/sensor_param/hand_camera Group
+    /traj_8/obs/sensor_param/hand_camera/cam2world_gl Dataset {80, 4, 4}
+    /traj_8/obs/sensor_param/hand_camera/extrinsic_cv Dataset {80, 3, 4}
+    /traj_8/obs/sensor_param/hand_camera/intrinsic_cv Dataset {80, 3, 3}
+    /traj_8/success          Dataset {79}
+    /traj_8/terminated       Dataset {79}
+    /traj_8/truncated        Dataset {79}
+    """
     # assert num_traj is None
     raw_data = load_traj_hdf5(path, num_traj)
+    actor_names_to_predict = actor_names_to_predict or []
+
+    if "actions" in keys and (actor_names_to_predict or should_predict_ee_pose):
+        for traj_name, traj_data in raw_data.items():
+            action_seq = traj_data["actions"]
+            action_len = action_seq.shape[0]
+            pose_targets = []
+
+            for actor_name in actor_names_to_predict:
+                actor_states = traj_data["env_states"]["actors"].get(actor_name, None)
+                assert actor_states is not None, (
+                    f"Actor '{actor_name}' not found in {traj_name}. "
+                    f"Available actors: {list(traj_data['env_states']['actors'].keys())}"
+                )
+                assert actor_states.shape[-1] == 13, (
+                    f"Actor state for '{actor_name}' in {traj_name} should be 13, got shape {actor_states.shape}"
+                )
+                actor_pose = actor_states[:, :7]
+                if actor_pose.shape[0] == action_len + 1:
+                    actor_pose = actor_pose[:-1]
+                else:
+                    assert actor_pose.shape[0] == action_len, (
+                        f"Unexpected actor pose horizon for '{actor_name}' in {traj_name}. "
+                        f"Expected {action_len} or {action_len + 1}, got {actor_pose.shape[0]}"
+                    )
+                pose_targets.append(actor_pose.astype(np.float32, copy=False))
+
+            if should_predict_ee_pose:
+                ee_pose = traj_data["obs"]["extra"]["tcp_pose"]
+                if ee_pose.shape[0] == action_len + 1:
+                    ee_pose = ee_pose[:-1]
+                else:
+                    assert ee_pose.shape[0] == action_len, (
+                        f"Unexpected tcp_pose horizon for {traj_name}. "
+                        f"Expected {action_len} or {action_len + 1}, got {ee_pose.shape[0]}"
+                    )
+                pose_targets.append(ee_pose.astype(np.float32, copy=False))
+
+            if pose_targets:
+                pose_targets_np = np.concatenate(pose_targets, axis=-1)
+                traj_data["actions"] = np.concatenate(
+                    [action_seq, pose_targets_np.astype(action_seq.dtype, copy=False)], axis=-1
+                )
+                print(
+                    f"Augmented actions for {traj_name}: {action_seq.shape[-1]} -> "
+                    f"{traj_data['actions'].shape[-1]} dims"
+                )
     # raw_data has keys like: ['traj_0', 'traj_1', ...]
     # raw_data['traj_0'] has keys like: ['actions', 'dones', 'env_states', 'infos', ...]
     _traj = raw_data["traj_0"]
@@ -139,8 +233,22 @@ def load_demo_dataset(
     return dataset
 
 
-def convert_obs(obs, concat_fn, transpose_fn, state_obs_extractor, depth = True):
+def convert_obs(
+    obs,
+    concat_fn,
+    transpose_fn,
+    state_obs_extractor,
+    depth=True,
+    included_cameras: list[str] | None = None,
+):
     img_dict = obs["sensor_data"]
+    if included_cameras:
+        missing_cameras = [cam for cam in included_cameras if cam not in img_dict]
+        assert not missing_cameras, (
+            f"Requested cameras not found in observation: {missing_cameras}. "
+            f"Available cameras: {list(img_dict.keys())}"
+        )
+        img_dict = {cam: img_dict[cam] for cam in included_cameras}
     ls = ["rgb"]
     if depth:
         ls = ["rgb", "depth"]
@@ -154,21 +262,34 @@ def convert_obs(obs, concat_fn, transpose_fn, state_obs_extractor, depth = True)
     if "depth" in new_img_dict and isinstance(new_img_dict['depth'], torch.Tensor): # MS2 vec env uses float16, but gym AsyncVecEnv uses float32
         new_img_dict['depth'] = new_img_dict['depth'].to(torch.float16)
 
-    # Unified version
-    states_to_stack = state_obs_extractor(obs)
-    for j in range(len(states_to_stack)):
-        if states_to_stack[j].dtype == np.float64:
-            states_to_stack[j] = states_to_stack[j].astype(np.float32)
-    try:
-        state = np.hstack(states_to_stack)
-    except:  # dirty fix for concat trajectory of states
-        state = np.column_stack(states_to_stack)
-    if state.dtype == np.float64:
-        for x in states_to_stack:
-            print(x.shape, x.dtype)
-        import pdb
+    # Remove all 4x4 transform-like values from state inputs entirely.
+    keys_to_remove = []
+    for group_name in ("agent", "extra"):
+        if group_name in obs and isinstance(obs[group_name], dict):
+            for key, value in obs[group_name].items():
+                value = np.asarray(value)
+                if value.ndim >= 2 and value.shape[-2:] == (4, 4):
+                    keys_to_remove.append((group_name, key))
+    if keys_to_remove:
+        obs = dict(obs)
+        for group_name in ("agent", "extra"):
+            if group_name in obs and isinstance(obs[group_name], dict):
+                obs[group_name] = dict(obs[group_name])
+        for group_name, key in keys_to_remove:
+            obs[group_name].pop(key, None)
 
-        pdb.set_trace()
+    # Unified version
+    # Flatten each state component over feature axes for robust concatenation.
+    states_to_stack = state_obs_extractor(obs)
+    processed_states = []
+    for x in states_to_stack:
+        x = np.asarray(x)
+        if x.dtype == np.float64:
+            x = x.astype(np.float32)
+        if x.ndim > 1:
+            x = x.reshape(x.shape[0], -1)
+        processed_states.append(x)
+    state = np.concatenate(processed_states, axis=-1)
 
     out_dict = {
         "state": state,

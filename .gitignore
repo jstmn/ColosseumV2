@@ -58,3 +58,5 @@ thirdparty/
 
 slurm-*
 sbatch_*
+
+wandb/
