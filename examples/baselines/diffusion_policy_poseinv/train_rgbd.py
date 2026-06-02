@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import partial
 from typing import List, Optional
+import wandb
 
 import gymnasium as gym
 from gymnasium.vector.vector_env import VectorEnv
@@ -19,6 +20,7 @@ from diffusers.optimization import get_scheduler
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 from gymnasium import spaces
+from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
 from mani_skill.utils.wrappers.flatten import FlattenRGBDObservationWrapper
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
@@ -43,6 +45,8 @@ class Args:
     """The observation mode to use for the environment, which dictates what visual inputs to pass to the model. Can be "rgb", "depth", or "rgb+depth"."""
     control_mode: str
     """the control mode to use for the evaluation environments. Must match the control mode of the demonstration dataset."""
+    wandb_project_name: str
+    """the wandb's project name"""
     exp_name: Optional[str] = None
     """the name of this experiment"""
     seed: int = 1
@@ -53,8 +57,6 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "ManiSkill"
-    """the wandb's project name"""
     wandb_entity: Optional[str] = None
     """the entity (team) of wandb's project"""
     capture_video: bool = True
@@ -465,10 +467,19 @@ if __name__ == "__main__":
         video_dir=f"runs/{run_name}/videos" if args.capture_video else None,
         wrappers=[FlattenRGBDObservationWrapper],
     )
+    env_kwargs_pose_perturbation = dict(env_kwargs)
+    env_kwargs_pose_perturbation["distraction_set"] = DISTRACTION_SETS["POSE_RANDOMIZATION"]
+    envs_pose_perturbation = make_eval_envs(
+        args.env_id,
+        args.num_eval_envs,
+        args.sim_backend,
+        env_kwargs_pose_perturbation,
+        other_kwargs,
+        video_dir=f"runs/{run_name}/videos_pose_perturbation" if args.capture_video else None,
+        wrappers=[FlattenRGBDObservationWrapper],
+    )
 
     if args.track:
-        import wandb
-
         config = vars(args)
         config["eval_env_cfg"] = dict(
             **env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps
@@ -483,6 +494,8 @@ if __name__ == "__main__":
             group="DiffusionPolicy",
             tags=["diffusion_policy"],
         )
+        # Log something so that the run is populated in the wandb dashboard
+        wandb.log({"t_start_training": time.time()})
     writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
         "hyperparameters",
@@ -579,24 +592,37 @@ if __name__ == "__main__":
 
     # define evaluation and logging functions
     def evaluate_and_save_best(iteration):
-        if iteration % args.eval_freq == 0:
-            last_tick = time.time()
-            ema.copy_to(ema_agent.parameters())
-            eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, device, args.sim_backend)
-            timings["eval"] += time.time() - last_tick
+        if iteration % args.eval_freq != 0:
+            return
+        last_tick = time.time()
+        ema.copy_to(ema_agent.parameters())
+        eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, device, args.sim_backend)
+        timings["eval"] += time.time() - last_tick
 
-            print(f"Evaluated {len(eval_metrics['success_at_end'])} episodes")
-            for k in eval_metrics.keys():
-                eval_metrics[k] = np.mean(eval_metrics[k])
-                writer.add_scalar(f"eval/{k}", eval_metrics[k], iteration)
-                print(f"{k}: {eval_metrics[k]:.4f}")
+        print(f"Evaluated {len(eval_metrics['success_at_end'])} episodes")
+        for k in eval_metrics.keys():
+            eval_metrics[k] = np.mean(eval_metrics[k])
+            writer.add_scalar(f"eval/{k}", eval_metrics[k], iteration)
+            print(f"{k}: {eval_metrics[k]:.4f}")
 
-            save_on_best_metrics = ["success_once", "success_at_end"]
-            for k in save_on_best_metrics:
-                if k in eval_metrics and eval_metrics[k] > best_eval_metrics[k]:
-                    best_eval_metrics[k] = eval_metrics[k]
-                    save_ckpt(run_name, f"best_eval_{k}")
-                    print(f"New best {k}_rate: {eval_metrics[k]:.4f}. Saving checkpoint.")
+
+        eval_metrics_pose_perturbation = evaluate(args.num_eval_episodes, ema_agent, envs_pose_perturbation, device, args.sim_backend)
+        timings["eval_pose_perturbation"] += time.time() - last_tick
+
+        print(f"Evaluated {len(eval_metrics_pose_perturbation['success_at_end'])} episodes")
+        for k in eval_metrics_pose_perturbation.keys():
+            eval_metrics_pose_perturbation[k] = np.mean(eval_metrics_pose_perturbation[k])
+            writer.add_scalar(f"eval_pose_perturbation/{k}", eval_metrics_pose_perturbation[k], iteration)
+            delta_from_base = eval_metrics_pose_perturbation[k] - eval_metrics[k]
+            writer.add_scalar(f"eval_pose_perturbation/{k}__delta", delta_from_base, iteration)
+            print(f"{k}: {eval_metrics_pose_perturbation[k]:.4f}")
+
+        save_on_best_metrics = ["success_once", "success_at_end"]
+        for k in save_on_best_metrics:
+            if k in eval_metrics and eval_metrics[k] > best_eval_metrics[k]:
+                best_eval_metrics[k] = eval_metrics[k]
+                save_ckpt(run_name, f"best_eval_{k}")
+                print(f"New best {k}_rate: {eval_metrics[k]:.4f}. Saving checkpoint.")
 
     def log_metrics(iteration):
         if iteration % args.log_freq == 0:

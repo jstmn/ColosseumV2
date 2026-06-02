@@ -101,8 +101,9 @@ python examples/baselines/diffusion_policy_poseinv/train_rgbd.py \
     --included-cameras ${INCLUDED_CAMERAS} \
     --log-freq 1000 \
     --eval-freq 5000 \
+    --wandb-project-name "ManiSkill-PoseInv" \
     --num-eval-episodes 100 \
-    --num-eval-envs 10 \
+    --num-eval-envs 20 \
     --max-episode-steps 100 \
     --track \
     --control-mode pd_ee_delta_pose \
