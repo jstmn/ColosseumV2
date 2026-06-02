@@ -75,12 +75,8 @@ class Args:
         16  # 16->8 leads to worse performance, maybe it is like generate a half image; 16->32, improvement is very marginal
     )
     diffusion_step_embed_dim: int = 64  # not very important
-    unet_dims: List[int] = field(
-        default_factory=lambda: [64, 128, 256]
-    )  # default setting is about ~4.5M params
-    n_groups: int = (
-        8  # jigu says it is better to let each group have at least 8 channels; it seems 4 and 8 are simila
-    )
+    unet_dims: List[int] = field(default_factory=lambda: [64, 128, 256])  # default setting is about ~4.5M params
+    n_groups: int = 8  # jigu says it is better to let each group have at least 8 channels; it seems 4 and 8 are simila
 
     # Environment/experiment specific arguments
     max_episode_steps: Optional[int] = None
@@ -122,11 +118,28 @@ def reorder_keys(d, ref_dict):
 
 
 class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
-    def __init__(self, data_path, obs_process_fn, obs_space, include_rgb, include_depth, device, num_traj, actor_names_to_predict: List[str] | None, should_predict_ee_pose: bool):
+    def __init__(
+        self,
+        data_path,
+        obs_process_fn,
+        obs_space,
+        include_rgb,
+        include_depth,
+        device,
+        num_traj,
+        actor_names_to_predict: List[str] | None,
+        should_predict_ee_pose: bool,
+    ):
         self.include_rgb = include_rgb
         self.include_depth = include_depth
-        trajectories = load_demo_dataset(data_path, actor_names_to_predict=actor_names_to_predict, should_predict_ee_pose=should_predict_ee_pose, num_traj=num_traj, concat=False)
-    
+        trajectories = load_demo_dataset(
+            data_path,
+            actor_names_to_predict=actor_names_to_predict,
+            should_predict_ee_pose=should_predict_ee_pose,
+            num_traj=num_traj,
+            concat=False,
+        )
+
         # trajectories['observations'] is a list of dict, each dict is a traj, with keys in obs_space, values with length L+1
         # trajectories['actions'] is a list of np.ndarray (L, act_dim)
         print("Raw trajectory loaded, beginning observation pre-processing...")
@@ -139,37 +152,26 @@ class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
             )  # key order in demo is different from key order in env obs
             _obs_traj_dict = obs_process_fn(_obs_traj_dict)
             if self.include_depth:
-                _obs_traj_dict["depth"] = torch.Tensor(
-                    _obs_traj_dict["depth"].astype(np.float32)
-                ).to(device=device, dtype=torch.float16)
+                _obs_traj_dict["depth"] = torch.Tensor(_obs_traj_dict["depth"].astype(np.float32)).to(
+                    device=device, dtype=torch.float16
+                )
             if self.include_rgb:
-                _obs_traj_dict["rgb"] = torch.from_numpy(_obs_traj_dict["rgb"]).to(
-                    device
-                )  # still uint8
-            _obs_traj_dict["state"] = torch.from_numpy(_obs_traj_dict["state"]).to(
-                device
-            )
+                _obs_traj_dict["rgb"] = torch.from_numpy(_obs_traj_dict["rgb"]).to(device)  # still uint8
+            _obs_traj_dict["state"] = torch.from_numpy(_obs_traj_dict["state"]).to(device)
             obs_traj_dict_list.append(_obs_traj_dict)
         trajectories["observations"] = obs_traj_dict_list
         self.obs_keys = list(_obs_traj_dict.keys())
         # Pre-process the actions
         for i in range(len(trajectories["actions"])):
-            trajectories["actions"][i] = torch.Tensor(trajectories["actions"][i]).to(
-                device=device
-            )
-        print(
-            "Obs/action pre-processing is done, start to pre-compute the slice indices..."
-        )
+            trajectories["actions"][i] = torch.Tensor(trajectories["actions"][i]).to(device=device)
+        print("Obs/action pre-processing is done, start to pre-compute the slice indices...")
 
         # Pre-compute all possible (traj_idx, start, end) tuples, this is very specific to Diffusion Policy
-        if (
-            "delta_pos" in args.control_mode
-            or args.control_mode == "base_pd_joint_vel_arm_pd_joint_vel"
-        ):
-            print("Detected a delta controller type, padding with a zero action to ensure the arm stays still after solving tasks.")
-            self.pad_action_arm = torch.zeros(
-                (trajectories["actions"][0].shape[1] - 1,), device=device
+        if "delta_pos" in args.control_mode or args.control_mode == "base_pd_joint_vel_arm_pd_joint_vel":
+            print(
+                "Detected a delta controller type, padding with a zero action to ensure the arm stays still after solving tasks."
             )
+            self.pad_action_arm = torch.zeros((trajectories["actions"][0].shape[1] - 1,), device=device)
             # to make the arm stay still, we pad the action with 0 in 'delta_pos' control mode
             # gripper action needs to be copied from the last action
         else:
@@ -197,13 +199,10 @@ class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
             # Pad after the trajectory, so all the observations are utilized in training
             # Note that in the original code, pad_after = act_horizon - 1, but I think this is not the best choice
             self.slices += [
-                (traj_idx, start, start + pred_horizon)
-                for start in range(-pad_before, L - pred_horizon + pad_after)
+                (traj_idx, start, start + pred_horizon) for start in range(-pad_before, L - pred_horizon + pad_after)
             ]  # slice indices follow convention [start, end)
 
-        print(
-            f"Total transitions: {total_transitions}, Total obs sequences: {len(self.slices)}"
-        )
+        print(f"Total transitions: {total_transitions}, Total obs sequences: {len(self.slices)}")
 
         self.trajectories = trajectories
 
@@ -214,9 +213,7 @@ class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
         obs_traj = self.trajectories["observations"][traj_idx]
         obs_seq = {}
         for k, v in obs_traj.items():
-            obs_seq[k] = v[
-                max(0, start) : start + self.obs_horizon
-            ]  # start+self.obs_horizon is at least 1
+            obs_seq[k] = v[max(0, start) : start + self.obs_horizon]  # start+self.obs_horizon is at least 1
             if start < 0:  # pad before the trajectory
                 pad_obs_seq = torch.stack([obs_seq[k][0]] * abs(start), dim=0)
                 obs_seq[k] = torch.cat((pad_obs_seq, obs_seq[k]), dim=0)
@@ -230,10 +227,7 @@ class SmallDemoDataset_DiffusionPolicy(Dataset):  # Load everything into memory
             pad_action = torch.cat((self.pad_action_arm, gripper_action[None]), dim=0)
             act_seq = torch.cat([act_seq, pad_action.repeat(end - L, 1)], dim=0)
             # making the robot (arm and gripper) stay still
-        assert (
-            obs_seq["state"].shape[0] == self.obs_horizon
-            and act_seq.shape[0] == self.pred_horizon
-        )
+        assert obs_seq["state"].shape[0] == self.obs_horizon and act_seq.shape[0] == self.pred_horizon
         return {
             "observations": obs_seq,
             "actions": act_seq,
@@ -256,18 +250,12 @@ class Agent(nn.Module):
         self.obs_horizon = args.obs_horizon
         self.act_horizon = args.act_horizon
         self.pred_horizon = args.pred_horizon
-        assert (
-            len(env.single_observation_space["state"].shape) == 2
-        )  # (obs_horizon, obs_dim)
+        assert len(env.single_observation_space["state"].shape) == 2  # (obs_horizon, obs_dim)
         assert len(env.single_action_space.shape) == 1  # (act_dim, )
-        assert (env.single_action_space.high == 1).all() and (
-            env.single_action_space.low == -1
-        ).all()
+        assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
         # denoising results will be clipped to [-1,1], so the action should be in [-1,1] as well
         self.env_act_dim = env.single_action_space.shape[0]
-        self.pose_target_dim = 7 * len(args.predict_actor_pose_names) + (
-            7 if args.predict_ee_pose else 0
-        )
+        self.pose_target_dim = 7 * len(args.predict_actor_pose_names) + (7 if args.predict_ee_pose else 0)
         self.act_dim = self.env_act_dim + self.pose_target_dim
         if obs_state_dim is None:
             obs_state_dim = env.single_observation_space["state"].shape[1]
@@ -335,35 +323,27 @@ class Agent(nn.Module):
                 index=torch.as_tensor(self.state_keep_indices, device=state_obs.device),
             )
 
-        feature = torch.cat(
-            (visual_feature, state_obs), dim=-1
-        )  # (B, obs_horizon, D+obs_state_dim)
+        feature = torch.cat((visual_feature, state_obs), dim=-1)  # (B, obs_horizon, D+obs_state_dim)
         return feature.flatten(start_dim=1)  # (B, obs_horizon * (D+obs_state_dim))
 
     def compute_loss(self, obs_seq, action_seq):
         B = obs_seq["state"].shape[0]
 
         # observation as FiLM conditioning
-        obs_cond = self.encode_obs(
-            obs_seq, eval_mode=False
-        )  # (B, obs_horizon * obs_dim)
+        obs_cond = self.encode_obs(obs_seq, eval_mode=False)  # (B, obs_horizon * obs_dim)
 
         # sample noise to add to actions
         noise = torch.randn((B, self.pred_horizon, self.act_dim), device=device)
 
         # sample a diffusion iteration for each data point
-        timesteps = torch.randint(
-            0, self.noise_scheduler.config.num_train_timesteps, (B,), device=device
-        ).long()
+        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (B,), device=device).long()
 
         # add noise to the clean images(actions) according to the noise magnitude at each diffusion iteration
         # (this is the forward diffusion process)
         noisy_action_seq = self.noise_scheduler.add_noise(action_seq, noise, timesteps)
 
         # predict the noise residual
-        noise_pred = self.noise_pred_net(
-            noisy_action_seq, timesteps, global_cond=obs_cond
-        )
+        noise_pred = self.noise_pred_net(noisy_action_seq, timesteps, global_cond=obs_cond)
 
         return F.mse_loss(noise_pred, noise)
 
@@ -382,14 +362,10 @@ class Agent(nn.Module):
             if self.include_depth:
                 obs_seq["depth"] = obs_seq["depth"].permute(0, 1, 4, 2, 3)
 
-            obs_cond = self.encode_obs(
-                obs_seq, eval_mode=True
-            )  # (B, obs_horizon * obs_dim)
+            obs_cond = self.encode_obs(obs_seq, eval_mode=True)  # (B, obs_horizon * obs_dim)
 
             # initialize action from Guassian noise
-            noisy_action_seq = torch.randn(
-                (B, self.pred_horizon, self.act_dim), device=obs_seq["state"].device
-            )
+            noisy_action_seq = torch.randn((B, self.pred_horizon, self.act_dim), device=obs_seq["state"].device)
 
             for k in self.noise_scheduler.timesteps:
                 # predict noise
@@ -429,9 +405,9 @@ if __name__ == "__main__":
 
     included_cameras = None
     if args.included_cameras:
-        assert " " not in args.included_cameras, (
-            "--included-cameras should be comma-separated with no spaces, e.g. external1_camera,hand_camera"
-        )
+        assert (
+            " " not in args.included_cameras
+        ), "--included-cameras should be comma-separated with no spaces, e.g. external1_camera,hand_camera"
         included_cameras = [cam for cam in args.included_cameras.split(",") if cam]
 
     if args.exp_name is None:
@@ -475,7 +451,9 @@ if __name__ == "__main__":
         _env_id=args.env_id,
         included_cameras=included_cameras,
     )
-    assert args.max_episode_steps != None, "max_episode_steps must be specified as imitation learning algorithms task solve speed is dependent on the data you train on"
+    assert (
+        args.max_episode_steps is not None
+    ), "max_episode_steps must be specified as imitation learning algorithms task solve speed is dependent on the data you train on"
     env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = dict(obs_horizon=args.obs_horizon)
     envs = make_eval_envs(
@@ -490,8 +468,11 @@ if __name__ == "__main__":
 
     if args.track:
         import wandb
+
         config = vars(args)
-        config["eval_env_cfg"] = dict(**env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps)
+        config["eval_env_cfg"] = dict(
+            **env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps
+        )
         wandb.init(
             project=args.wandb_project_name,
             entity=args.wandb_entity,
@@ -505,17 +486,13 @@ if __name__ == "__main__":
     writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
         "hyperparameters",
-        "|param|value|\n|-|-|\n%s"
-        % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
+        "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
-
 
     obs_process_fn = partial(
         convert_obs,
         concat_fn=partial(np.concatenate, axis=-1),
-        transpose_fn=partial(
-            np.transpose, axes=(0, 3, 1, 2)
-        ),  # (B, H, W, C) -> (B, C, H, W)
+        transpose_fn=partial(np.transpose, axes=(0, 3, 1, 2)),  # (B, H, W, C) -> (B, C, H, W)
         state_obs_extractor=build_state_obs_extractor(args.env_id),
         depth="rgbd" in args.demo_path,
         included_cameras=included_cameras,
@@ -575,9 +552,7 @@ if __name__ == "__main__":
         full_obs_state_dim=full_obs_state_dim,
     ).to(device)
 
-    optimizer = optim.AdamW(
-        params=agent.parameters(), lr=args.lr, betas=(0.95, 0.999), weight_decay=1e-6
-    )
+    optimizer = optim.AdamW(params=agent.parameters(), lr=args.lr, betas=(0.95, 0.999), weight_decay=1e-6)
 
     # Cosine LR schedule with linear warmup
     lr_scheduler = get_scheduler(
@@ -607,9 +582,7 @@ if __name__ == "__main__":
         if iteration % args.eval_freq == 0:
             last_tick = time.time()
             ema.copy_to(ema_agent.parameters())
-            eval_metrics = evaluate(
-                args.num_eval_episodes, ema_agent, envs, device, args.sim_backend
-            )
+            eval_metrics = evaluate(args.num_eval_episodes, ema_agent, envs, device, args.sim_backend)
             timings["eval"] += time.time() - last_tick
 
             print(f"Evaluated {len(eval_metrics['success_at_end'])} episodes")
@@ -623,14 +596,11 @@ if __name__ == "__main__":
                 if k in eval_metrics and eval_metrics[k] > best_eval_metrics[k]:
                     best_eval_metrics[k] = eval_metrics[k]
                     save_ckpt(run_name, f"best_eval_{k}")
-                    print(
-                        f"New best {k}_rate: {eval_metrics[k]:.4f}. Saving checkpoint."
-                    )
+                    print(f"New best {k}_rate: {eval_metrics[k]:.4f}. Saving checkpoint.")
+
     def log_metrics(iteration):
         if iteration % args.log_freq == 0:
-            writer.add_scalar(
-                "charts/learning_rate", optimizer.param_groups[0]["lr"], iteration
-            )
+            writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], iteration)
             writer.add_scalar("losses/total_loss", total_loss.item(), iteration)
             for k, v in timings.items():
                 writer.add_scalar(f"time/{k}", v, iteration)

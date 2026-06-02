@@ -1,28 +1,28 @@
-#@markdown ### **Network**
-#@markdown
-#@markdown Defines a 1D UNet architecture `ConditionalUnet1D`
-#@markdown as the noies prediction network
-#@markdown
-#@markdown Components
-#@markdown - `SinusoidalPosEmb` Positional encoding for the diffusion iteration k
-#@markdown - `Downsample1d` Strided convolution to reduce temporal resolution
-#@markdown - `Upsample1d` Transposed convolution to increase temporal resolution
-#@markdown - `Conv1dBlock` Conv1d --> GroupNorm --> Mish
-#@markdown - `ConditionalResidualBlock1D` Takes two inputs `x` and `cond`. \
-#@markdown `x` is passed through 2 `Conv1dBlock` stacked together with residual connection.
-#@markdown `cond` is applied to `x` with [FiLM](https://arxiv.org/abs/1709.07871) conditioning.
+# @markdown ### **Network**
+# @markdown
+# @markdown Defines a 1D UNet architecture `ConditionalUnet1D`
+# @markdown as the noies prediction network
+# @markdown
+# @markdown Components
+# @markdown - `SinusoidalPosEmb` Positional encoding for the diffusion iteration k
+# @markdown - `Downsample1d` Strided convolution to reduce temporal resolution
+# @markdown - `Upsample1d` Transposed convolution to increase temporal resolution
+# @markdown - `Conv1dBlock` Conv1d --> GroupNorm --> Mish
+# @markdown - `ConditionalResidualBlock1D` Takes two inputs `x` and `cond`. \
+# @markdown `x` is passed through 2 `Conv1dBlock` stacked together with residual connection.
+# @markdown `cond` is applied to `x` with [FiLM](https://arxiv.org/abs/1709.07871) conditioning.
 
 """
 Note: This is copied from the colab notebook.
 The main difference with the github repo code is in `class ConditionalUnet1D` -- this version makes some simplifications.
 """
 
-
 from typing import Union
 
 import torch
 import torch.nn as nn
 import math
+
 
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
@@ -47,6 +47,7 @@ class Downsample1d(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+
 class Upsample1d(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -55,10 +56,11 @@ class Upsample1d(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+
 class Conv1dBlock(nn.Module):
-    '''
-        Conv1d --> GroupNorm --> Mish
-    '''
+    """
+    Conv1d --> GroupNorm --> Mish
+    """
 
     def __init__(self, inp_channels, out_channels, kernel_size, n_groups=8):
         super().__init__()
@@ -74,48 +76,39 @@ class Conv1dBlock(nn.Module):
 
 
 class ConditionalResidualBlock1D(nn.Module):
-    def __init__(self,
-            in_channels,
-            out_channels,
-            cond_dim,
-            kernel_size=3,
-            n_groups=8):
+    def __init__(self, in_channels, out_channels, cond_dim, kernel_size=3, n_groups=8):
         super().__init__()
 
-        self.blocks = nn.ModuleList([
-            Conv1dBlock(in_channels, out_channels, kernel_size, n_groups=n_groups),
-            Conv1dBlock(out_channels, out_channels, kernel_size, n_groups=n_groups),
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                Conv1dBlock(in_channels, out_channels, kernel_size, n_groups=n_groups),
+                Conv1dBlock(out_channels, out_channels, kernel_size, n_groups=n_groups),
+            ]
+        )
 
         # FiLM modulation https://arxiv.org/abs/1709.07871
         # predicts per-channel scale and bias
         cond_channels = out_channels * 2
         self.out_channels = out_channels
-        self.cond_encoder = nn.Sequential(
-            nn.Mish(),
-            nn.Linear(cond_dim, cond_channels),
-            nn.Unflatten(-1, (-1, 1))
-        )
+        self.cond_encoder = nn.Sequential(nn.Mish(), nn.Linear(cond_dim, cond_channels), nn.Unflatten(-1, (-1, 1)))
 
         # make sure dimensions compatible
-        self.residual_conv = nn.Conv1d(in_channels, out_channels, 1) \
-            if in_channels != out_channels else nn.Identity()
+        self.residual_conv = nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels else nn.Identity()
 
     def forward(self, x, cond):
-        '''
-            x : [ batch_size x in_channels x horizon ]
-            cond : [ batch_size x cond_dim]
+        """
+        x : [ batch_size x in_channels x horizon ]
+        cond : [ batch_size x cond_dim]
 
-            returns:
-            out : [ batch_size x out_channels x horizon ]
-        '''
+        returns:
+        out : [ batch_size x out_channels x horizon ]
+        """
         out = self.blocks[0](x)
         embed = self.cond_encoder(cond)
 
-        embed = embed.reshape(
-            embed.shape[0], 2, self.out_channels, 1)
-        scale = embed[:,0,...]
-        bias = embed[:,1,...]
+        embed = embed.reshape(embed.shape[0], 2, self.out_channels, 1)
+        scale = embed[:, 0, ...]
+        bias = embed[:, 1, ...]
         out = scale * out + bias
 
         out = self.blocks[1](out)
@@ -124,14 +117,15 @@ class ConditionalResidualBlock1D(nn.Module):
 
 
 class ConditionalUnet1D(nn.Module):
-    def __init__(self,
+    def __init__(
+        self,
         input_dim,
         global_cond_dim,
         diffusion_step_embed_dim=256,
-        down_dims=[256,512,1024],
+        down_dims=[256, 512, 1024],
         kernel_size=5,
-        n_groups=8
-        ):
+        n_groups=8,
+    ):
         """
         input_dim: Dim of actions.
         global_cond_dim: Dim of global conditioning applied with FiLM
@@ -158,42 +152,50 @@ class ConditionalUnet1D(nn.Module):
 
         in_out = list(zip(all_dims[:-1], all_dims[1:]))
         mid_dim = all_dims[-1]
-        self.mid_modules = nn.ModuleList([
-            ConditionalResidualBlock1D(
-                mid_dim, mid_dim, cond_dim=cond_dim,
-                kernel_size=kernel_size, n_groups=n_groups
-            ),
-            ConditionalResidualBlock1D(
-                mid_dim, mid_dim, cond_dim=cond_dim,
-                kernel_size=kernel_size, n_groups=n_groups
-            ),
-        ])
+        self.mid_modules = nn.ModuleList(
+            [
+                ConditionalResidualBlock1D(
+                    mid_dim, mid_dim, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                ),
+                ConditionalResidualBlock1D(
+                    mid_dim, mid_dim, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                ),
+            ]
+        )
 
         down_modules = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(in_out):
             is_last = ind >= (len(in_out) - 1)
-            down_modules.append(nn.ModuleList([
-                ConditionalResidualBlock1D(
-                    dim_in, dim_out, cond_dim=cond_dim,
-                    kernel_size=kernel_size, n_groups=n_groups),
-                ConditionalResidualBlock1D(
-                    dim_out, dim_out, cond_dim=cond_dim,
-                    kernel_size=kernel_size, n_groups=n_groups),
-                Downsample1d(dim_out) if not is_last else nn.Identity()
-            ]))
+            down_modules.append(
+                nn.ModuleList(
+                    [
+                        ConditionalResidualBlock1D(
+                            dim_in, dim_out, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                        ),
+                        ConditionalResidualBlock1D(
+                            dim_out, dim_out, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                        ),
+                        Downsample1d(dim_out) if not is_last else nn.Identity(),
+                    ]
+                )
+            )
 
         up_modules = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
             is_last = ind >= (len(in_out) - 1)
-            up_modules.append(nn.ModuleList([
-                ConditionalResidualBlock1D(
-                    dim_out*2, dim_in, cond_dim=cond_dim,
-                    kernel_size=kernel_size, n_groups=n_groups),
-                ConditionalResidualBlock1D(
-                    dim_in, dim_in, cond_dim=cond_dim,
-                    kernel_size=kernel_size, n_groups=n_groups),
-                Upsample1d(dim_in) if not is_last else nn.Identity()
-            ]))
+            up_modules.append(
+                nn.ModuleList(
+                    [
+                        ConditionalResidualBlock1D(
+                            dim_out * 2, dim_in, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                        ),
+                        ConditionalResidualBlock1D(
+                            dim_in, dim_in, cond_dim=cond_dim, kernel_size=kernel_size, n_groups=n_groups
+                        ),
+                        Upsample1d(dim_in) if not is_last else nn.Identity(),
+                    ]
+                )
+            )
 
         final_conv = nn.Sequential(
             Conv1dBlock(start_dim, start_dim, kernel_size=kernel_size),
@@ -208,10 +210,7 @@ class ConditionalUnet1D(nn.Module):
         n_params = sum(p.numel() for p in self.parameters())
         print(f"number of parameters: {n_params / 1e6:.2f}M")
 
-    def forward(self,
-            sample: torch.Tensor,
-            timestep: Union[torch.Tensor, float, int],
-            global_cond=None):
+    def forward(self, sample: torch.Tensor, timestep: Union[torch.Tensor, float, int], global_cond=None):
         """
         x: (B,T,input_dim)
         timestep: (B,) or int, diffusion step
@@ -219,7 +218,7 @@ class ConditionalUnet1D(nn.Module):
         output: (B,T,input_dim)
         """
         # (B,T,C)
-        sample = sample.moveaxis(-1,-2)
+        sample = sample.moveaxis(-1, -2)
         # (B,C,T)
 
         # 1. time
@@ -235,9 +234,7 @@ class ConditionalUnet1D(nn.Module):
         global_feature = self.diffusion_step_encoder(timesteps)
 
         if global_cond is not None:
-            global_feature = torch.cat([
-                global_feature, global_cond
-            ], axis=-1)
+            global_feature = torch.cat([global_feature, global_cond], axis=-1)
 
         x = sample
         h = []
@@ -259,6 +256,6 @@ class ConditionalUnet1D(nn.Module):
         x = self.final_conv(x)
 
         # (B,C,T)
-        x = x.moveaxis(-1,-2)
+        x = x.moveaxis(-1, -2)
         # (B,T,C)
         return x

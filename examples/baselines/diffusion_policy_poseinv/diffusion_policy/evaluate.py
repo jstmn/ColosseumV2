@@ -4,6 +4,7 @@ import torch
 from tqdm import tqdm
 from mani_skill.utils import common
 
+
 def evaluate(n: int, agent, eval_envs, device, sim_backend: str, progress_bar: bool = True):
     agent.eval()
     if progress_bar:
@@ -23,7 +24,9 @@ def evaluate(n: int, agent, eval_envs, device, sim_backend: str, progress_bar: b
                     break
 
             if truncated.any():
-                assert truncated.all() == truncated.any(), "all episodes should truncate at the same time for fair evaluation with other algorithms"
+                assert (
+                    truncated.all() == truncated.any()
+                ), "all episodes should truncate at the same time for fair evaluation with other algorithms"
                 if isinstance(info["final_info"], dict):
                     for k, v in info["final_info"]["episode"].items():
                         eval_metrics[k].append(v.float().cpu().numpy())

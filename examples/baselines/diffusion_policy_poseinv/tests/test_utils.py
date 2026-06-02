@@ -1,15 +1,7 @@
-# pyright: reportMissingImports=false
 from pathlib import Path
-import sys
-
 import numpy as np
 import pytest
-
-h5py = pytest.importorskip("h5py")
-
-POSEINV_DIR = Path(__file__).resolve().parents[1]
-if str(POSEINV_DIR) not in sys.path:
-    sys.path.insert(0, str(POSEINV_DIR))
+import h5py
 
 from diffusion_policy.utils import load_demo_dataset
 

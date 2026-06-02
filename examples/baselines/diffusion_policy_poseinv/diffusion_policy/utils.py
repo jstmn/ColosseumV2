@@ -1,7 +1,5 @@
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from gymnasium import spaces
 from h5py import Dataset, File, Group
 from torch.utils.data.sampler import Sampler
@@ -96,12 +94,17 @@ def load_traj_hdf5(path, num_traj=None):
 
 
 def load_demo_dataset(
-    path, actor_names_to_predict: list[str] | None, should_predict_ee_pose: bool, keys=["observations", "actions"], num_traj=None, concat=True
+    path,
+    actor_names_to_predict: list[str] | None,
+    should_predict_ee_pose: bool,
+    keys=["observations", "actions"],
+    num_traj=None,
+    concat=True,
 ):
     """
 
     From the docs (https://maniskill.readthedocs.io/en/latest/user_guide/tutorials/custom_tasks/advanced.html#custom-extra-state):
-    
+
     "Actor state is a flat 13 dimensional composed of 3D position, 4D quaternion, 3D linear velocity, and 3D angular velocity"
 
     Trajectory structure:
@@ -161,9 +164,9 @@ def load_demo_dataset(
                     f"Actor '{actor_name}' not found in {traj_name}. "
                     f"Available actors: {list(traj_data['env_states']['actors'].keys())}"
                 )
-                assert actor_states.shape[-1] == 13, (
-                    f"Actor state for '{actor_name}' in {traj_name} should be 13, got shape {actor_states.shape}"
-                )
+                assert (
+                    actor_states.shape[-1] == 13
+                ), f"Actor state for '{actor_name}' in {traj_name} should be 13, got shape {actor_states.shape}"
                 actor_pose = actor_states[:, :7]
                 if actor_pose.shape[0] == action_len + 1:
                     actor_pose = actor_pose[:-1]
@@ -207,18 +210,14 @@ def load_demo_dataset(
         source_key = TARGET_KEY_TO_SOURCE_KEY[target_key]
         dataset[target_key] = [raw_data[idx][source_key] for idx in raw_data]
         if isinstance(dataset[target_key][0], np.ndarray) and concat:
-            if target_key in ["observations", "states"] and len(
-                dataset[target_key][0]
-            ) > len(raw_data["traj_0"]["actions"]):
-                dataset[target_key] = np.concatenate(
-                    [t[:-1] for t in dataset[target_key]], axis=0
-                )
-            elif target_key in ["next_observations", "next_states"] and len(
-                dataset[target_key][0]
-            ) > len(raw_data["traj_0"]["actions"]):
-                dataset[target_key] = np.concatenate(
-                    [t[1:] for t in dataset[target_key]], axis=0
-                )
+            if target_key in ["observations", "states"] and len(dataset[target_key][0]) > len(
+                raw_data["traj_0"]["actions"]
+            ):
+                dataset[target_key] = np.concatenate([t[:-1] for t in dataset[target_key]], axis=0)
+            elif target_key in ["next_observations", "next_states"] and len(dataset[target_key][0]) > len(
+                raw_data["traj_0"]["actions"]
+            ):
+                dataset[target_key] = np.concatenate([t[1:] for t in dataset[target_key]], axis=0)
             else:
                 dataset[target_key] = np.concatenate(dataset[target_key], axis=0)
 
@@ -254,13 +253,12 @@ def convert_obs(
         ls = ["rgb", "depth"]
 
     new_img_dict = {
-        key: transpose_fn(
-            concat_fn([v[key] for v in img_dict.values()])
-        )  # (C, H, W) or (B, C, H, W)
-        for key in ls
+        key: transpose_fn(concat_fn([v[key] for v in img_dict.values()])) for key in ls  # (C, H, W) or (B, C, H, W)
     }
-    if "depth" in new_img_dict and isinstance(new_img_dict['depth'], torch.Tensor): # MS2 vec env uses float16, but gym AsyncVecEnv uses float32
-        new_img_dict['depth'] = new_img_dict['depth'].to(torch.float16)
+    if "depth" in new_img_dict and isinstance(
+        new_img_dict["depth"], torch.Tensor
+    ):  # MS2 vec env uses float16, but gym AsyncVecEnv uses float32
+        new_img_dict["depth"] = new_img_dict["depth"].to(torch.float16)
 
     # Remove all 4x4 transform-like values from state inputs entirely.
     keys_to_remove = []
@@ -299,7 +297,6 @@ def convert_obs(
     if "depth" in new_img_dict:
         out_dict["depth"] = new_img_dict["depth"]
 
-
     return out_dict
 
 
@@ -316,13 +313,9 @@ def build_obs_space(env, depth_dtype, state_obs_extractor):
 
     return spaces.Dict(
         {
-            "state": spaces.Box(
-                -float("inf"), float("inf"), shape=(state_dim,), dtype=np.float32
-            ),
+            "state": spaces.Box(-float("inf"), float("inf"), shape=(state_dim,), dtype=np.float32),
             "rgb": spaces.Box(0, 255, shape=(n_images * 3, h, w), dtype=np.uint8),
-            "depth": spaces.Box(
-                -float("inf"), float("inf"), shape=(n_images, h, w), dtype=depth_dtype
-            ),
+            "depth": spaces.Box(-float("inf"), float("inf"), shape=(n_images, h, w), dtype=depth_dtype),
         }
     )
 

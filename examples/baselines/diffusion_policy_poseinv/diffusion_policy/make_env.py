@@ -1,9 +1,9 @@
 from typing import Optional
 import gymnasium as gym
-import mani_skill.envs
 from mani_skill.utils import gym_utils
 from mani_skill.utils.wrappers import CPUGymWrapper, FrameStack, RecordEpisode
 from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+
 
 def make_eval_envs(
     env_id,
@@ -28,9 +28,7 @@ def make_eval_envs(
     """
     if sim_backend == "physx_cpu":
 
-        def cpu_make_env(
-            env_id, seed, video_dir=None, env_kwargs=dict(), other_kwargs=dict()
-        ):
+        def cpu_make_env(env_id, seed, video_dir=None, env_kwargs=dict(), other_kwargs=dict()):
             def thunk():
                 env = gym.make(env_id, reconfiguration_freq=1, **env_kwargs)
                 for wrapper in wrappers:
@@ -53,9 +51,7 @@ def make_eval_envs(
             return thunk
 
         vector_cls = (
-            gym.vector.SyncVectorEnv
-            if num_envs == 1
-            else lambda x: gym.vector.AsyncVectorEnv(x, context="forkserver")
+            gym.vector.SyncVectorEnv if num_envs == 1 else lambda x: gym.vector.AsyncVectorEnv(x, context="forkserver")
         )
         env = vector_cls(
             [
@@ -70,13 +66,7 @@ def make_eval_envs(
             ]
         )
     else:
-        env = gym.make(
-            env_id,
-            num_envs=num_envs,
-            sim_backend=sim_backend,
-            reconfiguration_freq=1,
-            **env_kwargs
-        )
+        env = gym.make(env_id, num_envs=num_envs, sim_backend=sim_backend, reconfiguration_freq=1, **env_kwargs)
         max_episode_steps = gym_utils.find_max_episode_steps_value(env)
         for wrapper in wrappers:
             env = wrapper(env)
