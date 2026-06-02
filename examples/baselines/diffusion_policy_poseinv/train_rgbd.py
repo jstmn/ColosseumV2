@@ -435,6 +435,9 @@ if __name__ == "__main__":
             ), f"Control mode mismatched. Dataset has control mode {control_mode}, but args has control mode {args.control_mode}"
     assert args.obs_horizon + args.act_horizon - 1 <= args.pred_horizon
     assert args.obs_horizon >= 1 and args.act_horizon >= 1 and args.pred_horizon >= 1
+    assert (
+        args.max_episode_steps is not None
+    ), "max_episode_steps must be specified as imitation learning algorithms task solve speed is dependent on the data you train on"
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -453,11 +456,31 @@ if __name__ == "__main__":
         _env_id=args.env_id,
         included_cameras=included_cameras,
     )
-    assert (
-        args.max_episode_steps is not None
-    ), "max_episode_steps must be specified as imitation learning algorithms task solve speed is dependent on the data you train on"
     env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = dict(obs_horizon=args.obs_horizon)
+    if args.track:
+        config = vars(args)
+        config["eval_env_cfg"] = dict(
+            **env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps
+        )
+        wandb.init(
+            project=args.wandb_project_name,
+            entity=args.wandb_entity,
+            sync_tensorboard=True,
+            config=config,
+            name=run_name,
+            save_code=True,
+            group="DiffusionPolicy",
+            tags=["diffusion_policy"],
+        )
+        # Log something so that the run is populated in the wandb dashboard
+        wandb.log({"t_start_training": time.time()})
+
+        print("="*100, flush=True)
+        print(f"Wandb run: {wandb.run.name}", flush=True)
+        print("="*100, flush=True)
+
+    # Create envs
     envs = make_eval_envs(
         args.env_id,
         args.num_eval_envs,
@@ -479,23 +502,7 @@ if __name__ == "__main__":
         wrappers=[FlattenRGBDObservationWrapper],
     )
 
-    if args.track:
-        config = vars(args)
-        config["eval_env_cfg"] = dict(
-            **env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps
-        )
-        wandb.init(
-            project=args.wandb_project_name,
-            entity=args.wandb_entity,
-            sync_tensorboard=True,
-            config=config,
-            name=run_name,
-            save_code=True,
-            group="DiffusionPolicy",
-            tags=["diffusion_policy"],
-        )
-        # Log something so that the run is populated in the wandb dashboard
-        wandb.log({"t_start_training": time.time()})
+
     writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
         "hyperparameters",
