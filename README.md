@@ -21,12 +21,13 @@ NUM_TRAJ=100
 INCLUDED_CAMERAS="external1_camera,hand_camera_224"  # comma separated list of cameras
 OBS_MODE="rgb"
 TRAJ_NAME="trajectory__${INCLUDED_CAMERAS}__${OBS_MODE}__${NUM_TRAJ}"
+N_PROCS=6
 
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj ${NUM_TRAJ} \
     --distraction-set none \
-    --num-procs 7 \
+    --num-procs ${N_PROCS} \
     --obs-mode ${OBS_MODE} \
     --reward-mode "none" \
     --random-seed \
@@ -81,6 +82,7 @@ h5ls -r demos/${ENV_ID}/motionplanning/${TRAJ_NAME}.h5
 # Convert to ee_delta_pose with:
 python mani_skill/trajectory/replay_trajectory.py \
     --traj-path demos/${ENV_ID}/motionplanning/${TRAJ_NAME}.h5 \
+    --num-envs ${N_PROCS} \
     --obs-mode ${OBS_MODE} \
     --reward_mode "none" \
     --target_control_mode "pd_ee_delta_pose" \
@@ -103,7 +105,7 @@ python examples/baselines/diffusion_policy_poseinv/train_rgbd.py \
     --eval-freq 5000 \
     --wandb-project-name "ManiSkill-PoseInv" \
     --num-eval-episodes 100 \
-    --num-eval-envs 20 \
+    --num-eval-envs 10 \
     --max-episode-steps 100 \
     --track \
     --control-mode pd_ee_delta_pose \

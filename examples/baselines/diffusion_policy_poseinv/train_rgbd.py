@@ -257,7 +257,8 @@ class Agent(nn.Module):
         assert (env.single_action_space.high == 1).all() and (env.single_action_space.low == -1).all()
         # denoising results will be clipped to [-1,1], so the action should be in [-1,1] as well
         self.env_act_dim = env.single_action_space.shape[0]
-        self.pose_target_dim = 7 * len(args.predict_actor_pose_names) + (7 if args.predict_ee_pose else 0)
+        # Pose targets are converted from [xyz, quat(4)] to 9D [xyz, rot6d] in load_demo_dataset.
+        self.pose_target_dim = 9 * len(args.predict_actor_pose_names) + (9 if args.predict_ee_pose else 0)
         self.act_dim = self.env_act_dim + self.pose_target_dim
         if obs_state_dim is None:
             obs_state_dim = env.single_observation_space["state"].shape[1]
@@ -463,6 +464,13 @@ if __name__ == "__main__":
         config["eval_env_cfg"] = dict(
             **env_kwargs, num_envs=args.num_eval_envs, env_id=args.env_id, env_horizon=args.max_episode_steps
         )
+        config["pose_representation"] = "9dof"
+        print("\n" + "="*100, flush=True)
+        print("Config:", flush=True)
+        for k, v in config.items():
+            print(f"  {k}:\t{v}", flush=True)
+        print("="*100, flush=True, end="\n\n")
+
         wandb.init(
             project=args.wandb_project_name,
             entity=args.wandb_entity,
@@ -470,8 +478,8 @@ if __name__ == "__main__":
             config=config,
             name=run_name,
             save_code=True,
-            group="DiffusionPolicy",
-            tags=["diffusion_policy"],
+            group="DiffusionPolicy_PoseInv",
+            tags=["diffusion_policy_poseInv"],
         )
         # Log something so that the run is populated in the wandb dashboard
         wandb.log({"t_start_training": time.time()})
@@ -620,8 +628,13 @@ if __name__ == "__main__":
         for k in eval_metrics_pose_perturbation.keys():
             eval_metrics_pose_perturbation[k] = np.mean(eval_metrics_pose_perturbation[k])
             writer.add_scalar(f"eval_pose_perturbation/{k}", eval_metrics_pose_perturbation[k], iteration)
-            delta_from_base = eval_metrics_pose_perturbation[k] - eval_metrics[k]
-            writer.add_scalar(f"eval_pose_perturbation/{k}__delta", delta_from_base, iteration)
+            metric_base = eval_metrics[k]
+            metric_pert = eval_metrics_pose_perturbation[k]
+            delta_from_base_abs = metric_pert - metric_base
+            delta_from_base_rel = metric_pert / metric_base * 100 # This is the percentage performance of the perturbed env compared to the base env
+            # ^ i.e. 100% means the perturbed env performs as well as the base env
+            writer.add_scalar(f"eval_pose_perturbation/{k}__delta_abs", delta_from_base_abs, iteration)
+            writer.add_scalar(f"eval_pose_perturbation/{k}__delta_rel_pct", delta_from_base_rel, iteration)
             print(f"{k}: {eval_metrics_pose_perturbation[k]:.4f}")
 
         save_on_best_metrics = ["success_once", "success_at_end"]

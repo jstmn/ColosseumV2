@@ -3,9 +3,10 @@ import numpy as np
 import pytest
 import h5py
 
-from diffusion_policy.utils import load_demo_dataset
+from diffusion_policy.utils import load_demo_dataset, xyz_quat_to_r9dof
 
-# python -m pytest examples/baselines/diffusion_policy_poseinv/tests/test_utils.py
+# cd examples/baselines/diffusion_policy_poseinv
+# python -m pytest tests/test_utils.py --capture=no --disable-warnings
 
 def _trim_to_action_horizon(arr: np.ndarray, action_len: int) -> np.ndarray:
     if arr.shape[0] == action_len + 1:
@@ -22,11 +23,15 @@ def _expected_actions(
     should_predict_ee_pose: bool,
 ) -> np.ndarray:
     parts = [base_actions]
+    pose_parts = []
     for actor_name in actor_names_to_predict:
         pose = _trim_to_action_horizon(actor_states[actor_name][:, :7], base_actions.shape[0])
-        parts.append(pose)
+        pose_parts.append(pose)
     if should_predict_ee_pose:
-        parts.append(_trim_to_action_horizon(tcp_pose, base_actions.shape[0]))
+        pose_parts.append(_trim_to_action_horizon(tcp_pose, base_actions.shape[0]))
+    if pose_parts:
+        pose_parts_9dof = [xyz_quat_to_r9dof(p) for p in pose_parts]
+        parts.append(np.concatenate(pose_parts_9dof, axis=-1))
     return np.concatenate(parts, axis=-1).astype(base_actions.dtype, copy=False)
 
 
@@ -141,3 +146,16 @@ def test_load_demo_dataset_real_fixture(
         actor_names_to_predict=actor_names_to_predict,
         should_predict_ee_pose=should_predict_ee_pose,
     )
+
+
+def test_xyz_quat_to_r9dof_single_pose_identity() -> None:
+    xyz_quat = np.array([[1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 0.0]], dtype=np.float32)
+    out = xyz_quat_to_r9dof(xyz_quat)
+    expected = np.array([[1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0]], dtype=np.float32)
+    np.testing.assert_allclose(out, expected, rtol=1e-6, atol=1e-6)
+
+
+def test_xyz_quat_to_r9dof_rejects_non_single_pose_width() -> None:
+    xyz_quat = np.zeros((2, 14), dtype=np.float32)
+    with pytest.raises(AssertionError, match=r"Expected shape \[B, 7\]"):
+        xyz_quat_to_r9dof(xyz_quat)

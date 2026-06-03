@@ -3,7 +3,7 @@ import torch
 from gymnasium import spaces
 from h5py import Dataset, File, Group
 from torch.utils.data.sampler import Sampler
-
+from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 
 class IterationBasedBatchSampler(Sampler):
     """Wraps a BatchSampler.
@@ -58,6 +58,22 @@ TARGET_KEY_TO_SOURCE_KEY = {
     "actions": "actions",
 }
 
+
+
+def xyz_quat_to_r9dof(xyz_quat: np.ndarray) -> np.ndarray:
+    """ Converts a pose of type [x, y, z, qw, qx, qy, qz] to type [x, y, z, R11, R12, R13, R21, R22, R23] where R is a 3x3 rotation matrix (in row-major order)
+
+    Note that ManiSkill uses [w, x, y, z] format for quaternions
+    """
+    xyz_quat = np.asarray(xyz_quat)
+    assert xyz_quat.ndim == 2
+    assert xyz_quat.shape[-1] == 7, f"Expected shape [B, 7], got {xyz_quat.shape}"
+
+    xyz = xyz_quat[:, :3]
+    quat = torch.from_numpy(xyz_quat[:, 3:])
+    rot_mats = quaternion_to_matrix(quat)  # (B, 3, 3)
+    rot_6d = rot_mats[:, :2, :].reshape(-1, 6).cpu().numpy()
+    return np.concatenate([xyz, rot_6d], axis=-1)
 
 def load_content_from_h5_file(file):
     if isinstance(file, (File, Group)):
@@ -152,7 +168,7 @@ def load_demo_dataset(
     raw_data = load_traj_hdf5(path, num_traj)
     actor_names_to_predict = actor_names_to_predict or []
 
-    if "actions" in keys and (actor_names_to_predict or should_predict_ee_pose):
+    if actor_names_to_predict or should_predict_ee_pose:
         for traj_name, traj_data in raw_data.items():
             action_seq = traj_data["actions"]
             action_len = action_seq.shape[0]
@@ -189,9 +205,10 @@ def load_demo_dataset(
                 pose_targets.append(ee_pose.astype(np.float32, copy=False))
 
             if pose_targets:
-                pose_targets_np = np.concatenate(pose_targets, axis=-1)
+                pose_targets_9dof = [xyz_quat_to_r9dof(pt) for pt in pose_targets]
+                pose_targets_9dof = np.concatenate(pose_targets_9dof, axis=-1)
                 traj_data["actions"] = np.concatenate(
-                    [action_seq, pose_targets_np.astype(action_seq.dtype, copy=False)], axis=-1
+                    [action_seq, pose_targets_9dof.astype(action_seq.dtype, copy=False)], axis=-1
                 )
                 print(
                     f"Augmented actions for {traj_name}: {action_seq.shape[-1]} -> "
