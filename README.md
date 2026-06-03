@@ -17,8 +17,8 @@ pip install --force-reinstall --index-url https://download.pytorch.org/whl/cu124
 
 ```bash
 ENV_ID="RaiseCube-v1"
-NUM_TRAJ=2
-INCLUDED_CAMERAS="external1_camera"  # comma separated list of cameras
+NUM_TRAJ=100
+INCLUDED_CAMERAS="external1_camera,hand_camera_224"  # comma separated list of cameras
 OBS_MODE="rgb"
 TRAJ_NAME="trajectory__${INCLUDED_CAMERAS}__${OBS_MODE}__${NUM_TRAJ}"
 
@@ -26,7 +26,7 @@ python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj ${NUM_TRAJ} \
     --distraction-set none \
-    --num-procs 1 \
+    --num-procs 7 \
     --obs-mode ${OBS_MODE} \
     --reward-mode "none" \
     --random-seed \

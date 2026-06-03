@@ -38,7 +38,7 @@ class RaiseCubeEnv(ColosseumV2Env):
         RO_size=True,
     )
 
-    def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(self, *args, robot_uids="panda_wristcam_224", robot_init_qpos_noise=0.02, **kwargs):
 
         # 
         self.robot_init_qpos_noise = robot_init_qpos_noise

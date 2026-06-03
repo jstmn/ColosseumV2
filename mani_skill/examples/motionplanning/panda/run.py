@@ -171,13 +171,13 @@ def parse_args(args=None):
     parser.add_argument("--slow-down", action="store_true", help="whether or not to slow down the path")
     parser.add_argument("--add-sinusoidal-noise", action="store_true", help="whether or not to add sinusoidal noise to the path")
     parser.add_argument("--ignore-keys", nargs="*", default=[], help="keys to ignore when saving the trajectory")
-    parser.add_argument("--included-cameras", nargs="*", default=[], help="cameras to include in the trajectory")
+    parser.add_argument("--included-cameras", type=str, default="", help="cameras to include in the trajectory")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
     distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
-    included_cameras = args.included_cameras if len(args.included_cameras) > 0 else None
+    included_cameras = args.included_cameras.split(",") if args.included_cameras else None
     try:
         env = gym.make(
             env_id,

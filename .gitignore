@@ -60,3 +60,4 @@ slurm-*
 sbatch_*
 
 wandb/
+train.sh
