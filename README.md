@@ -2,7 +2,7 @@
 
 This repository contains the code for the ColosseumV2 project.
 
-
+[![arxiv.org](https://img.shields.io/badge/cs.RO-%09arXiv%3A2111.08933-red)](https://arxiv.org/abs/2605.27759)
 
 ## Installation
 
