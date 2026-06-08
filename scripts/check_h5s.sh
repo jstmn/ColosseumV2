@@ -18,7 +18,7 @@ TASKS=(
     # "ObjectInCabinet-v1"
     # "CookItemInPan-v1"
 )
-DISTRACTION_SET=none
+PERTURBATION_SET=none
 
 for task in "${TASKS[@]}"; do
     echo "Checking $task"
@@ -29,7 +29,7 @@ for task in "${TASKS[@]}"; do
         --record-dir /tmp \
         --obs-mode "rgb" \
         --num-traj 1 \
-        --distraction-set ${DISTRACTION_SET} \
+        --perturbation-set ${PERTURBATION_SET} \
         --num-procs 1 \
         --reward-mode "sparse" \
         --random-seed \

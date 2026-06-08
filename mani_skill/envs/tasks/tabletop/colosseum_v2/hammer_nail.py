@@ -17,7 +17,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 YCB_HAMMER_ID = "048_hammer"
 NAIL_HEIGHT = 0.086
@@ -46,7 +46,7 @@ class HammerNailEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[Panda, Fetch]
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(RO_size=True)
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(RO_size=True)
 
     def __init__(
         self,

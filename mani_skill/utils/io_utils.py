@@ -12,7 +12,7 @@ class CustomJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         # Hack: import here to avoid circular import
-        from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet, ColorRange
+        from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet, ColorRange
         if isinstance(obj, np.integer):
             return int(obj)
         if isinstance(obj, np.floating):

@@ -4,12 +4,12 @@ and emit a LaTeX table of success rates.
 
 The CSV is expected to have the following columns (same as `eval_rgbd.py`):
 
-checkpoint_path,distraction_set,env_id,control_mode,include_depth,num_eval_episodes,max_episode_steps,message,num_sucessful_episodes,success_percent
+checkpoint_path,perturbation_set,env_id,control_mode,include_depth,num_eval_episodes,max_episode_steps,message,num_sucessful_episodes,success_percent
 
 Key behavior:
 - **Tasks are derived from the CSV** (first-seen order after filtering), no comparison
   against any pre-saved task list.
-- If there are multiple entries for the same (task, distraction_set), the success rate
+- If there are multiple entries for the same (task, perturbation_set), the success rate
   is **recomputed from totals**: (100 * sum_success / sum_episodes).
 - Rows with `num_sucessful_episodes < 0` are ignored (placeholders / incomplete runs).
 
@@ -204,7 +204,7 @@ def build_success_matrix(
     valid_any = False
 
     for row in rows:
-        for k in ("checkpoint_path", "distraction_set", "env_id", "num_eval_episodes", "num_sucessful_episodes"):
+        for k in ("checkpoint_path", "perturbation_set", "env_id", "num_eval_episodes", "num_sucessful_episodes"):
             if k not in row:
                 raise ValueError(
                     f"CSV schema mismatch: missing column {k!r}. Got columns: {sorted(row.keys())}"
@@ -217,7 +217,7 @@ def build_success_matrix(
 
         # Convert env_id to a display name immediately and fail if missing.
         task = _task_display_name(row["env_id"])
-        ds = str(row["distraction_set"]).lower()
+        ds = str(row["perturbation_set"]).lower()
 
         n_success = _safe_int(row["num_sucessful_episodes"])
         n_episodes = _safe_int(row["num_eval_episodes"])
@@ -305,7 +305,7 @@ def render_latex_table(
         elif x.lower() in ACTION_VARIATIONS:
             cell_color = CELL_COLOR_MAP["action"]
         else:
-            assert x.lower() == "all" or x.lower() == "none", f"Unknown variation: {x.lower()}"
+            assert x.lower() == "all" or x.lower() == "none", f"Unknown perturbation: {x.lower()}"
 
         escaped = _escape_latex(x)
         escaped = escaped.replace("_", " ").lower().capitalize()
@@ -376,7 +376,7 @@ def save_to_csv(tasks: list[str], matrix: dict[tuple[str, str], float | None], p
 
 
 def row_exists(rows: list[dict[str, str]], row: dict[str, str]) -> bool:
-    keys = ["checkpoint_path","pc_hostname","now","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes"]
+    keys = ["checkpoint_path","pc_hostname","now","perturbation_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes"]
     for r in rows:
         if all(r[key] == row[key] for key in keys):
             return True

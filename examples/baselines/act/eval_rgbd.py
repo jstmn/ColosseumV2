@@ -15,7 +15,7 @@ import tyro
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from train_rgbd import Agent, FlattenRGBDObservationWrapper, Args
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.envs.tasks.tabletop import *
 
 
@@ -62,7 +62,7 @@ ALL_COLOSSEUM_V2_BIMANUAL_TASKS = (
 def update_args_from_results(args: Args):
     assert args.results_path is not None
     expected_columns = [
-        "checkpoint_path","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
+        "checkpoint_path","perturbation_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
     ]
     results = read_csv(args.results_path)
     assert results.columns.tolist() == expected_columns
@@ -75,21 +75,21 @@ def update_args_from_results(args: Args):
         raise Exception(f"Unclear whether {args.results_path} is for bimanual or single arm tasks")
 
     for task in tasks:
-        for distraction_set in DISTRACTION_SETS.keys():
+        for perturbation_set in PERTURBATION_SETS.keys():
             result_found = results[
                 (results["env_id"] == task)
-                & (results["distraction_set"].str.lower() == distraction_set.lower())
+                & (results["perturbation_set"].str.lower() == perturbation_set.lower())
             ]
             if len(result_found) > 0:
-                print(f"Found existing result for task {task} and distraction set {distraction_set}")
+                print(f"Found existing result for task {task} and distraction set {perturbation_set}")
                 continue
-            print(f"Starting evaluation for {task=} and {distraction_set=}")
+            print(f"Starting evaluation for {task=} and {perturbation_set=}")
             args.env_id = task
-            args.distraction_set = distraction_set
+            args.perturbation_set = perturbation_set
 
             row = [
                 args.checkpoint_path,
-                distraction_set.lower(),
+                perturbation_set.lower(),
                 task,
                 args.control_mode,
                 args.include_depth,
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()],
     )
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         results = read_csv(args.results_path)
         new_row = [
             args.checkpoint_path,
-            args.distraction_set.lower(),
+            args.perturbation_set.lower(),
             args.env_id,
             args.control_mode,
             args.include_depth,

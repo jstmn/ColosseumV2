@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 @register_env("StackCubeColosseumV2-v1", max_episode_steps=50)
 class StackCubeColosseumV2Env(ColosseumV2Env):
@@ -32,7 +32,7 @@ class StackCubeColosseumV2Env(ColosseumV2Env):
     agent: Union[Panda, Fetch]
 
     # Problem is underspecified if the cubes visual appearance is randomized
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         RO_texture=True,
         RO_color=True,
     )

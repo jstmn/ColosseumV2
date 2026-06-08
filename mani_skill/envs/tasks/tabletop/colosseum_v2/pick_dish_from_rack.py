@@ -14,7 +14,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class PickDishFromRackEnv(ColosseumV2Env):
     # Rack placed either right [-0.25, -0.15] or left [0.15, 0.25], avoiding center
     _rack_y_ranges = [(-0.25, -0.15), (0.15, 0.25)]
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         MO_size=True,
         RO_size=True,
         pose_randomization=True,

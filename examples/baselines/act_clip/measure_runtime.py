@@ -9,7 +9,7 @@ python examples/baselines/act_clip/measure_runtime.py \
     --no-include-depth \
     --sim-backend "physx_cuda" \
     --target-num-cams 3 \
-    --distraction-set "none"
+    --perturbation-set "none"
 """
 
 from time import time
@@ -22,7 +22,7 @@ from functools import partial
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from train_rgbd import Agent, Args, FlattenRGBDObservationWrapper
 from eval_rgbd import MAX_EPISODE_STEPS_BY_TASK
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.envs.tasks.tabletop import *
 
 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()],
         _env_id=args.env_id,
     )
     if args.max_episode_steps is not None:

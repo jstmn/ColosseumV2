@@ -10,7 +10,7 @@ from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 @register_env("RotateArrow-v1", max_episode_steps=50)
 class RotateArrowEnv(ColosseumV2Env):
@@ -40,7 +40,7 @@ class RotateArrowEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: PandaStick
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         RO_color=True,
         RO_texture=True,
         RO_size=True,

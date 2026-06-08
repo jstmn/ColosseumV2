@@ -18,7 +18,7 @@ from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
 from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
 MP_SOLUTIONS = {
@@ -112,14 +112,14 @@ ENV_ID="DualArmStackCube-v1"
 ENV_ID="DualArmStack3Cube-v1"
 
 
-#DISTRACTION_SET=all
-DISTRACTION_SET=none
-DISTRACTION_SET=pose_randomization
-DISTRACTION_SET=ro_color
-DISTRACTION_SET="background_color"
-DISTRACTION_SET="ro_color"
-DISTRACTION_SET="table_color"
-DISTRACTION_SET=distractor_object
+#PERTURBATION_SET=all
+PERTURBATION_SET=none
+PERTURBATION_SET=pose_randomization
+PERTURBATION_SET=ro_color
+PERTURBATION_SET="background_color"
+PERTURBATION_SET="ro_color"
+PERTURBATION_SET="table_color"
+PERTURBATION_SET=distractor_object
 
 # ^ Must be one of: none, all, distractor_object, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
@@ -127,7 +127,7 @@ DISTRACTION_SET=distractor_object
 python mani_skill/examples/motionplanning/panda/run.py \
     --env-id ${ENV_ID} \
     --num-traj 5 \
-    --distraction-set ${DISTRACTION_SET} \
+    --perturbation-set ${PERTURBATION_SET} \
     --num-procs 1 \
     --obs-mode "rgb" \
     --reward-mode "none" \
@@ -166,7 +166,7 @@ def parse_args(args=None):
     parser.add_argument("--shader", default="default", type=str, help="Change shader used for rendering. Default is 'default' which is very fast. Can also be 'rt' for ray tracing and generating photo-realistic renders. Can also be 'rt-fast' for a faster but lower quality ray-traced renderer")
     parser.add_argument("--record-dir", type=str, default="demos", help="where to save the recorded trajectories")
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
-    parser.add_argument("--distraction-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(DISTRACTION_SETS.keys())}")
+    parser.add_argument("--perturbation-set", type=str, required=True, help=f"Distraction set to use. Available options are {list(PERTURBATION_SETS.keys())}")
     parser.add_argument("--save-images", action="store_true", help="whether or not to save images locally")
     parser.add_argument("--slow-down", action="store_true", help="whether or not to slow down the path")
     parser.add_argument("--add-sinusoidal-noise", action="store_true", help="whether or not to add sinusoidal noise to the path")
@@ -176,7 +176,7 @@ def parse_args(args=None):
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
-    distraction_set = DISTRACTION_SETS[args.distraction_set.upper()]
+    perturbation_set = PERTURBATION_SETS[args.perturbation_set.upper()]
     included_cameras = args.included_cameras if len(args.included_cameras) > 0 else None
     try:
         env = gym.make(
@@ -189,12 +189,12 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             human_render_camera_configs=dict(shader_pack=args.shader),
             viewer_camera_configs=dict(shader_pack=args.shader),
             sim_backend=args.sim_backend,
-            distraction_set=distraction_set,
+            perturbation_set=perturbation_set,
             _env_id=env_id,
             included_cameras=included_cameras
         )
     except TypeError as e:
-        assert "got an unexpected keyword argument 'distraction_set'" in str(e)
+        assert "got an unexpected keyword argument 'perturbation_set'" in str(e)
         env = gym.make(
             env_id,
             obs_mode=args.obs_mode,
@@ -238,7 +238,7 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     counter = 0
     while True:
         counter += 1
-        env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor variations are resampled
+        env.reset(seed=seed, options={"reconfigure": True}) # reconfigure so distractor perturbations are resampled
         try:
             res = solve(env, seed=seed, debug=False, vis=True if args.vis else False, slow_down=args.slow_down, add_sinusoidal_noise=args.add_sinusoidal_noise)
         except TypeError as e:
@@ -256,18 +256,16 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
         else:
             success = res[-1]["success"].item()
             elapsed_steps = res[-1]["elapsed_steps"].item()
+            solution_episode_lengths.append(elapsed_steps)
 
         successes.append(success)
         if args.only_count_success and not success:
-            failed_motion_plans += 1
             seed += 1
             env.flush_trajectory(save=False)
             if args.save_video:
                 env.flush_video(save=False)
             continue
         else:
-            # Only save episode length if the solution was successful
-            solution_episode_lengths.append(elapsed_steps)
             env.flush_trajectory()
             if args.save_video:
                 env.flush_video(name=f"{new_traj_name}___n:{len(successes)}")

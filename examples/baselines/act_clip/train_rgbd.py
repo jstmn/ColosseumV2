@@ -38,7 +38,7 @@ import wandb
 from mani_skill.utils.io_utils import load_json
 import json
 from collections import Counter
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.envs.tasks.tabletop import *
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
@@ -51,7 +51,7 @@ OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
 """ Example usage:
 
 python examples/baselines/act_clip/train_rgbd.py \
-    --distraction-set "none" \
+    --perturbation-set "none" \
     --sim-backend "physx_cuda" \
     --demo-path demos/CookItemInPan-v1/motionplanning/trajectory__pd_joint_pos__100.rgb.pd_ee_delta_pose.physx_cpu.h5 \
     --no-include-depth \
@@ -66,7 +66,7 @@ python examples/baselines/act_clip/train_rgbd.py \
 @dataclass
 class Args:
 
-    distraction_set: str
+    perturbation_set: str
 
     exp_name: Optional[str] = None
     """the name of this experiment"""
@@ -174,9 +174,9 @@ class Args:
     target_num_cams: int | None = None
     """the number of cameras to use for the evaluation environments. Must be set for evaluation"""
 
-    variation_factors_subset: list[str] = field(default_factory=list)
-    """A subset of the variation factors to evaluate on, when running evaluations automatically. Runs on all 
-    colosseum v2 variation factors by default"""
+    perturbation_factors_subset: list[str] = field(default_factory=list)
+    """A subset of the perturbation factors to evaluate on, when running evaluations automatically. Runs on all 
+    colosseum v2 perturbation factors by default"""
     tasks_subset: list[str] = field(default_factory=list)
     """A subset of the tasks to evaluate on, when running evaluations automatically. Runs on all colosseum v2 tasks 
     by default"""
@@ -696,7 +696,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()],
         _env_id=args.env_id,
     )
     if args.max_episode_steps is not None:

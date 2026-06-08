@@ -71,7 +71,7 @@ class OpenCabinetDrawerEnv(BaseEnv):
         # TEMP
         self._camera_width = kwargs.pop("camera_width", None)
         self._camera_height = kwargs.pop("camera_height", None)
-        self._distraction_set = kwargs.pop("distraction_set", None)
+        self._perturbation_set = kwargs.pop("perturbation_set", None)
         # END OF TEMP
 
         self.robot_init_qpos_noise = robot_init_qpos_noise

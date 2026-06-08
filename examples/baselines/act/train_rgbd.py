@@ -33,7 +33,7 @@ from act.detr.detr_vae import build_encoder, DETRVAE
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 import tyro
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.envs.tasks.tabletop import *
 
 # Note(@jstmn): 'world__T__ee', 'world__T__root' were added to the observation space of the Panda agent as a 
@@ -45,7 +45,7 @@ OBS_KEYS_TO_REMOVE = {"world__T__ee", "world__T__root"}
 @dataclass
 class Args:
 
-    distraction_set: str
+    perturbation_set: str
 
     exp_name: Optional[str] = None
     """the name of this experiment"""
@@ -502,7 +502,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         control_mode=args.control_mode, reward_mode="sparse", obs_mode="rgbd" if args.include_depth else "rgb", render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()],
+        perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()],
     )
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps

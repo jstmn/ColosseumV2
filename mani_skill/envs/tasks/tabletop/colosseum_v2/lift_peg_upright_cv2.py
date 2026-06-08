@@ -12,7 +12,7 @@ from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.sapien_utils import look_at
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 @register_env("LiftPegUprightColosseumV2-v1", max_episode_steps=50)
 class LiftPegUprightColosseumV2Env(ColosseumV2Env):
@@ -33,7 +33,7 @@ class LiftPegUprightColosseumV2Env(ColosseumV2Env):
     peg_half_width = 0.025
     peg_half_length = 0.12
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         RO_color=True,
         RO_texture=True,
         RO_size=True,

@@ -73,33 +73,33 @@ class DistractionSet:
     def get_partial_copy(self, keys: list[str]) -> "DistractionSet":
         return DistractionSet(**{k: v for k, v in self.__dict__.items() if k in keys})
 
-    def variation_is_enabled(self, variation: str) -> bool:
-        if variation.endswith("_cfg"):
-            variation = variation[:-4]
+    def perturbation_is_enabled(self, perturbation: str) -> bool:
+        if perturbation.endswith("_cfg"):
+            perturbation = perturbation[:-4]
         
         enabled, disabled = self.which_enabled_str()
-        if variation in enabled:
+        if perturbation in enabled:
             return True
-        elif variation in disabled:
+        elif perturbation in disabled:
             return False
         else:
-            raise ValueError(f"Variation {variation} is not found in the distraction set. Enabled: {enabled}, Disabled: {disabled}")
+            raise ValueError(f"Variation {perturbation} is not found in the distraction set. Enabled: {enabled}, Disabled: {disabled}")
 
     def all_are_enabled(self) -> bool:
         _, disabled = self.which_enabled_str()
         return len(disabled) == 0
 
     @staticmethod
-    def merge(distraction_sets: list["DistractionSet"]) -> "DistractionSet":
+    def merge(perturbation_sets: list["DistractionSet"]) -> "DistractionSet":
 
-        if len(distraction_sets) == 0:
+        if len(perturbation_sets) == 0:
             return DistractionSet()
 
-        elif len(distraction_sets) == 1:
-            return distraction_sets[0]
+        elif len(perturbation_sets) == 1:
+            return perturbation_sets[0]
         
-        elif len(distraction_sets) == 2:
-            ds_1, ds_2 = distraction_sets
+        elif len(perturbation_sets) == 2:
+            ds_1, ds_2 = perturbation_sets
             ds_1_enabled, _ = ds_1.which_enabled_str()
             ds_2_enabled, _ = ds_2.which_enabled_str()
             for k in ds_1_enabled:
@@ -111,9 +111,9 @@ class DistractionSet:
                 setattr(ds_merged, f"{k}_cfg", getattr(ds_2, f"{k}_cfg"))
             return ds_merged
 
-        elif len(distraction_sets) > 2:
-            merged_12 = DistractionSet.merge([distraction_sets[0], distraction_sets[1]])
-            return DistractionSet.merge([merged_12] + distraction_sets[2:])
+        elif len(perturbation_sets) > 2:
+            merged_12 = DistractionSet.merge([perturbation_sets[0], perturbation_sets[1]])
+            return DistractionSet.merge([merged_12] + perturbation_sets[2:])
 
     def MO_color_enabled(self) -> bool:
         return len(self.MO_color_cfg) > 0
@@ -168,7 +168,7 @@ class DistractionSet:
     def which_enabled_str(self) -> tuple[list[str], list[str]]:
         enabled_strs = []
         disabled_strs = []
-        ignored_fns = ["variation_is_enabled", "all_are_enabled"]
+        ignored_fns = ["perturbation_is_enabled", "all_are_enabled"]
         for k in [attr for attr in dir(self) if not attr.startswith('_')]:
             if k.endswith('_enabled') and hasattr(self, k) and (not k in ignored_fns):
                 enabled_fn = getattr(self, k)
@@ -178,15 +178,15 @@ class DistractionSet:
                     disabled_strs.append(k[:-8])
         return enabled_strs, disabled_strs
 
-    def disable_variation_factors(self, variation_factors: list[str]):
-        for k in variation_factors:
+    def disable_perturbation_factors(self, perturbation_factors: list[str]):
+        for k in perturbation_factors:
             if k.endswith("_cfg"):
                 k = k[:-4]
             current_cfg = getattr(self, f"{k}_cfg")
             if len(current_cfg) == 0:
                 continue
             setattr(self, f"{k}_cfg", {})
-            cprint(f"WARNING: Disabling variation factor: '{k.upper()}'.", "yellow")
+            cprint(f"WARNING: Disabling perturbation factor: '{k.upper()}'.", "yellow")
 
     def __post_init__(self):
 
@@ -272,7 +272,7 @@ all_distractor_set = DistractionSet(
     pose_randomization_cfg = {"x_region_multiplier": 1.5, "y_region_multiplier": 1.5, "min_width_x": 0.1, "min_width_y": 0.1}
 )
 
-DISTRACTION_SETS = {
+PERTURBATION_SETS = {
     "none".upper(): DistractionSet(),
     "all".upper(): all_distractor_set,
     ### Distractor object

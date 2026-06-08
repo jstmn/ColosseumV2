@@ -185,12 +185,12 @@ if __name__ == "__main__":
         _200_bs_fps = df[df["batch_size"] == 200]["frames_per_second"].values[0]
         n_secs_total = 0
         n_episode_evals = 200 # 200 is the number of episode evaluations for Colosseum-V2
-        n_variations = 17 # 17 is the number of variations for Colosseum-V2 (including none, all)
+        n_perturbations = 17 # 17 is the number of perturbations for Colosseum-V2 (including none, all)
         print(f"With a batch_size of 200, FPS={_200_bs_fps}")
 
         # examples/baselines/act_clip/eval_rgbd.py has MAX_EPISODE_STEPS_BY_TASK
         for task, max_n_steps in MAX_EPISODE_STEPS_BY_TASK.items():
-            n_secs_total += max_n_steps * n_episode_evals * n_variations / _200_bs_fps 
+            n_secs_total += max_n_steps * n_episode_evals * n_perturbations / _200_bs_fps 
 
         print(f"Total estimated runtime for Colosseum-V2:")
         print(f"  - {round(n_secs_total, 3)} seconds")
@@ -202,11 +202,11 @@ if __name__ == "__main__":
         _20_fps = df[df["batch_size"] == 20]["frames_per_second"].values[0]
         n_secs_total = 0
         n_episode_evals = 20 # 20 is the number of episode evaluations for RLBench/Colosseum-V1
-        n_variations = 15 # 17 is the number of variations for Colosseum-V2 (including none, all)
+        n_perturbations = 15 # 17 is the number of perturbations for Colosseum-V2 (including none, all)
         n_tasks = 20
         n_timesteps_per_task = 200
         print(f"With a batch_size of 20, FPS={_20_fps}")
-        n_secs_total = n_episode_evals * n_variations * n_tasks * n_timesteps_per_task / _20_fps
+        n_secs_total = n_episode_evals * n_perturbations * n_tasks * n_timesteps_per_task / _20_fps
 
         print(f"Total estimated runtime for RLBench/Colosseum-V1:")
         print(f"  - {round(n_secs_total, 3)} seconds")

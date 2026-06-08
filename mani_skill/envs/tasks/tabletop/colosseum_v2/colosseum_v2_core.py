@@ -15,7 +15,7 @@ from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet
 from mani_skill.utils.building.actor_builder import ActorBuilder
 from mani_skill.utils.scene_builder.robocasa.fixtures.cabinet import OpenCabinet
 from mani_skill.utils.building.articulation_builder import ArticulationBuilder
@@ -98,17 +98,17 @@ YCB_DISTRACTOR_OBJECTS = (
 )
 
 
-class VariationFactorDisabledError(Exception):
+class PerturbationFactorDisabledError(Exception):
     """
-    Raised when a variation factor is disabled but is enabled in the distraction set.
+    Raised when a perturbation factor is disabled but is enabled in the distraction set.
     """
     pass
 
 
 @dataclass
-class DisabledVariationFactors:
+class DisabledPerturbationFactors:
     """
-    Stores which variation factors are disabled.
+    Stores which perturbation factors are disabled.
     """
     MO_color: bool = False
     MO_texture: bool = False
@@ -369,35 +369,35 @@ class ColosseumV2Env(BaseEnv):
         max_n_distractor_objects = kwargs.pop("max_n_distractor_objects", 1000)
 
         # 
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        if distraction_set is None:
+        perturbation_set: DistractionSet | dict | None = kwargs.pop("perturbation_set", None)
+        if perturbation_set is None:
             self._ds = DistractionSet()
-        elif isinstance(distraction_set, dict):
-            self._ds = DistractionSet(**distraction_set)
-        elif isinstance(distraction_set, DistractionSet):
-            self._ds = distraction_set
+        elif isinstance(perturbation_set, dict):
+            self._ds = DistractionSet(**perturbation_set)
+        elif isinstance(perturbation_set, DistractionSet):
+            self._ds = perturbation_set
         else:
-            raise ValueError(f"Invalid distraction set type: {type(distraction_set)}")
+            raise ValueError(f"Invalid distraction set type: {type(perturbation_set)}")
         if max_n_distractor_objects is not None and self._ds.distractor_object_enabled():
             self._ds.distractor_object_cfg["n_distractors"] = min(max_n_distractor_objects, self._ds.distractor_object_cfg["n_distractors"])
 
-        # Verify that the variation factors are consistent
-        if hasattr(self, "DISABLED_VARIATION_FACTORS"):
-            dvf = self.DISABLED_VARIATION_FACTORS
-            assert isinstance(dvf, DisabledVariationFactors)
+        # Verify that the perturbation factors are consistent
+        if hasattr(self, "DISABLED_PERTURBATION_FACTORS"):
+            dvf = self.DISABLED_PERTURBATION_FACTORS
+            assert isinstance(dvf, DisabledPerturbationFactors)
             all_enabled = self._ds.all_are_enabled()
             for disabled in dvf.to_list():
-                var_is_enabled = self._ds.variation_is_enabled(disabled)
+                var_is_enabled = self._ds.perturbation_is_enabled(disabled)
                 if all_enabled:
                     msg = (
-                        f"Warning: variation '{disabled.upper()}' is disabled by the env, but enabled in the "
-                        "distraction_set. However, 'all' variation factors are enabled, so this variation is disabled."
+                        f"Warning: perturbation '{disabled.upper()}' is disabled by the env, but enabled in the "
+                        "perturbation_set. However, 'all' perturbation factors are enabled, so this perturbation is disabled."
                     )
                     cprint(msg, "yellow")
-                    self._ds.disable_variation_factors([disabled])
+                    self._ds.disable_perturbation_factors([disabled])
                 else:
                     if var_is_enabled:
-                        raise VariationFactorDisabledError(f"Variation {disabled} is enabled in distraction_set but is disabled by env")
+                        raise PerturbationFactorDisabledError(f"Variation {disabled} is enabled in perturbation_set but is disabled by env")
 
         # 
         self._human_render_shader = kwargs.pop("human_render_shader", "default")
@@ -428,7 +428,7 @@ class ColosseumV2Env(BaseEnv):
             -> https://maniskill.readthedocs.io/en/latest/user_guide/concepts/sensors.html#shaders-and-textures
         """
         pose = sapien_utils.look_at(eye=eye, target=target)
-        return CameraConfig("render_camera", pose=pose, width=500, height=500, fov=np.pi / 3, near=0.01, far=100, shader_pack=self._human_render_shader)
+        return CameraConfig("render_camera", pose=pose, width=512, height=512, fov=np.pi / 3, near=0.01, far=100, shader_pack=self._human_render_shader)
 
 
     def _load_lighting(self, options: dict):
@@ -745,13 +745,13 @@ class ColosseumV2Env(BaseEnv):
             manipulation_objects (list[Actor]): The manipulation objects to modify.
             receiving_objects (list[Actor]): The receiving objects to modify.
         """
-        # First verify that the variation factors match
-        mo_variation_enabled = self._ds.MO_color_enabled() or self._ds.MO_texture_enabled() or self._ds.MO_size_enabled()
-        ro_variation_enabled = self._ds.RO_color_enabled() or self._ds.RO_texture_enabled() or self._ds.RO_size_enabled()
-        if mo_variation_enabled and len(manipulation_objects) == 0:
-            raise VariationFactorDisabledError("MO variation factors are enabled, but no manipulation_objects is provided.")
-        if ro_variation_enabled and len(receiving_objects) == 0:
-            raise VariationFactorDisabledError("RO variation factors are enabled, but no receiving_objects is provided.")
+        # First verify that the perturbation factors match
+        mo_perturbation_enabled = self._ds.MO_color_enabled() or self._ds.MO_texture_enabled() or self._ds.MO_size_enabled()
+        ro_perturbation_enabled = self._ds.RO_color_enabled() or self._ds.RO_texture_enabled() or self._ds.RO_size_enabled()
+        if mo_perturbation_enabled and len(manipulation_objects) == 0:
+            raise PerturbationFactorDisabledError("MO perturbation factors are enabled, but no manipulation_objects is provided.")
+        if ro_perturbation_enabled and len(receiving_objects) == 0:
+            raise PerturbationFactorDisabledError("RO perturbation factors are enabled, but no receiving_objects is provided.")
 
         # 
         self._load_scene_hool_called = True

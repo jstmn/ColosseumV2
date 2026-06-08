@@ -57,7 +57,7 @@ HARDWARE_ROWS = [
     # },
 ]
 
-DISTRACTION_SET_DISPLAY_NAMES = {
+PERTURBATION_SET_DISPLAY_NAMES = {
     "none".lower(): "None",
     "all".lower(): "All",
     "MO_color".lower(): "MO Color",
@@ -95,7 +95,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         "LiftPegUpright",
         # "OpenDrawer",
     )
-    variation_names = (
+    perturbation_names = (
         "none",
         "mo_size",
         "light_color",
@@ -121,7 +121,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         "LiftPegUpright": "#00A651", # bright green-teal
         "OpenDrawer": "#CC00CC",     # vivid magenta
     }
-    variation_markers = {
+    perturbation_markers = {
         "none": "o",                # circle
         "mo_size": "X",             # x (filled)
         "light_color": "s",         # square
@@ -131,7 +131,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
     }
     all_x1s = []
     all_x2s = []
-    deltas_by_variation = {var: [] for var in variation_names}
+    deltas_by_perturbation = {var: [] for var in perturbation_names}
     deltas_by_task = {task: [] for task in task_names}
 
     print()
@@ -142,15 +142,15 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         task_x2s = []
         none_scatter = None
 
-        for variation_name in variation_names:
+        for perturbation_name in perturbation_names:
 
-            hw_val = hardware_df.at[task_name, variation_name]
-            sim_val = sim_df.at[task_name, variation_name]
+            hw_val = hardware_df.at[task_name, perturbation_name]
+            sim_val = sim_df.at[task_name, perturbation_name]
             delta = hw_val - sim_val
             if isnan(hw_val) or isnan(sim_val):
                 continue
 
-            deltas_by_variation[variation_name].append(delta)
+            deltas_by_perturbation[perturbation_name].append(delta)
             deltas_by_task[task_name].append(delta)
             task_x1s.append(hw_val)
             task_x2s.append(sim_val)
@@ -158,13 +158,13 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
             all_x2s.append(sim_val)
 
             color = task_colors[task_name]
-            if variation_name == "none":
+            if perturbation_name == "none":
                 none_scatter = ax.scatter(
                     hw_val,
                     sim_val,
                     label=f"{task_name}",
                     color=color,
-                    marker=variation_markers[variation_name],
+                    marker=perturbation_markers[perturbation_name],
                     s=125,
                 )
             else:
@@ -173,7 +173,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
                     sim_val,
                     label=None,
                     color=color,
-                    marker=variation_markers[variation_name],
+                    marker=perturbation_markers[perturbation_name],
                     s=125,
                 )
         print(f"{task_name}: {task_x1s} {task_x2s}")
@@ -188,9 +188,9 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         none_scatter.set_label(f"{task_name} (R²={R_squared:.3f})")
 
     print()
-    print("Deltas by variation:")
-    for var in variation_names:
-        print(f"    {var}: {deltas_by_variation[var]}")
+    print("Deltas by perturbation:")
+    for var in perturbation_names:
+        print(f"    {var}: {deltas_by_perturbation[var]}")
 
     print()
     print("Deltas by task:")
@@ -213,8 +213,8 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
     plt.close(fig)
     
 
-def plot_by_variation(sim_csv_filepath: str, out_dir: str):
-    """This function lumps the success rates for each task by variation
+def plot_by_perturbation(sim_csv_filepath: str, out_dir: str):
+    """This function lumps the success rates for each task by perturbation
     """
 
     sim_df = pd.read_csv(sim_csv_filepath)
@@ -230,7 +230,7 @@ def plot_by_variation(sim_csv_filepath: str, out_dir: str):
         "LiftPegUpright",
         # "OpenDrawer",
     )
-    variation_names = (
+    perturbation_names = (
         "none",
         "mo_size",
         "light_color",
@@ -243,7 +243,7 @@ def plot_by_variation(sim_csv_filepath: str, out_dir: str):
     LEGEND_FONTSIZE = 12
     TICK_FONTSIZE = 12
 
-    variation_colors = {
+    perturbation_colors = {
         "none":               "#333333",
         "mo_size":            "#E6194B",
         "light_color":        "#F58231",
@@ -265,17 +265,17 @@ def plot_by_variation(sim_csv_filepath: str, out_dir: str):
     all_x1s = []
     all_x2s = []
 
-    for variation_name in variation_names:
+    for perturbation_name in perturbation_names:
         var_hw = []
         var_sim = []
         first_scatter = None
 
-        display_name = DISTRACTION_SET_DISPLAY_NAMES.get(variation_name.lower(), variation_name)
-        color = variation_colors[variation_name]
+        display_name = PERTURBATION_SET_DISPLAY_NAMES.get(perturbation_name.lower(), perturbation_name)
+        color = perturbation_colors[perturbation_name]
 
         for task_name in task_names:
-            hw_val = hardware_df.at[task_name, variation_name]
-            sim_val = sim_df.at[task_name, variation_name]
+            hw_val = hardware_df.at[task_name, perturbation_name]
+            sim_val = sim_df.at[task_name, perturbation_name]
 
             if isnan(hw_val) or isnan(sim_val):
                 continue
@@ -330,8 +330,8 @@ def plot_by_variation(sim_csv_filepath: str, out_dir: str):
         )
         for t in task_names
     ]
-    variation_legend = ax.legend(fontsize=LEGEND_FONTSIZE, loc="upper right", title="Variation")
-    ax.add_artist(variation_legend)
+    perturbation_legend = ax.legend(fontsize=LEGEND_FONTSIZE, loc="upper right", title="Variation")
+    ax.add_artist(perturbation_legend)
     ax.legend(handles=task_legend_handles, fontsize=LEGEND_FONTSIZE, loc="lower right", title="Task")
 
     ax.grid(True, alpha=0.5)
@@ -342,7 +342,7 @@ def plot_by_variation(sim_csv_filepath: str, out_dir: str):
     ax.set_ylabel("Sim Success Rate", fontsize=LABEL_FONTSIZE)
     ax.tick_params(axis="both", which="major", labelsize=TICK_FONTSIZE)
     plt.tight_layout()
-    fig.savefig(Path(out_dir) / "hardware_vs_sim_by_variation.png", bbox_inches="tight")
+    fig.savefig(Path(out_dir) / "hardware_vs_sim_by_perturbation.png", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -354,4 +354,4 @@ if __name__ == "__main__":
     parser.add_argument("--no-plots", action="store_true", help="Skip writing plot images (prints summaries only).")
     args = parser.parse_args()
     plot_by_task(args.sim_csv_filepath, args.out_dir)
-    plot_by_variation(args.sim_csv_filepath, args.out_dir)
+    plot_by_perturbation(args.sim_csv_filepath, args.out_dir)

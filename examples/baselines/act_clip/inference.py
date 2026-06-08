@@ -17,7 +17,7 @@ class EvalArgs(Args):
     output_dir: str = "./inference_videos"
     num_eval_episodes: int = 10
     num_eval_envs: int = 1
-    distraction_set: str = "none"
+    perturbation_set: str = "none"
 
 def run_inference():
     eval_args = tyro.cli(EvalArgs)
@@ -36,14 +36,14 @@ def run_inference():
     print(f"[*] Creating environment: {eval_args.env_id}")
     
 
-    from mani_skill.envs.distraction_set import DISTRACTION_SETS
+    from mani_skill.envs.perturbation_set import PERTURBATION_SETS
     
     env_kwargs = dict(
         control_mode=eval_args.control_mode, 
         reward_mode="sparse", 
         obs_mode="rgbd" if eval_args.include_depth else "rgb",
         render_mode="rgb_array",
-        distraction_set=DISTRACTION_SETS[eval_args.distraction_set.upper()],
+        perturbation_set=PERTURBATION_SETS[eval_args.perturbation_set.upper()],
     )
     
 

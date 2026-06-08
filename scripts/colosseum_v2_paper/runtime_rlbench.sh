@@ -2,8 +2,6 @@
 
 # bash scripts/colosseum_v2_paper/runtime_rlbench.sh
 
-conda activate maniskill_jm
-
 # Run the rlbench timing script for different batch sizes
 TIMESTEPS_PER_TASK=200
 

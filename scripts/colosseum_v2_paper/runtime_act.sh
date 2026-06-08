@@ -2,8 +2,6 @@
 
 # bash scripts/colosseum_v2_paper/runtime_act.sh
 
-conda activate maniskill_jm
-
 # Run the rlbench timing script for different batch sizes
 TIMESTEPS_PER_TASK=200
 # TIMESTEPS_PER_TASK=10
@@ -62,7 +60,7 @@ for N_PROCESSES in 250 300 350 400 450 500; do
         --num-eval-envs $N_PROCESSES \
         --max-episode-steps $TIMESTEPS_PER_TASK \
         --internal-instruction \
-        --distraction-set "none"
+        --perturbation-set "none"
 
     #
     T_END=$(date +%s%3N)

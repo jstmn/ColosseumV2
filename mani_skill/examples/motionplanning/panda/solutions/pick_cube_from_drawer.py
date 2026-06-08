@@ -172,7 +172,7 @@ def solve(env: PickCubeFromDrawerEnv, seed=None, debug=False, vis=False):
 
 
 if __name__ == "__main__":
-    from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+    from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet
     import gymnasium as gym
 
     env = gym.make(
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         control_mode="pd_joint_pos",
         render_mode="rgb_array",
         reward_mode="dense",
-        distraction_set=DistractionSet(),
+        perturbation_set=DistractionSet(),
     )
     for seed in range(10):
         res = solve(env, seed=seed, debug=True, vis=False)

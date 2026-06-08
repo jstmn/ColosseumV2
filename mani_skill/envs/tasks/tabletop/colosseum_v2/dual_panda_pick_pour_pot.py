@@ -10,7 +10,7 @@ from mani_skill.agents.robots.panda.dual_panda import DualPanda
 from mani_skill.utils.structs import Pose
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 
 @register_env("DualArmPourPot-v1", max_episode_steps=1000)
@@ -26,7 +26,7 @@ class DualArmPourPotEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
     agent: DualPanda # Type hinting for IDE support
 
-    DisabledVariationFactors = DisabledVariationFactors(
+    DisabledPerturbationFactors = DisabledPerturbationFactors(
         RO_size=True,
     )
 

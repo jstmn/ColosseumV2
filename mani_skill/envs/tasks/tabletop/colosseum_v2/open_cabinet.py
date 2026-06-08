@@ -16,7 +16,7 @@ from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 CABINET_COLLISION_BIT = 29
 
@@ -107,7 +107,7 @@ class OpenCabinetEnv(ColosseumV2Env):
 
 
     # No way to change the color / texture / size of the cabinet
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         MO_color=True,
         MO_texture=True,
         MO_size=True,

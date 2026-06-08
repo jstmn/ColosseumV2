@@ -15,7 +15,7 @@ import torch
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils import sapien_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 
 # 1. Define the Empty Environment
@@ -29,7 +29,7 @@ class DualArmPenCapEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
     agent: DualPanda # Type hinting for IDE support
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         MO_size=True,
         RO_size=True,
     )

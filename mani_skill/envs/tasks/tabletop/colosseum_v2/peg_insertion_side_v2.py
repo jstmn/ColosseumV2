@@ -12,7 +12,7 @@ from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 def _build_box_with_hole(
     scene: ManiSkillScene, inner_radius, outer_radius, depth, center=(0, 0)
@@ -68,7 +68,7 @@ class PegInsertionSideColosseumV2(ColosseumV2Env):
     _clearance = 0.006
     # ^ double the clearance to make it easier
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         # No way to change the size of the peg / box
         MO_size=True,
         RO_size=True,

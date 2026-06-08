@@ -30,7 +30,7 @@ def measure_runtime_fps(results_filepath: str, batch_sizes: list[int], env_id: s
             render_mode="none",
             reward_mode="none",
             sim_backend="physx_cuda",
-            distraction_set=None,
+            perturbation_set=None,
             num_envs=batch_size,
             _env_id=env_id
         )

@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.agents.robots import Panda, Fetch
 import os
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet
 
 
 @register_env("PickLightbulbPlaceSocket-v1", max_episode_steps=100000)
@@ -41,8 +41,8 @@ class PickLightbulbPlaceSocketEnv(BaseEnv):
     
     def __init__(self, *args, robot_uids="panda_wristcam", num_envs=1, reconfiguration_freq=None, **kwargs):
         raise NotImplementedError("This environment is not implemented yet")
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
+        perturbation_set: DistractionSet | dict | None = kwargs.pop("perturbation_set", None)
+        self._perturbation_set: DistractionSet | None = DistractionSet(**perturbation_set) if isinstance(perturbation_set, dict) else perturbation_set
         if reconfiguration_freq is None:
             reconfiguration_freq = 1 if num_envs == 1 else 0
         super().__init__(*args, robot_uids=robot_uids, 

@@ -12,7 +12,7 @@ from mani_skill.utils.building import articulations
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.structs import Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 
 @register_env("DualArmDrawerPlace-v1", max_episode_steps=1000, asset_download_ids=["partnet_mobility_cabinet"])
@@ -25,7 +25,7 @@ class DualArmDrawerPlaceEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["dual_panda_wristcam"]
     agent: DualPanda # Type hinting for IDE support
     
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         RO_color=True,
         RO_texture=True,
         RO_size=True,

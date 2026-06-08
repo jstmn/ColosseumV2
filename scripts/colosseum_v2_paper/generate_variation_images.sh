@@ -19,7 +19,7 @@ ENV_ID="DualArmStack3Cube-v1"
 # ENV_ID="RaiseCube-v1"
 
 
-DISTRACTION_SETS=(
+PERTURBATION_SETS=(
     # "none"
     # "all"
     # "MO_color"
@@ -44,12 +44,12 @@ DISTRACTION_SETS=(
 now=$(date +%H:%M:%S)
 
 
-for DS in "${DISTRACTION_SETS[@]}"; do
+for DS in "${PERTURBATION_SETS[@]}"; do
 
     echo ""
     echo ""
     echo "------------------------------------------------------------------------------------------------"
-    echo "Generating variation images for ${DS}"
+    echo "Generating perturbation images for ${DS}"
     echo "--------------------------------"
     echo "--------------------------------"
     echo "--------------------------------"
@@ -59,7 +59,7 @@ for DS in "${DISTRACTION_SETS[@]}"; do
     python mani_skill/examples/motionplanning/panda/run.py \
         --env-id ${ENV_ID} \
         --num-traj 3 \
-        --distraction-set ${DS} \
+        --perturbation-set ${DS} \
         --num-procs 1 \
         --obs-mode "rgb" \
         --reward-mode "none" \

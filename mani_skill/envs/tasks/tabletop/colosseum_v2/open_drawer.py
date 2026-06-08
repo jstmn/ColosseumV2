@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.geometry import transform_points
 from mani_skill.utils.geometry.rotation_conversions import quaternion_multiply
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 CABINET_COLLISION_BIT = 29
 
@@ -61,7 +61,7 @@ class OpenDrawerEnv(ColosseumV2Env):
     min_open_frac = 0.5
 
     # No way to change the color / texture / size of the cabinet
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         MO_color=True,
         MO_texture=True,
         MO_size=True,

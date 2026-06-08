@@ -21,7 +21,7 @@ from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.geometry.trimesh_utils import merge_meshes
 from mani_skill.examples.motionplanning.base_motionplanner.utils import compute_grasp_info_by_obb
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet
 
 CABINET_COLLISION_BIT = 29
 
@@ -145,8 +145,8 @@ class ObjectInCabinetEnv(BaseEnv):
         object_model_id="011_banana",
         **kwargs,
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
+        perturbation_set: DistractionSet | dict | None = kwargs.pop("perturbation_set", None)
+        self._perturbation_set: DistractionSet | None = DistractionSet(**perturbation_set) if isinstance(perturbation_set, dict) else perturbation_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self._model_id = 1027
         self.object_model_id = object_model_id

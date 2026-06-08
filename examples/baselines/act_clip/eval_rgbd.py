@@ -16,8 +16,8 @@ import tyro
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from train_rgbd import Agent, FlattenRGBDObservationWrapper, Args
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import VariationFactorDisabledError
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import PerturbationFactorDisabledError
 from mani_skill.envs.tasks.tabletop import *
 
 
@@ -25,7 +25,7 @@ from mani_skill.envs.tasks.tabletop import *
 # Run on a single, single-arm task
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "light_color" \
+    --perturbation-set "light_color" \
     --env-id "RaiseCube-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
@@ -41,7 +41,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (single arm)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
-    --distraction-set "none" \
+    --perturbation-set "none" \
     --env-id "PlaceCubeInDrawer-v1" \
     --control-mode "pd_ee_delta_pose" \
     --no-include-depth \
@@ -56,7 +56,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
 # Run on a single task and save video (bimanual)
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_bimanual_lang/best_eval_success_once.pt \
-    --distraction-set "none" \
+    --perturbation-set "none" \
     --env-id "DualArmDrawerOpen-v1" \
     --control-mode "pd_joint_pos" \
     --no-include-depth \
@@ -69,7 +69,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
 
 
 
-# Run on all tasks x variation factors
+# Run on all tasks x perturbation factors
 python examples/baselines/act_clip/eval_rgbd.py \
     --checkpoint-path checkpoints/hyeonho_simul_results/Multi-task_single_lang/best_eval_success_once.pt \
     --control-mode "pd_ee_delta_pose" \
@@ -81,7 +81,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
     --num-eval-envs 50 \
     --max-episode-steps 200 \
     --internal-instruction \
-    --distraction-set "BLANK" \
+    --perturbation-set "BLANK" \
     --results-path logs/results_single_arm.csv
 """
 
@@ -250,7 +250,7 @@ def get_now_str():
 def update_args_from_results(args: Args):
     assert args.results_path is not None
     expected_columns = [
-        "checkpoint_path","pc_hostname","now","t_final","duration_sec","distraction_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
+        "checkpoint_path","pc_hostname","now","t_final","duration_sec","perturbation_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
     ]
     if not Path(args.results_path).exists():
         results_df = DataFrame(columns=expected_columns)
@@ -279,25 +279,25 @@ def update_args_from_results(args: Args):
         assert len(tasks) > 0, f"No tasks found in {args.tasks_subset} after filtering by args.tasks_subset: {args.tasks_subset}"
 
     # 
-    if len(args.variation_factors_subset) > 0:
-        variation_factors = args.variation_factors_subset
+    if len(args.perturbation_factors_subset) > 0:
+        perturbation_factors = args.perturbation_factors_subset
     else:
-        variation_factors = DISTRACTION_SETS.keys()
-    print("Considering variation factors: ", variation_factors)
+        perturbation_factors = PERTURBATION_SETS.keys()
+    print("Considering perturbation factors: ", perturbation_factors)
     print("Considering tasks: ", tasks)
 
     for task in tasks:
-        for distraction_set in variation_factors:
+        for perturbation_set in perturbation_factors:
             result_found = results_df[
                 (results_df["env_id"] == task)
-                & (results_df["distraction_set"].str.lower() == distraction_set.lower())
+                & (results_df["perturbation_set"].str.lower() == perturbation_set.lower())
             ]
             if len(result_found) > 0:
-                print(f"Found existing result for task {task} and distraction set {distraction_set}")
+                print(f"Found existing result for task {task} and distraction set {perturbation_set}")
                 continue
-            cprint(f"Starting evaluation for '{task}' with '{distraction_set}'", "green")
+            cprint(f"Starting evaluation for '{task}' with '{perturbation_set}'", "green")
             args.env_id = task
-            args.distraction_set = distraction_set
+            args.perturbation_set = perturbation_set
 
             row = [
                 args.checkpoint_path,
@@ -305,7 +305,7 @@ def update_args_from_results(args: Args):
                 args.now,
                 "final-time-not-set",
                 -1,
-                distraction_set.lower(),
+                perturbation_set.lower(),
                 task,
                 args.control_mode,
                 args.include_depth,
@@ -318,7 +318,7 @@ def update_args_from_results(args: Args):
             results_df.loc[len(results_df)] = row
             results_df.to_csv(args.results_path, index=False)
 
-            if is_bimanual and (("table_" in distraction_set.lower()) or ("all" in distraction_set.lower())):
+            if is_bimanual and (("table_" in perturbation_set.lower()) or ("all" in perturbation_set.lower())):
                 args.num_eval_envs = int(args.num_eval_envs / 4)
                 print(f"Reducing number of evaluation environments to {args.num_eval_envs}. Bimanual tasks with table-related distraction sets use far greater GPU memory.")
 
@@ -366,19 +366,19 @@ if __name__ == "__main__":
         reward_mode="sparse", 
         obs_mode="rgbd" if args.include_depth else "rgb", 
         render_mode="rgb_array" if args.capture_video else None,
-        distraction_set=DISTRACTION_SETS[args.distraction_set.upper()].to_dict(),
+        perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()].to_dict(),
         _env_id=args.env_id,
     )
-    # ^ distraction_set needs to be pickle-able by ManiSkillVectorEnv, so we convert it to a dictionary
+    # ^ perturbation_set needs to be pickle-able by ManiSkillVectorEnv, so we convert it to a dictionary
     if args.max_episode_steps is not None:
         env_kwargs["max_episode_steps"] = args.max_episode_steps
     other_kwargs = None
     wrappers = [partial(FlattenRGBDObservationWrapper, is_multi_task=args.is_multi_task, target_num_cams=args.target_num_cams, depth=args.include_depth)]
     video_dir = args.checkpoint_path.replace('.pt', '__videos')
-    video_filename = f"{args.env_id}___ds:{args.distraction_set}"
+    video_filename = f"{args.env_id}___ds:{args.perturbation_set}"
     try:
         envs = make_eval_envs(args.env_id, args.num_eval_envs, args.sim_backend, env_kwargs, other_kwargs, video_dir=video_dir if args.capture_video else None, wrappers=wrappers, video_filename=video_filename)
-    except VariationFactorDisabledError as e:
+    except PerturbationFactorDisabledError as e:
         cprint(f"Variation factor disabled error: {e}", "red")
         exit(0)
     except Exception as e:
@@ -441,7 +441,7 @@ if __name__ == "__main__":
             args.now,
             get_now_str(),
             time() - t0,
-            args.distraction_set.lower(),
+            args.perturbation_set.lower(),
             args.env_id,
             args.control_mode,
             args.include_depth,

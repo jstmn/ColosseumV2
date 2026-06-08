@@ -11,7 +11,7 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 
 @register_env("ScoopBanana-v1", max_episode_steps=100)
 class ScoopBananaEnv(ColosseumV2Env):
@@ -43,7 +43,7 @@ class ScoopBananaEnv(ColosseumV2Env):
     arm_reach = 0.35
 
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors()
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors()
 
     def __init__(self, *args, robot_uids="panda_wristcam", robot_init_qpos_noise=0.02, **kwargs):
         super().__init__(*args, robot_uids=robot_uids, **kwargs)

@@ -14,7 +14,7 @@ from mani_skill.utils.geometry.rotation_conversions import quaternion_to_matrix
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledVariationFactors, PlacementRegion
+from mani_skill.envs.tasks.tabletop.colosseum_v2.colosseum_v2_core import ColosseumV2Env, DisabledPerturbationFactors, PlacementRegion
 from sapien.physx import PhysxMaterial
 
 
@@ -38,7 +38,7 @@ class PlaceDishInRackEnv(ColosseumV2Env):
     SUPPORTED_ROBOTS = ["panda_wristcam", "panda", "fetch"]
     agent: Union[PandaWristCam, Fetch]
 
-    DISABLED_VARIATION_FACTORS = DisabledVariationFactors(
+    DISABLED_PERTURBATION_FACTORS = DisabledPerturbationFactors(
         MO_size=True,
         RO_size=True,
     )

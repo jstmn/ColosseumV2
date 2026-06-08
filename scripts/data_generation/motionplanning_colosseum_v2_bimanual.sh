@@ -4,7 +4,7 @@
 # bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh --included-cameras "external1_camera"
 # bash scripts/data_generation/motionplanning_colosseum_v2_bimanual.sh --included-cameras "hand_camera external1_camera"
 
-DISTRACTION_SET=none
+PERTURBATION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 INCLUDED_CAMERAS=""
@@ -67,7 +67,7 @@ for ENV_ID in "${ENVS[@]}"; do
     python mani_skill/examples/motionplanning/panda/run.py \
         --env-id ${ENV_ID} \
         --num-traj ${N_TRAJ} \
-        --distraction-set ${DISTRACTION_SET} \
+        --perturbation-set ${PERTURBATION_SET} \
         ${INCLUDED_CAMERAS_ARG} \
         --num-procs ${NUM_PROCS} \
         --obs-mode "rgb" \

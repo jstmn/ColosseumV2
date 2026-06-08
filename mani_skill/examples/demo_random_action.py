@@ -9,7 +9,7 @@ import tyro
 import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils import gym_utils
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DISTRACTION_SETS, DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS, DistractionSet
 from mani_skill.utils.wrappers import RecordEpisode
 
 
@@ -57,10 +57,10 @@ python mani_skill/examples/demo_random_action.py \
     --sim-backend "physx_cpu" \
     --record-dir "demos/random_action" \
     --render-mode "human" \
-    --distraction-set "background_color"
+    --perturbation-set "background_color"
 
 
-    --distraction-set "background_texture"
+    --perturbation-set "background_texture"
 
     --num-envs 2 \
     --sim-backend "cuda" \
@@ -111,7 +111,7 @@ class Args:
     seed: Annotated[Optional[Union[int, list[int]]], tyro.conf.arg(aliases=["-s"])] = None
     """Seed(s) for random actions and simulator. Can be a single integer or a list of integers. Default is None (no seeds)"""
 
-    distraction_set: Annotated[Optional[list[str]], tyro.conf.arg(aliases=["-d"])] = None
+    perturbation_set: Annotated[Optional[list[str]], tyro.conf.arg(aliases=["-d"])] = None
     """Distraction set"""
 
 def main(args: Args):
@@ -132,10 +132,10 @@ def main(args: Args):
         
     
     # Create the distraction set
-    distraction_set = None
-    if args.distraction_set is not None:
-        distraction_sets = [DISTRACTION_SETS[distraction_set.upper()] for distraction_set in args.distraction_set]
-        distraction_set = DistractionSet.merge(distraction_sets)
+    perturbation_set = None
+    if args.perturbation_set is not None:
+        perturbation_sets = [PERTURBATION_SETS[perturbation_set.upper()] for perturbation_set in args.perturbation_set]
+        perturbation_set = DistractionSet.merge(perturbation_sets)
 
     env_kwargs = dict(
         obs_mode=args.obs_mode,
@@ -150,7 +150,7 @@ def main(args: Args):
         render_backend=args.render_backend,
         enable_shadow=True,
         parallel_in_single_scene=parallel_in_single_scene,
-        distraction_set=distraction_set,
+        perturbation_set=perturbation_set,
     )
     if args.robot_uids is not None:
         env_kwargs["robot_uids"] = tuple(args.robot_uids.split(","))
@@ -162,8 +162,8 @@ def main(args: Args):
             **env_kwargs
         )
     except TypeError as e:
-        assert "got an unexpected keyword argument 'distraction_set'" in str(e)
-        del env_kwargs["distraction_set"]
+        assert "got an unexpected keyword argument 'perturbation_set'" in str(e)
+        del env_kwargs["perturbation_set"]
         env = gym.make(
             args.env_id,
             **env_kwargs

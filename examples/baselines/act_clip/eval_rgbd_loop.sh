@@ -1,8 +1,5 @@
 # !/bin/bash
 
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate maniskill_jm
-
 
 # ============================================================
 # Env ID                              | Count     
@@ -66,7 +63,7 @@ while true; do
         --num-eval-envs 34 \
         --max-episode-steps-from-lookup \
         --internal-instruction \
-        --distraction-set "BLANK" \
+        --perturbation-set "BLANK" \
         --results-path $LOGS_DIR/results_single_arm__table.csv
 
     python examples/baselines/act_clip/eval_rgbd.py \
@@ -80,7 +77,7 @@ while true; do
         --num-eval-envs 34 \
         --max-episode-steps-from-lookup \
         --internal-instruction \
-        --distraction-set "BLANK" \
+        --perturbation-set "BLANK" \
         --results-path $LOGS_DIR/results_bimanual_act.csv
 
     # =============================== VIDEO MODE ===============================
@@ -97,7 +94,7 @@ while true; do
     #     --capture-video \
     #     --hidden-dim 512 --dim-feedforward 1600 --enc-layers 4 --dec-layers 7 \
     #     --internal-instruction \
-    #     --distraction-set "BLANK" \
+    #     --perturbation-set "BLANK" \
     #     --results-path logs/results_single_arm_VIDEOS_${NOW}.csv
 
     # python examples/baselines/act_clip/eval_rgbd.py \
@@ -111,7 +108,7 @@ while true; do
     #     --num-eval-envs 5 \
     #     --max-episode-steps 5 \
     #     --internal-instruction \
-    #     --distraction-set "BLANK" \
+    #     --perturbation-set "BLANK" \
     #     --capture-video \
     #     --results-path logs/results_bimanual.csv
         # --results-path logs/results_bimanual_VIDEOS_${NOW}.csv

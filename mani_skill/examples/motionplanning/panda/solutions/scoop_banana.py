@@ -92,7 +92,6 @@ def solve(env: ScoopBananaEnv, seed=None, debug=False, vis=False):
     lift_rot_pose = approach_pose * sapien.Pose(p=[0.01, 0, -0.03], q=[np.cos(lift_rotn_y/2), 0, np.sin(lift_rotn_y/2), 0])
     res = planner.move_to_pose_with_RRTStar(lift_rot_pose)
     if res == -1:
-        print("FAIL here")
         return res
 
 

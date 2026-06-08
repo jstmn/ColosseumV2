@@ -12,7 +12,7 @@ from mani_skill.utils.building import actors, articulations
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Pose
 from mani_skill.utils.scene_builder.table import TableSceneBuilder
-from mani_skill.envs.tasks.tabletop.colosseum_v2.distraction_set import DistractionSet
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import DistractionSet
 
 
 CABINET_COLLISION_BIT = 29
@@ -40,8 +40,8 @@ class PickBananaFromOpenDrawerEnv(BaseEnv):
         robot_init_qpos_noise=0.02,
         **kwargs
     ):
-        distraction_set: DistractionSet | dict | None = kwargs.pop("distraction_set", None)
-        self._distraction_set: DistractionSet | None = DistractionSet(**distraction_set) if isinstance(distraction_set, dict) else distraction_set
+        perturbation_set: DistractionSet | dict | None = kwargs.pop("perturbation_set", None)
+        self._perturbation_set: DistractionSet | None = DistractionSet(**perturbation_set) if isinstance(perturbation_set, dict) else perturbation_set
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
