@@ -118,7 +118,7 @@ def tile_images(images: list[Array], nrows=1) -> Array:
 TEXT_FONT = None
 
 
-def put_text_on_image(image: np.ndarray, lines: list[str]):
+def put_text_on_image(image: np.ndarray, lines: list[str], font_size: int = 16):
     global TEXT_FONT
     assert image.dtype == np.uint8, image.dtype
     image = image.copy()
@@ -127,23 +127,30 @@ def put_text_on_image(image: np.ndarray, lines: list[str]):
     if TEXT_FONT is None:
         TEXT_FONT = ImageFont.truetype(
             os.path.join(os.path.dirname(__file__), "UbuntuSansMono-Regular.ttf"),
-            size=16,
+            size=font_size,
         )
     y = -10
     for line in lines:
-        bbox = draw.textbbox((0, 0), text=line)
+        bbox = draw.textbbox((0, 0), text=line, font=TEXT_FONT)
         textheight = bbox[3] - bbox[1]
         y += textheight + 10
         x = 10
-        draw.text((x, y), text=line, fill=(0, 255, 0), font=TEXT_FONT)
+        draw.text(
+            (x, y),
+            text=line,
+            fill=(255, 0, 0),
+            font=TEXT_FONT,
+            stroke_width=1,
+            stroke_fill=(80, 0, 0),
+        )
     return np.array(image)
 
 
-def put_info_on_image(image, info: dict[str, float], extras=None, overlay=True):
+def put_info_on_image(image, info: dict[str, float], extras=None, overlay=True, font_size: int = 50):
     lines = [
         f"{k}: {v:.3f}" if isinstance(v, float) else f"{k}: {v}"
         for k, v in info.items()
     ]
     if extras is not None:
         lines.extend(extras)
-    return put_text_on_image(image, lines)
+    return put_text_on_image(image, lines, font_size=font_size)
