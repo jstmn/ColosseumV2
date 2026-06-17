@@ -155,7 +155,23 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
         # Index by task name for easy lookup: df.loc[task, perturbation_set]
         df["Task"] = df["Task"].astype(str).str.strip()
         df = df.set_index("Task", drop=True)
+        filtered_out_tasks = df[df["none"] < LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
+        if not filtered_out_tasks.empty:
+            print(
+                f"{model_name}: filtering out tasks with none success rate "
+                f"< {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
+            )
+            for task in filtered_out_tasks.index:
+                none_success_rate = filtered_out_tasks.at[task, "none"]
+                print(f"    {task}: {none_success_rate}")
         df = df[df["none"] >= LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
+        print(
+            f"{model_name}: including tasks with none success rate "
+            f">= {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
+        )
+        for task in df.index:
+            none_success_rate = df.at[task, "none"]
+            print(f"    {task}: {none_success_rate}")
 
         # Allow perturbation-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
         col_by_lower = {str(c).strip().lower(): c for c in df.columns}
@@ -194,6 +210,54 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
                 all_changes.append(change)
             mean_changes_from_none[model_name][ds] = float(np.mean(all_changes)) if all_changes else 0.0
     return mean_changes_from_none, mean_absolute_sr
+
+
+def format_task_macro(task_name: str) -> str:
+    return f"\\mbox{{\\{task_name}{{}}}}"
+
+
+def format_task_newcommand(task_name: str) -> str:
+    return f"\\newcommand{{\\{task_name}}}{{\\textsc{{{task_name}}}}}"
+
+
+def print_threshold_task_latex_table(result_csvs: list[str], model_names: list[str]):
+    print()
+    print("\\begin{table*}[t]")
+    print("\\centering")
+    print("\\small")
+    print("\\begin{tabular}{p{0.16\\textwidth} p{0.39\\textwidth} p{0.39\\textwidth}}")
+    print("\\toprule")
+    print("Model & Included tasks & Excluded tasks \\\\")
+    print("\\midrule")
+    all_tasks = set()
+
+    for i, (model_name, result_csv) in enumerate(zip(model_names, result_csvs)):
+        df = pd.read_csv(result_csv)
+        df["Task"] = df["Task"].astype(str).str.strip()
+        df = df.set_index("Task", drop=True)
+
+        included_tasks = sorted(str(task) for task in df[df["none"] >= LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING].index)
+        excluded_tasks = sorted(str(task) for task in df[df["none"] < LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING].index)
+        all_tasks.update(included_tasks)
+        all_tasks.update(excluded_tasks)
+        included = ", ".join(format_task_macro(task) for task in included_tasks)
+        excluded = ", ".join(format_task_macro(task) for task in excluded_tasks)
+
+        print(f"{model_name} &")
+        print(f"{included} &")
+        print(f"{excluded} \\\\")
+        if i < len(model_names) - 1:
+            print("\\midrule")
+
+    print("\\bottomrule")
+    print("\\end{tabular}")
+    print("\\caption{Tasks included and excluded when calculating the average change in success rate for each perturbation.}")
+    print("\\label{tab:included_excluded_tasks}")
+    print("\\end{table*}")
+    print("\n\n")
+    for task in sorted(all_tasks):
+        print(format_task_newcommand(task))
+    print()
 
 
 def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
@@ -778,20 +842,22 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
 
 
 def generate_waterfall_plot(single_arm_csvs: list[str], single_arm_model_names: list[str], bimanual_csvs: list[str], bimanual_model_names: list[str], output_dir: str):
-    """This function generates a waterfall plot of the success rate on the 'none' environment perturbation for each task. 
-    For each model, the y-axis is the success rate on the 'none' environment perturbation. The x-axis is the task index. 
-    The plot is a line plot of the x1,x1 point to the x1,xn point.
+    """This function generates bar charts of the success rate on the 'none' environment variation for each task.
+    For each model, the y-axis is the success rate on the 'none' environment variation. The x-axis is the task index.
 
     Args:
         result_csvs (list[str]): A list of paths to the result csvs.
         model_names (list[str]): A list of model names.
         output_dir (str): The directory to save the plot to.
     """
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+    fig, axs = plt.subplots(1, 2, figsize=(10, 4))
 
     def _plot(ax, model_names, result_csvs):
-        
-        for model_name, result_csv in zip(model_names, result_csvs):
+        n_models = len(model_names)
+        bar_width = 0.8 / n_models
+        max_n_tasks = 0
+
+        for model_idx, (model_name, result_csv) in enumerate(zip(model_names, result_csvs)):
             df = pd.read_csv(result_csv)
             if "Task" not in df.columns:
                 raise ValueError(f"CSV {result_csv} missing required 'Task' column. Got columns: {list(df.columns)}")
@@ -801,46 +867,46 @@ def generate_waterfall_plot(single_arm_csvs: list[str], single_arm_model_names: 
             if none_col not in df.columns:
                 raise KeyError(f"CSV {result_csv} missing 'none' column. Got columns: {list(df.columns)}")
 
-            task_success_rates = []
-            for _, row in df.iterrows():
-                task = row["Task"]
-                success_rate = row[none_col]
-                if pd.notna(success_rate):
-                    task_success_rates.append((task, float(success_rate)))
+            df[none_col] = pd.to_numeric(df[none_col], errors="coerce")
+            task_success_rates = [
+                (row["Task"], float(row[none_col]))
+                for _, row in df.dropna(subset=[none_col]).iterrows()
+            ]
 
             task_success_rates.sort(key=lambda x: x[1], reverse=True)
-            task_indices = list(range(len(task_success_rates)))
+            task_indices = np.arange(len(task_success_rates))
             success_rates = [sr for _, sr in task_success_rates]
+            max_n_tasks = max(max_n_tasks, len(task_success_rates))
+            offset = (model_idx - (n_models - 1) / 2) * bar_width
 
-            ax.plot(
-                task_indices,
+            ax.bar(
+                task_indices + offset,
                 success_rates,
-                marker='o',
-                linewidth=2,
-                markersize=6,
+                width=bar_width,
                 label=model_name,
-                color=COLOR_MAP[model_name]
+                color=COLOR_MAP[model_name],
+                edgecolor="white",
+                linewidth=0.5,
             )
-            ax.scatter(
-                task_indices,
-                success_rates,
-                color=COLOR_MAP[model_name]
-            )
+
+        ax.set_xticks(np.arange(max_n_tasks))
     _plot(axs[0], single_arm_model_names, single_arm_csvs)
     _plot(axs[1], bimanual_model_names, bimanual_csvs)
 
-    fontsize = 13
+    fontsize = 14
     axs[0].set_xlabel("Task Index", fontsize=fontsize)
     axs[0].set_ylabel("Success Rate [%]", fontsize=fontsize)
     axs[0].legend(fontsize=fontsize)
-    axs[0].grid(True, alpha=0.4)
-    axs[0].grid(True, which="minor", linestyle="--", alpha=0.2)
+    axs[0].grid(axis="y", alpha=0.4)
+    axs[0].grid(axis="y", which="minor", linestyle="--", alpha=0.2)
     axs[0].minorticks_on()
+    axs[0].set_axisbelow(True)
     axs[1].set_xlabel("Task Index", fontsize=fontsize)
     axs[1].legend(fontsize=fontsize)
-    axs[1].grid(True, alpha=0.4)
-    axs[1].grid(True, which="minor", linestyle="--", alpha=0.2)
+    axs[1].grid(axis="y", alpha=0.4)
+    axs[1].grid(axis="y", which="minor", linestyle="--", alpha=0.2)
     axs[1].minorticks_on()
+    axs[1].set_axisbelow(True)
     fig.tight_layout()
     
     os.makedirs(output_dir, exist_ok=True)
@@ -908,6 +974,7 @@ if __name__ == "__main__":
     result_csvs = [args.act_single_arm_csv, args.act_bimanual_csv, args.pi0_single_arm_csv, args.pi0_bimanual_csv]
     model_names = ["ACT - Single-Arm", "ACT - Bimanual", "Pi0.5 - Single-Arm", "Pi0.5 - Bimanual"]
     mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(result_csvs, model_names)
+    print_threshold_task_latex_table(result_csvs, model_names)
 
     # First, print out some stats.
     print()
@@ -917,7 +984,7 @@ if __name__ == "__main__":
     pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single-Arm"]
     act_deltas = []
     pi0_deltas = []
-    for ds in DISTRACTION_SETS:
+    for ds in PERTURBATION_SETS:
         if 'none'.lower() in ds.lower():
             continue
         act_bimanual_result = act_bimanual_results[ds]
@@ -935,12 +1002,12 @@ if __name__ == "__main__":
 
 
     # Generate plots
-    generate_mean_change_figure(mean_changes_from_none, model_names, args.output_dir)
-    generate_clumped_change_figure(mean_changes_from_none, model_names, args.output_dir)
-    generate_clumped_change_figure_radial(mean_changes_from_none, model_names, args.output_dir)
-    generate_radial_absolute(mean_absolute_sr, model_names, args.output_dir)
-    generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
-    generate_radial_two_plots_v2(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
+    # generate_mean_change_figure(mean_changes_from_none, model_names, args.output_dir)
+    # generate_clumped_change_figure(mean_changes_from_none, model_names, args.output_dir)
+    # generate_clumped_change_figure_radial(mean_changes_from_none, model_names, args.output_dir)
+    # generate_radial_absolute(mean_absolute_sr, model_names, args.output_dir)
+    # generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
+    # generate_radial_two_plots_v2(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
 
     # Waterfall plots
     generate_waterfall_plot(

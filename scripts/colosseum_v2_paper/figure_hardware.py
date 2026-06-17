@@ -78,6 +78,13 @@ PERTURBATION_SET_DISPLAY_NAMES = {
 }
 
 
+def calculate_spearman_correlation(x_vals, y_vals) -> float:
+    if len(x_vals) < 2 or len(set(x_vals)) < 2 or len(set(y_vals)) < 2:
+        return float("nan")
+    rho = pd.Series(x_vals, dtype="float64").corr(pd.Series(y_vals, dtype="float64"), method="spearman")
+    return float(rho) if not pd.isna(rho) else float("nan")
+
+
 def plot_by_task(sim_csv_filepath: str, out_dir: str):
 
     sim_df = pd.read_csv(sim_csv_filepath)
@@ -112,7 +119,7 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
     LEGEND_FONTSIZE = 12
     TICK_FONTSIZE = 12
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5.5))
     fig.subplots_adjust(right=0.55)
 
     task_colors = {
@@ -176,6 +183,8 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
                     marker=perturbation_markers[perturbation_name],
                     s=125,
                 )
+
+        print()
         print(f"{task_name}: {task_x1s} {task_x2s}")
         assert none_scatter is not None
         best_fit_line = np.polyfit(task_x1s, task_x2s, 1)
@@ -183,9 +192,11 @@ def plot_by_task(sim_csv_filepath: str, out_dir: str):
         task_x2s_arr = np.array(task_x2s)
         y_pred = np.polyval(best_fit_line, task_x1s)
         R_squared = 1 - (np.sum((task_x2s_arr - y_pred) ** 2) / np.sum((task_x2s_arr - np.mean(task_x2s_arr)) ** 2))
-        print(f"R-squared: {R_squared}")
+        spearman_rho = calculate_spearman_correlation(task_x1s, task_x2s)
+        print(f"  R-squared: {R_squared:.5f}")
+        print(f"  Spearman rho: {spearman_rho:.5f}")
         ax.plot(x1_range, np.polyval(best_fit_line, x1_range), color=color, linestyle="--")
-        none_scatter.set_label(f"{task_name} (R²={R_squared:.3f})")
+        none_scatter.set_label(f"{task_name} (R²={R_squared:.3f}, ρ={spearman_rho:.3f})")
 
     print()
     print("Deltas by perturbation:")
