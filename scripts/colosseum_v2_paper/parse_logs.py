@@ -44,7 +44,6 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-import numpy as np
 
 CELL_COLOR_MAP = {
     "visual": "CFECFF",
@@ -128,7 +127,7 @@ ENV_ID_TO_FANCY_NAME = {
 }
 
 
-VARIATION_NAMES = (
+PERTURBATION_NAMES = (
     "none".lower(),
     "all".lower(),
     "MO_color".lower(),
@@ -148,7 +147,7 @@ VARIATION_NAMES = (
     "language".lower(),
 )
 
-VISUAL_VARIATIONS = (
+VISUAL_PERTURBATIONS = (
     "MO_color".lower(),
     "MO_texture".lower(),
     "RO_color".lower(),
@@ -162,17 +161,17 @@ VISUAL_VARIATIONS = (
     "camera_pose".lower(),
 )
 
-LANGUAGE_VARIATIONS = (
+LANGUAGE_PERTURBATIONS = (
     "language".lower(),
 )
 
-ACTION_VARIATIONS = (
+ACTION_PERTURBATIONS = (
     "MO_size".lower(),
     "RO_size".lower(),
     "pose_randomization".lower(),
 )
 
-assert len(VISUAL_VARIATIONS) + len(LANGUAGE_VARIATIONS) + len(ACTION_VARIATIONS) == len(VARIATION_NAMES) - 2
+assert len(VISUAL_PERTURBATIONS) + len(LANGUAGE_PERTURBATIONS) + len(ACTION_PERTURBATIONS) == len(PERTURBATION_NAMES) - 2
 
 def _task_display_name(env_id: str) -> str:
     # Use the curated short names for presentation in tables.
@@ -265,7 +264,7 @@ def build_success_matrix(
 
     matrix: dict[tuple[str, str], float | None] = {}
     for t in task_order:
-        for ds in VARIATION_NAMES:
+        for ds in PERTURBATION_NAMES:
             pair = totals.get((t, ds))
             if pair is None:
                 matrix[(t, ds)] = None
@@ -288,7 +287,7 @@ def render_latex_table(
     decimals: int,
     sort_by_success_rate: bool = True,
 ) -> str:
-    header_cells = ["Task"] + [c.upper() for c in VARIATION_NAMES]
+    header_cells = ["Task"] + [c.upper() for c in PERTURBATION_NAMES]
 
     def get_header_cell(x: str) -> str:
         def to_bold(x: str) -> str:
@@ -298,11 +297,11 @@ def render_latex_table(
             return to_bold("TASK")
 
         cell_color = None
-        if x.lower() in VISUAL_VARIATIONS:
+        if x.lower() in VISUAL_PERTURBATIONS:
             cell_color = CELL_COLOR_MAP["visual"]
-        elif x.lower() in LANGUAGE_VARIATIONS:
+        elif x.lower() in LANGUAGE_PERTURBATIONS:
             cell_color = CELL_COLOR_MAP["language"]
-        elif x.lower() in ACTION_VARIATIONS:
+        elif x.lower() in ACTION_PERTURBATIONS:
             cell_color = CELL_COLOR_MAP["action"]
         else:
             assert x.lower() == "all" or x.lower() == "none", f"Unknown perturbation: {x.lower()}"
@@ -315,7 +314,7 @@ def render_latex_table(
         return r"\cellcolor[HTML]{" + cell_color + r"} {" + base + "}"
 
     # tabular spec: 1 left column + N right columns
-    # tabular_spec = "l" + ("r" * len(VARIATION_NAMES))
+    # tabular_spec = "l" + ("r" * len(PERTURBATION_NAMES))
     tabular_spec = "lrr|rrrrrrrrrrr|rrr|r"
     lines: list[str] = []
     lines.append(r"\centering")
@@ -335,14 +334,14 @@ def render_latex_table(
 
     for task in tasks:
         cells = [_escape_latex(str(task))]
-        for ds in VARIATION_NAMES:
+        for ds in PERTURBATION_NAMES:
             cells.append(_format_percent(matrix.get((task, ds)), decimals=decimals))
         lines.append(" & ".join(cells) + r" \\")
 
     # Add a row: 'Mean change from none'
     lines.append(r"\midrule")
     cells = ["Mean \\% Change from None"]
-    for ds in VARIATION_NAMES:
+    for ds in PERTURBATION_NAMES:
         pct_changes = []
         for task in tasks:
             none_sr = matrix.get((task, "none"))
@@ -369,9 +368,9 @@ def render_latex_table(
 def save_to_csv(tasks: list[str], matrix: dict[tuple[str, str], float | None], path: str):
     with open(path, "w") as f:
         writer = csv.writer(f)
-        writer.writerow(["Task"] + list(VARIATION_NAMES))
+        writer.writerow(["Task"] + list(PERTURBATION_NAMES))
         for task in tasks:
-            writer.writerow([str(task)] + [matrix.get((task, ds)) for ds in VARIATION_NAMES])
+            writer.writerow([str(task)] + [matrix.get((task, ds)) for ds in PERTURBATION_NAMES])
     print(f"Wrote CSV table to {path}")
 
 

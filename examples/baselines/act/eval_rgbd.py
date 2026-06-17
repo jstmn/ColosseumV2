@@ -81,7 +81,7 @@ def update_args_from_results(args: Args):
                 & (results["perturbation_set"].str.lower() == perturbation_set.lower())
             ]
             if len(result_found) > 0:
-                print(f"Found existing result for task {task} and distraction set {perturbation_set}")
+                print(f"Found existing result for task {task} and perturbation set {perturbation_set}")
                 continue
             print(f"Starting evaluation for {task=} and {perturbation_set=}")
             args.env_id = task
@@ -103,7 +103,7 @@ def update_args_from_results(args: Args):
             results.to_csv(args.results_path, index=False)
             return args
 
-    raise Exception("No result found for any task and distraction set")
+    raise Exception("No result found for any task and perturbation set")
 
 
 if __name__ == "__main__":

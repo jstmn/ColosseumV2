@@ -83,7 +83,7 @@ class DistractionSet:
         elif perturbation in disabled:
             return False
         else:
-            raise ValueError(f"Variation {perturbation} is not found in the distraction set. Enabled: {enabled}, Disabled: {disabled}")
+            raise ValueError(f"Variation {perturbation} is not found in the perturbation set. Enabled: {enabled}, Disabled: {disabled}")
 
     def all_are_enabled(self) -> bool:
         _, disabled = self.which_enabled_str()

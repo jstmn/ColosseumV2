@@ -293,7 +293,7 @@ def update_args_from_results(args: Args):
                 & (results_df["perturbation_set"].str.lower() == perturbation_set.lower())
             ]
             if len(result_found) > 0:
-                print(f"Found existing result for task {task} and distraction set {perturbation_set}")
+                print(f"Found existing result for task {task} and perturbation set {perturbation_set}")
                 continue
             cprint(f"Starting evaluation for '{task}' with '{perturbation_set}'", "green")
             args.env_id = task
@@ -320,11 +320,11 @@ def update_args_from_results(args: Args):
 
             if is_bimanual and (("table_" in perturbation_set.lower()) or ("all" in perturbation_set.lower())):
                 args.num_eval_envs = int(args.num_eval_envs / 4)
-                print(f"Reducing number of evaluation environments to {args.num_eval_envs}. Bimanual tasks with table-related distraction sets use far greater GPU memory.")
+                print(f"Reducing number of evaluation environments to {args.num_eval_envs}. Bimanual tasks with table-related perturbation sets use far greater GPU memory.")
 
             return args
 
-    raise OutOfTasksError("No result found for any task and distraction set")
+    raise OutOfTasksError("No result found for any task and perturbation set")
 
 
 if __name__ == "__main__":
