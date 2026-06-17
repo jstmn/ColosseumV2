@@ -100,7 +100,7 @@ YCB_DISTRACTOR_OBJECTS = (
 
 class PerturbationFactorDisabledError(Exception):
     """
-    Raised when a perturbation factor is disabled but is enabled in the distraction set.
+    Raised when a perturbation factor is disabled but is enabled in the perturbation set.
     """
     pass
 
@@ -377,7 +377,7 @@ class ColosseumV2Env(BaseEnv):
         elif isinstance(perturbation_set, DistractionSet):
             self._ds = perturbation_set
         else:
-            raise ValueError(f"Invalid distraction set type: {type(perturbation_set)}")
+            raise ValueError(f"Invalid perturbation set type: {type(perturbation_set)}")
         if max_n_distractor_objects is not None and self._ds.distractor_object_enabled():
             self._ds.distractor_object_cfg["n_distractors"] = min(max_n_distractor_objects, self._ds.distractor_object_cfg["n_distractors"])
 

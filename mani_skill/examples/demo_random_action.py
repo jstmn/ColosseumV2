@@ -131,7 +131,7 @@ def main(args: Args):
         parallel_in_single_scene = False
         
     
-    # Create the distraction set
+    # Create the perturbation set
     perturbation_set = None
     if args.perturbation_set is not None:
         perturbation_sets = [PERTURBATION_SETS[perturbation_set.upper()] for perturbation_set in args.perturbation_set]

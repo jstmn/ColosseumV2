@@ -141,7 +141,7 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
         df["Task"] = df["Task"].astype(str).str.strip()
         df = df.set_index("Task", drop=True)
         
-        # Allow distraction-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
+        # Allow perturbation-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
         col_by_lower = {str(c).strip().lower(): c for c in df.columns}
         
         for ds in PERTURBATION_SETS:
@@ -204,7 +204,7 @@ def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[s
                     continue
                 # Mean change: (success[perturbation_set] - success[none])
                 if ds not in success_rates[task]:
-                    print(f"Task {task} has no success rate for distraction set {ds}")
+                    print(f"Task {task} has no success rate for perturbation set {ds}")
                     continue
                 change = success_rates[task][ds] - base
                 all_changes.append(change)
@@ -586,11 +586,11 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
         vision_vals = []
         action_vals = []
         language_vals = []
-        for ds in VISION_DISTRACTION_SETS:
+        for ds in VISION_PERTURBATION_SETS:
             vision_vals.append(float(mean_srs[ds]))
-        for ds in ACTION_DISTRACTION_SETS:
+        for ds in ACTION_PERTURBATION_SETS:
             action_vals.append(float(mean_srs[ds]))
-        for ds in LANGUAGE_DISTRACTION_SETS:
+        for ds in LANGUAGE_PERTURBATION_SETS:
             language_vals.append(float(mean_srs[ds]))
 
         mean_clumped_absolute_sr[model]["vision"] = float(np.mean(vision_vals))
@@ -604,11 +604,11 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
         vision_vals = []
         action_vals = []
         language_vals = []
-        for ds in VISION_DISTRACTION_SETS:
+        for ds in VISION_PERTURBATION_SETS:
             vision_vals.append(float(mean_changes[ds]))
-        for ds in ACTION_DISTRACTION_SETS:
+        for ds in ACTION_PERTURBATION_SETS:
             action_vals.append(float(mean_changes[ds]))
-        for ds in LANGUAGE_DISTRACTION_SETS:
+        for ds in LANGUAGE_PERTURBATION_SETS:
             language_vals.append(float(mean_changes[ds]))
 
         mean_clumped_changes[model]["vision"] = float(np.mean(vision_vals))
@@ -722,11 +722,11 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
 #         vision_vals = []
 #         action_vals = []
 #         language_vals = []
-#         for ds in VISION_DISTRACTION_SETS:
+#         for ds in VISION_PERTURBATION_SETS:
 #             vision_vals.append(float(mean_srs[ds]))
-#         for ds in ACTION_DISTRACTION_SETS:
+#         for ds in ACTION_PERTURBATION_SETS:
 #             action_vals.append(float(mean_srs[ds]))
-#         for ds in LANGUAGE_DISTRACTION_SETS:
+#         for ds in LANGUAGE_PERTURBATION_SETS:
 #             language_vals.append(float(mean_srs[ds]))
 
 #         mean_clumped_absolute_sr[model]["vision"] = float(np.mean(vision_vals))
@@ -740,11 +740,11 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
 #         vision_vals = []
 #         action_vals = []
 #         language_vals = []
-#         for ds in VISION_DISTRACTION_SETS:
+#         for ds in VISION_PERTURBATION_SETS:
 #             vision_vals.append(float(mean_changes[ds]))
-#         for ds in ACTION_DISTRACTION_SETS:
+#         for ds in ACTION_PERTURBATION_SETS:
 #             action_vals.append(float(mean_changes[ds]))
-#         for ds in LANGUAGE_DISTRACTION_SETS:
+#         for ds in LANGUAGE_PERTURBATION_SETS:
 #             language_vals.append(float(mean_changes[ds]))
 
 #         mean_clumped_changes[model]["vision"] = -float(np.mean(vision_vals))

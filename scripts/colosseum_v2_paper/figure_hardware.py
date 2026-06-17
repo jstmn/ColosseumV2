@@ -281,7 +281,7 @@ def plot_by_perturbation(sim_csv_filepath: str, out_dir: str):
         var_sim = []
         first_scatter = None
 
-        display_name = DISTRACTION_SET_DISPLAY_NAMES.get(perturbation_name.lower(), perturbation_name)
+        display_name = PERTURBATION_SET_DISPLAY_NAMES.get(perturbation_name.lower(), perturbation_name)
         color = perturbation_colors[perturbation_name]
 
         for task_name in task_names:
