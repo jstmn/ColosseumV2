@@ -74,10 +74,20 @@ for ENV_ID in "${ENVS[@]}"; do
         echo ""
 
         # Check if the movie file already exists. Skip generation if it does.
-        MOVIE_FILE="demos/${ENV_ID}/motionplanning/trajectory_movie__${DS}___n:1.mp4"
-        if [ -f "${MOVIE_FILE}" ]; then
+        # Successful runs name videos ___n:k where k is the attempt index of the first success.
+        MOVIE_EXISTS=false
+        EXISTING_MOVIE=""
+        for k in $(seq 1 50); do
+            MOVIE_FILE="demos/${ENV_ID}/motionplanning/trajectory_movie__${DS}___n:${k}.mp4"
+            if [ -f "${MOVIE_FILE}" ]; then
+                MOVIE_EXISTS=true
+                EXISTING_MOVIE="${MOVIE_FILE}"
+                break
+            fi
+        done
+        if [ "${MOVIE_EXISTS}" = true ]; then
             # Print in green if the file exists
-            echo -e "\033[0;32mFile ${MOVIE_FILE} already exists. Skipping.\033[0m"
+            echo -e "\033[0;32mFile ${EXISTING_MOVIE} already exists. Skipping.\033[0m"
             continue
         fi
 
@@ -95,3 +105,13 @@ for ENV_ID in "${ENVS[@]}"; do
             --traj-name "trajectory_movie__${DS}"
     done
 done
+
+mkdir -p movies
+shopt -s nullglob
+for f in demos/*/motionplanning/trajectory_movie*.mp4; do
+    ENV_ID="$(basename "$(dirname "$(dirname "$f")")")"
+    DST_DIR="movies/${ENV_ID}/motionplanning"
+    mkdir -p "${DST_DIR}"
+    cp "$f" "${DST_DIR}/"
+done
+shopt -u nullglob
