@@ -115,33 +115,51 @@ def tile_images(images: list[Array], nrows=1) -> Array:
     return output_image
 
 
-TEXT_FONT = None
+_TEXT_FONTS: dict[int, ImageFont.FreeTypeFont] = {}
 
 
-def put_text_on_image(image: np.ndarray, lines: list[str], font_size: int = 16):
-    global TEXT_FONT
+def put_text_on_image(
+    image: np.ndarray,
+    lines: list[str],
+    font_size: int = 16,
+    bottom: bool = False,
+    color: tuple[int, int, int] = (255, 0, 0),
+):
     assert image.dtype == np.uint8, image.dtype
     image = image.copy()
     image = Image.fromarray(image)
     draw = ImageDraw.Draw(image)
-    if TEXT_FONT is None:
-        TEXT_FONT = ImageFont.truetype(
+    if font_size not in _TEXT_FONTS:
+        _TEXT_FONTS[font_size] = ImageFont.truetype(
             os.path.join(os.path.dirname(__file__), "UbuntuSansMono-Regular.ttf"),
             size=font_size,
         )
-    y = -10
+    font = _TEXT_FONTS[font_size]
+    stroke_fill = tuple(c // 3 for c in color)
+    if bottom:
+        total_h = sum(
+            draw.textbbox((0, 0), text=line, font=font)[3]
+            - draw.textbbox((0, 0), text=line, font=font)[1]
+            + 10
+            for line in lines
+        )
+        last_bbox = draw.textbbox((0, 0), text=lines[-1], font=font)
+        margin = font_size // 2
+        y = image.height - margin - total_h - (last_bbox[3] - last_bbox[1])
+    else:
+        y = -10
     for line in lines:
-        bbox = draw.textbbox((0, 0), text=line, font=TEXT_FONT)
+        bbox = draw.textbbox((0, 0), text=line, font=font)
         textheight = bbox[3] - bbox[1]
         y += textheight + 10
         x = 10
         draw.text(
             (x, y),
             text=line,
-            fill=(255, 0, 0),
-            font=TEXT_FONT,
+            fill=color,
+            font=font,
             stroke_width=1,
-            stroke_fill=(80, 0, 0),
+            stroke_fill=stroke_fill,
         )
     return np.array(image)
 
