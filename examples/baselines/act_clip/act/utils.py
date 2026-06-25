@@ -5,7 +5,8 @@ import torch.distributed as dist
 from torch import Tensor
 from h5py import File, Group, Dataset
 from typing import Optional
-
+from random import sample
+from tqdm import tqdm
 
 class NestedTensor(object):
     def __init__(self, tensors, mask: Optional[Tensor]):
@@ -96,6 +97,7 @@ TARGET_KEY_TO_SOURCE_KEY = {
     # 'rewards': 'rewards',
     'actions': 'actions',
 }
+
 def load_content_from_h5_file(file):
     if isinstance(file, (File, Group)):
         return {key: load_content_from_h5_file(file[key]) for key in list(file.keys())}
@@ -105,33 +107,50 @@ def load_content_from_h5_file(file):
         raise NotImplementedError(f"Unspported h5 file type: {type(file)}")
 
 def load_hdf5(path, ):
-    print('Loading HDF5 file', path)
+    print(f'load_hdf5({path=}, ) | Loading HDF5 file')
     file = File(path, 'r')
     ret = load_content_from_h5_file(file)
     file.close()
     print('Loaded')
     return ret
 
-def load_traj_hdf5(path, num_traj=None):
-    print('Loading HDF5 file', path)
+def load_traj_hdf5(path: str, max_n_demos_in_dataset : int | None =None) -> tuple[dict, bool]:
+    """Load a h5 dataset file
+    
+    Args:
+        path (str): the path to the .h5 dataset
+        max_n_demos_in_dataset (int | None, optional): The maximum number of demos to include
+
+    Returns:
+        tuple[dict, bool]: 
+            - the dataset
+            - whether all episodes were loaded from the h5 file. This won't be the case if num-episodes > max_n_demos_in_dataset
+    """
+    print(f'load_traj_hdf5({path=}, {max_n_demos_in_dataset=}) | Loading HDF5 file')
     file = File(path, 'r')
     keys = list(file.keys())
-    if num_traj is not None:
-        assert num_traj <= len(keys), f"num_traj: {num_traj} > len(keys): {len(keys)}"
-        keys = sorted(keys, key=lambda x: int(x.split('_')[-1]))
-        keys = keys[:num_traj]
-    ret = {
-        key: load_content_from_h5_file(file[key]) for key in keys
-    }
+    all_episodes_loaded = True
+
+    if max_n_demos_in_dataset is not None and len(keys) > max_n_demos_in_dataset:
+        keys = sample(keys, max_n_demos_in_dataset) # randomly samples without replacement
+        all_episodes_loaded = False
+
+    ret = {}
+    for key in tqdm(keys):
+        ret = {key: load_content_from_h5_file(file[key])}
+
     file.close()
     print('Loaded')
-    return ret
-def load_demo_dataset(path, keys=['observations', 'actions'], num_traj=None, concat=True):
+    return ret, all_episodes_loaded
+
+
+def load_demo_dataset(path: str, keys=['observations', 'actions'], max_n_demos_in_dataset: int | None = None, concat: bool =True) -> tuple[dict, bool]:
+
     # assert num_traj is None
-    raw_data = load_traj_hdf5(path, num_traj)
+    raw_data, all_episodes_loaded = load_traj_hdf5(path, max_n_demos_in_dataset)
     # raw_data has keys like: ['traj_0', 'traj_1', ...]
-    # raw_data['traj_0'] has keys like: ['actions', 'dones', 'env_states', 'infos', ...]
-    _traj = raw_data['traj_0']
+    # raw_data['traj_X'] has keys like: ['actions', 'dones', 'env_states', 'infos', ...]
+    _traj = raw_data[list(raw_data.keys())[0]]
     for key in keys:
         source_key = TARGET_KEY_TO_SOURCE_KEY[key]
         assert source_key in _traj, f"key: {source_key} not in traj_0: {_traj.keys()}"
@@ -158,4 +177,4 @@ def load_demo_dataset(path, keys=['observations', 'actions'], num_traj=None, con
             print('Load', target_key, dataset[target_key].shape)
         else:
             print('Load', target_key, len(dataset[target_key]), type(dataset[target_key][0]))
-    return dataset
+    return dataset, all_episodes_loaded

@@ -34,7 +34,7 @@ def evaluate(n: int, agent, eval_envs, eval_kwargs, lang_instructions: list[str]
     if lang_instructions is None:
         eval_lang = None
     else:
-        assert len(lang_instructions) == num_envs, "number of language instructions must match number of environments"
+        assert len(lang_instructions) == num_envs, f"number of language instructions must match number of environments. Got {len(lang_instructions)} vs {num_envs}"
         eval_lang = lang_instructions
 
     if temporal_agg:
