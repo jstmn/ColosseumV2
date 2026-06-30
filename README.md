@@ -88,53 +88,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
 
 
 
-## Finetune Pi0.5
+## Finetune and evaluate Pi0.5
 
-This is not done in this repository. Instead, we use the [lerobot](https://github.com/huggingface/lerobot) repository to finetune Pi0.5.
+Instructions for how to finetune and evaluate Pi0.5 are available at [Geeksongs/lerobot_colosseum_v2](https://github.com/Geeksongs/lerobot_colosseum_v2)
 
-``` bash
-cd <SOMEWHERE_TO_STORE_LEROBOT>
-git clone https://github.com/huggingface/lerobot.git
-cd lerobot
-# Follow the installation guide at https://huggingface.co/docs/lerobot/installation, I recommend using uv.
-uv pip install '.[dataset]'
-uv pip install '.[training]'
-
-# Single-Arm
-uv run lerobot-train \
-  --dataset.repo_id=pythonsong/colosseum-single-arm-jan27 \
-  --dataset.revision=main \
-  --policy.type=pi05 \
-  --output_dir=outputs/single_arm \
-  --job_name=pi05_training_single_arm \
-  --policy.repo_id=pythonsong/pi05_single_arm \
-  --policy.pretrained_path=lerobot/pi05_base \
-  --policy.compile_model=true \
-  --policy.gradient_checkpointing=true \
-  --wandb.enable=true \
-  --policy.dtype=bfloat16 \
-  --steps=30000 \
-  --policy.scheduler_decay_steps=30000 \
-  --policy.device=cuda \
-  --batch_size=8 \
-  --save_freq=1000000000
-
-# Bimanual
-uv run lerobot-train \
-  --dataset.repo_id=pythonsong/colosseum-bimanual-jan27 \
-  --dataset.revision=main \
-  --policy.type=pi05 \
-  --output_dir=outputs/bimanual \
-  --job_name=pi05_training_bimanual \
-  --policy.repo_id=pythonsong/pi05_bimanual \
-  --policy.pretrained_path=lerobot/pi05_base \
-  --policy.compile_model=true \
-  --policy.gradient_checkpointing=true \
-  --wandb.enable=true \
-  --policy.dtype=bfloat16 \
-  --steps=30000 \
-  --policy.scheduler_decay_steps=30000 \
-  --policy.device=cuda \
-  --batch_size=8 \
-  --save_freq=1000000000
-```
