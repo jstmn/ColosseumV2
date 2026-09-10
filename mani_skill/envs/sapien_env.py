@@ -583,6 +583,8 @@ class BaseEnv(gym.Env):
         """Capture data from all sensors (non-blocking)"""
         for sensor in self._sensors.values():
             sensor.capture()
+        if self.scene.viser_visualizer is not None:
+            self.scene.viser_visualizer.mark_sensors_captured()
 
     def get_sensor_images(self) -> dict[str, dict[str, torch.Tensor]]:
         """Get image (RGB) visualizations of what sensors currently sense. This function calls self._get_obs_sensor_data() internally which automatically hides objects and updates the render"""

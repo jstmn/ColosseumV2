@@ -8,11 +8,14 @@ import torch
 import viser
 import time
 
+from mani_skill.sensors.camera import Camera
 from mani_skill.utils import common
 from mani_skill.utils.structs.actor import Actor
 from mani_skill.utils.structs.articulation import Articulation
 from mani_skill.utils.structs.link import Link
 from mani_skill.utils.structs.types import Array
+
+_CAMERA_FRUSTUM_SCALE = 0.08
 
 
 @dataclass
@@ -90,6 +93,10 @@ class ViserVisualizer:
         """maps actor name (as registered in scene.actors) to the viser frame its visual shapes are parented under"""
         self._debug_viz_counter = 0
         """monotonically increasing counter used to name ad-hoc debug visualization nodes"""
+        self._camera_frustums: dict[str, Any] = {}
+        """maps sensor name -> viser CameraFrustumHandle"""
+        self._sensors_captured = False
+        """True after ``capture_sensor_data`` has run; get_picture fails before that."""
 
     def _configure_initial_camera(self) -> None:
         self.server.initial_camera.look_at = VISER_INITIAL_CAMERA_LOOK_AT
@@ -333,16 +340,97 @@ class ViserVisualizer:
             frame.position = pose[:3]
             frame.wxyz = pose[3:7]
 
-    def sync(self) -> None:
-        """Synchronizes all displayed articulations and actors with their live simulation state."""
+    def sync(self, update_camera_images: bool = True) -> None:
+        """Synchronizes all displayed articulations, actors, and RGB cameras with live sim state."""
         self.sync_articulation_poses()
         self.sync_actor_poses()
+        self.sync_cameras(update_images=update_camera_images)
 
     def wait_while_paused(self) -> None:
         """Blocks simulation stepping while the Viser pause control is active."""
         while self.paused:
-            self.sync()
+            self.sync(update_camera_images=False)
             time.sleep(0.01)
+
+    def _opencv_camera_pose(self, sensor: Camera) -> tuple[np.ndarray, np.ndarray, float, float]:
+        """World pose of ``sensor`` in OpenCV convention (Z forward, X right, Y down).
+
+        Returns ``(position, wxyz, fovy_rad, aspect)``.
+        """
+        ext = common.to_numpy(sensor.camera.get_extrinsic_matrix())
+        if ext.ndim == 3:
+            assert ext.shape[0] == 1, f"extrinsic batch {ext.shape}, expected (1, 3, 4)"
+            ext = ext[0]
+        assert ext.shape == (3, 4), f"extrinsic shape {ext.shape}, expected (3, 4)"
+        T_w2c = np.eye(4, dtype=np.float32)
+        T_w2c[:3, :] = ext
+        pose = sapien.Pose(np.linalg.inv(T_w2c))
+        width = float(sensor.camera.width)
+        height = float(sensor.camera.height)
+        assert height > 0, f"camera height must be > 0, got {height}"
+        return (
+            np.asarray(pose.p, dtype=np.float64),
+            np.asarray(pose.q, dtype=np.float64),
+            float(sensor.camera.fovy),
+            width / height,
+        )
+
+    def mark_sensors_captured(self) -> None:
+        """Call after ``Camera.capture()`` / ``take_picture()`` so frustum images are safe to read."""
+        self._sensors_captured = True
+
+    def _camera_rgb(self, sensor: Camera) -> np.ndarray | None:
+        if not self._sensors_captured:
+            return None
+        images = sensor.get_obs(
+            rgb=True,
+            depth=False,
+            position=False,
+            segmentation=False,
+            normal=False,
+            albedo=False,
+        )
+        if "rgb" not in images:
+            return None
+        rgb = common.to_numpy(images["rgb"])
+        if rgb.ndim == 4:
+            assert rgb.shape[0] == 1, f"rgb batch {rgb.shape}, expected (1, H, W, C)"
+            rgb = rgb[0]
+        assert rgb.ndim == 3 and rgb.shape[2] >= 3, f"rgb.shape: {rgb.shape}, expected (H, W, 3+)"
+        rgb = rgb[..., :3]
+        if rgb.dtype != np.uint8:
+            rgb = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+        return rgb
+
+    def sync_cameras(self, update_images: bool = True) -> None:
+        """Show each active RGB sensor as a viser ``add_camera_frustum`` with pose and image."""
+        sensors = getattr(self.scene, "sensors", None)
+        if not sensors:
+            return
+        for name, sensor in sensors.items():
+            if not isinstance(sensor, Camera):
+                continue
+            position, wxyz, fovy, aspect = self._opencv_camera_pose(sensor)
+            handle = self._camera_frustums.get(name)
+            if handle is None:
+                handle = self.server.scene.add_camera_frustum(
+                    f"/cameras/{name}",
+                    fov=fovy,
+                    aspect=aspect,
+                    scale=_CAMERA_FRUSTUM_SCALE,
+                    image=self._camera_rgb(sensor),
+                    format="jpeg",
+                    wxyz=wxyz,
+                    position=position,
+                )
+                self._camera_frustums[name] = handle
+                continue
+            handle.position = position
+            handle.wxyz = wxyz
+            if update_images:
+                image = self._camera_rgb(sensor)
+                if image is not None:
+                    handle.image = image
 
     def add_camera(
         self,
@@ -356,13 +444,14 @@ class ViserVisualizer:
         intrinsic: Union[Array, None] = None,
         mount: Union[Actor, Link, None] = None,
     ) -> None:
-        """No-op: Sapien cameras are created by ManiSkillScene.add_camera before this is called."""
+        """Sapien cameras are created by ManiSkillScene.add_camera. Frustums are added in sync()."""
         pass
 
     def update_render(
         self, update_sensors: bool = True, update_human_render_cameras: bool = True
     ):
-        self.sync()
+        # update_render invalidates GPU pictures; do not call get_picture until capture_sensor_data.
+        self.sync(update_camera_images=False)
 
     def add_point_light(
         self,
