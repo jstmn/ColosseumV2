@@ -52,7 +52,9 @@ def get_dependencies():
         "termcolor",
         "coacd",
         "pin==2.7.0",
-        "pandas"
+        "pandas",
+        "sapien>=3.0.2;platform_system=='Darwin'",
+        "viser>=0.1.0",
     ]
     # NOTE (stao): until sapien is uploaded to pypi with mac support, users need to install manually below as so
     # f"sapien @ https://github.com/haosulab/SAPIEN/releases/download/nightly/sapien-3.0.0.dev20250303+291f6a77-{python_version}-{python_version}-macosx_12_0_universal2.whl;platform_system=='Darwin'"
