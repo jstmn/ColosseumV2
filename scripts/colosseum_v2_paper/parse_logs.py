@@ -374,6 +374,17 @@ def render_latex_table(
         cells.append(_format_percent(ave_pct_change, decimals=decimals))
     lines.append(" & ".join(cells) + r" \\")
 
+    # Bottom row: mean absolute success rate across tasks (missing cells skipped).
+    cells = ["Mean Success Rate"]
+    for ds in PERTURBATION_NAMES:
+        srs = [
+            float(matrix[(task, ds)])
+            for task in tasks
+            if matrix.get((task, ds)) is not None
+        ]
+        ave_sr = float(np.mean(srs)) if srs else None
+        cells.append(_format_percent(ave_sr, decimals=decimals))
+    lines.append(" & ".join(cells) + r" \\")
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")

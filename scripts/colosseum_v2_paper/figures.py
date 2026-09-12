@@ -37,6 +37,14 @@ python scripts/colosseum_v2_paper/figures.py \
     --act-bimanual-csv logs/act_clip/bimanual.formatted.csv \
     --pi0-single-arm-csv logs/pi0/single_arm.formatted.csv \
     --pi0-bimanual-csv logs/pi0/bimanual.formatted.csv \
+    --output-dir logs/
+
+# Optional MolmoAct2 (include both CSVs or neither):
+python scripts/colosseum_v2_paper/figures.py \
+    --act-single-arm-csv logs/act_clip/single_arm.formatted.csv \
+    --act-bimanual-csv logs/act_clip/bimanual.formatted.csv \
+    --pi0-single-arm-csv logs/pi0/single_arm.formatted.csv \
+    --pi0-bimanual-csv logs/pi0/bimanual.formatted.csv \
     --molmoact2-single-arm-csv logs/molmoact2/single_arm.formatted.csv \
     --molmoact2-bimanual-csv logs/molmoact2/bimanual.formatted.csv \
     --output-dir logs/
@@ -327,7 +335,7 @@ def generate_clumped_change_figure(mean_changes_from_none: Dict[str, Dict[str, f
         ha="center",
         fontsize=fontsize,
     )
-    plt.ylabel("Mean Change\nin Success Rate", fontsize=fontsize)
+    plt.ylabel("Mean Change in Success Rate", fontsize=fontsize)
     plt.legend(fontsize=fontsize)
     plt.tight_layout()
 
@@ -814,7 +822,7 @@ def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, floa
         fontsize=fontsize
     )
     plt.yticks(fontsize=fontsize)
-    plt.ylabel("Mean Absolute Change\nin Success Rate", fontsize=fontsize)
+    plt.ylabel("Mean Change\nin Success Rate", fontsize=fontsize)
     plt.legend(fontsize=fontsize)
     plt.tight_layout()
 
@@ -833,27 +841,56 @@ if __name__ == "__main__":
     parser.add_argument("--act-bimanual-csv", type=str, required=True)
     parser.add_argument("--pi0-single-arm-csv", type=str, required=True)
     parser.add_argument("--pi0-bimanual-csv", type=str, required=True)
-    parser.add_argument("--molmoact2-single-arm-csv", type=str, required=True)
-    parser.add_argument("--molmoact2-bimanual-csv", type=str, required=True)
+    parser.add_argument(
+        "--molmoact2-single-arm-csv",
+        type=str,
+        default=None,
+        help="Optional. Provide together with --molmoact2-bimanual-csv.",
+    )
+    parser.add_argument(
+        "--molmoact2-bimanual-csv",
+        type=str,
+        default=None,
+        help="Optional. Provide together with --molmoact2-single-arm-csv.",
+    )
     parser.add_argument("--output-dir", type=str, required=True)
     args = parser.parse_args()
+
+    include_molmo = (
+        args.molmoact2_single_arm_csv is not None
+        or args.molmoact2_bimanual_csv is not None
+    )
+    if include_molmo and (
+        args.molmoact2_single_arm_csv is None or args.molmoact2_bimanual_csv is None
+    ):
+        parser.error(
+            "Provide both --molmoact2-single-arm-csv and --molmoact2-bimanual-csv, or neither."
+        )
 
     result_csvs = [
         args.act_single_arm_csv,
         args.act_bimanual_csv,
         args.pi0_single_arm_csv,
         args.pi0_bimanual_csv,
-        args.molmoact2_single_arm_csv,
-        args.molmoact2_bimanual_csv,
     ]
     model_names = [
         "ACT - Single-Arm",
         "ACT - Bimanual",
         "Pi0.5 - Single-Arm",
         "Pi0.5 - Bimanual",
-        "MolmoAct2 - Single-Arm",
-        "MolmoAct2 - Bimanual",
     ]
+    single_arm_csvs = [args.act_single_arm_csv, args.pi0_single_arm_csv]
+    single_arm_model_names = ["ACT - Single-Arm", "Pi0.5 - Single-Arm"]
+    bimanual_csvs = [args.act_bimanual_csv, args.pi0_bimanual_csv]
+    bimanual_model_names = ["ACT - Bimanual", "Pi0.5 - Bimanual"]
+    if include_molmo:
+        result_csvs.extend([args.molmoact2_single_arm_csv, args.molmoact2_bimanual_csv])
+        model_names.extend(["MolmoAct2 - Single-Arm", "MolmoAct2 - Bimanual"])
+        single_arm_csvs.append(args.molmoact2_single_arm_csv)
+        single_arm_model_names.append("MolmoAct2 - Single-Arm")
+        bimanual_csvs.append(args.molmoact2_bimanual_csv)
+        bimanual_model_names.append("MolmoAct2 - Bimanual")
+
     mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(result_csvs, model_names)
     print_threshold_task_latex_table(result_csvs, model_names)
 
@@ -863,8 +900,12 @@ if __name__ == "__main__":
     act_single_arm_results = mean_changes_from_none["ACT - Single-Arm"]
     pi0_bimanual_results = mean_changes_from_none["Pi0.5 - Bimanual"]
     pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single-Arm"]
-    molmo_bimanual_results = mean_changes_from_none["MolmoAct2 - Bimanual"]
-    molmo_single_arm_results = mean_changes_from_none["MolmoAct2 - Single-Arm"]
+    molmo_bimanual_results = (
+        mean_changes_from_none["MolmoAct2 - Bimanual"] if include_molmo else None
+    )
+    molmo_single_arm_results = (
+        mean_changes_from_none["MolmoAct2 - Single-Arm"] if include_molmo else None
+    )
     act_deltas = []
     pi0_deltas = []
     molmo_deltas = []
@@ -873,18 +914,25 @@ if __name__ == "__main__":
             continue
         act_delta = abs(act_single_arm_results[ds] - act_bimanual_results[ds])
         pi0_delta = abs(pi0_single_arm_results[ds] - pi0_bimanual_results[ds])
-        molmo_delta = abs(molmo_single_arm_results[ds] - molmo_bimanual_results[ds])
-        print(
-            f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
-            f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}\t"
-            f"MolmoAct2 - Single/Bimanual: {molmo_delta:.4f}"
-        )
         act_deltas.append(act_delta)
         pi0_deltas.append(pi0_delta)
-        molmo_deltas.append(molmo_delta)
+        if include_molmo:
+            molmo_delta = abs(molmo_single_arm_results[ds] - molmo_bimanual_results[ds])
+            molmo_deltas.append(molmo_delta)
+            print(
+                f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
+                f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}\t"
+                f"MolmoAct2 - Single/Bimanual: {molmo_delta:.4f}"
+            )
+        else:
+            print(
+                f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
+                f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}"
+            )
     print(f"ACT - Single-Arm, Bimanual: {np.mean(act_deltas):.4f}")
     print(f"Pi0.5 - Bimanual, Single-Arm: {np.mean(pi0_deltas):.4f}")
-    print(f"MolmoAct2 - Single-Arm, Bimanual: {np.mean(molmo_deltas):.4f}")
+    if include_molmo:
+        print(f"MolmoAct2 - Single-Arm, Bimanual: {np.mean(molmo_deltas):.4f}")
     print()
 
 
@@ -898,9 +946,9 @@ if __name__ == "__main__":
 
     # Waterfall plots
     generate_waterfall_plot(
-        single_arm_csvs=[args.act_single_arm_csv, args.pi0_single_arm_csv, args.molmoact2_single_arm_csv],
-        single_arm_model_names=["ACT - Single-Arm", "Pi0.5 - Single-Arm", "MolmoAct2 - Single-Arm"],
-        bimanual_csvs=[args.act_bimanual_csv, args.pi0_bimanual_csv, args.molmoact2_bimanual_csv],
-        bimanual_model_names=["ACT - Bimanual", "Pi0.5 - Bimanual", "MolmoAct2 - Bimanual"],
+        single_arm_csvs=single_arm_csvs,
+        single_arm_model_names=single_arm_model_names,
+        bimanual_csvs=bimanual_csvs,
+        bimanual_model_names=bimanual_model_names,
         output_dir=args.output_dir,
     )
