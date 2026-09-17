@@ -320,6 +320,15 @@ all_distractor_set = PerturbationSet(
     pose_randomization_cfg = {"x_region_multiplier": 1.5, "y_region_multiplier": 1.5, "min_width_x": 0.1, "min_width_y": 0.1}
 )
 
+pose_randomization_2x_set = DistractionSet(
+    pose_randomization_cfg={
+        "x_region_multiplier": 2,
+        "y_region_multiplier": 2,
+        "min_width_x": 0.1,
+        "min_width_y": 0.1,
+    }
+)
+
 PERTURBATION_SETS = {
     "none".upper(): PerturbationSet(),
     "all".upper(): all_distractor_set,
@@ -352,4 +361,5 @@ PERTURBATION_SETS = {
     "language_none".upper(): all_distractor_set.get_partial_copy(["language_none_cfg"]),
     ### Pose randomization
     "pose_randomization".upper(): all_distractor_set.get_partial_copy(["pose_randomization_cfg"]),
+    "pose_randomization_2x".upper(): pose_randomization_2x_set,
 }
