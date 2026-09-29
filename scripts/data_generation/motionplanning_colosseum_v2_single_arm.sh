@@ -2,12 +2,17 @@
 
 PERTURBATION_SET=none
 INCLUDED_CAMERAS=""
+ENVS_ARG=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --included-cameras)
             INCLUDED_CAMERAS="$2"
+            shift 2
+            ;;
+        --envs)
+            ENVS_ARG="$2"
             shift 2
             ;;
         *)
@@ -20,6 +25,7 @@ done
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --included-cameras "hand_camera external1_camera"
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --included-cameras "external1_camera"
+# bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --envs "RaiseCube-v1 HammerNail-v1"
 
 ENVS=(
     "PickSodaFromCabinet-v1"
@@ -39,7 +45,12 @@ ENVS=(
     "CookItemInPan-v1"
     "RaiseCube-v1"
 )
-NUM_PROCS=5
+# --envs overrides the default list above. Pass a space-separated set of env ids.
+if [ -n "$ENVS_ARG" ]; then
+    read -r -a ENVS <<< "$ENVS_ARG"
+fi
+NUM_CPUS=$(python -c 'import os; print(int(os.cpu_count() // 2))')
+NUM_PROCS=$NUM_CPUS
 N_TRAJ=100
 TARGET_CONTROL_MODE=pd_ee_delta_pose
 OBS_MODE=rgb
