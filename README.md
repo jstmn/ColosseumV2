@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[Paper](https://arxiv.org/abs/2605.27759) | [Website](https://jstmn.github.io/colosseum-v2-website/) | [Lerobot Integration](https://github.com/Geeksongs/lerobot_colosseum_v2)
+[Paper](https://arxiv.org/abs/2605.27759) | [Website](https://jstmn.github.io/colosseum-v2-website/) | [Lerobot Integration](https://github.com/jstmn/lerobot_colosseum_v2)
 
 </div>
 
@@ -69,7 +69,10 @@ pip install -e examples/baselines/act_clip
 | Vision | `background_texture` | Changes the texture of the scene walls. |
 | Vision | `camera_pose` | Perturbs the position and orientation of the camera. |
 | Vision | `distractor_object` | Spawns random distractor objects in the robot workspace. |
-| Language | `language` | Randomizes the language instruction used for the task. |
+| Language | `language_paraphrase` | Replaces the instruction with a paraphrase of the same task. |
+| Language | `language_other_task` | Replaces the instruction with a paraphrase from a different task. |
+| Language | `language_random` | Replaces the instruction with random English words. |
+| Language | `language_none` | Replaces the instruction with an empty string. |
 | Action | `pose_randomization` | Expands the initial object pose randomization region. |
 | N/A | `none` | Disables all perturbations. |
 | Combined | `all` | Enables all available perturbations. |
@@ -133,6 +136,7 @@ ds = PerturbationSet(
 **Create a custom perturbation set** by defining a `PerturbationSet` and passing it to the environment. Example code:
 
 ```python
+from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PerturbationSet
 
 # Move the camera to the right by [5-10] cm in x direction
 ps_camera_in_positive_x = PerturbationSet(
@@ -229,7 +233,7 @@ python examples/baselines/act_clip/eval_rgbd.py \
 
 
 
-## Finetune and evaluate Pi0.5
+## Finetune and evaluate π0.5, MolmoAct2
 
-Instructions for how to finetune and evaluate Pi0.5 are available at [Geeksongs/lerobot_colosseum_v2](https://github.com/Geeksongs/lerobot_colosseum_v2)
+Instructions for how to finetune and evaluate Pi0.5, MolmoAct2 are available at [Jstmn/lerobot_colosseum_v2](https://github.com/jstmn/lerobot_colosseum_v2)
 
