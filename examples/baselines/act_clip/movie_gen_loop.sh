@@ -1,41 +1,111 @@
 #!/bin/bash
-# Generate k movies per perturbation for RaiseCube, using the hardware-figure
-# perturbation subset (see HARDWARE_ROWS RaiseCube keys in figure_hardware.py).
-# One env at a time, rolled out k times.
+# Generate K movies per (task, perturbation) for all Colosseum-V2 tasks.
+# One env at a time, rolled out K times. Uses the matching single-arm /
+# bimanual checkpoints from eval_rgbd_loop.sh.
 
 K=10
 
-# Matches RaiseCube keys in scripts/colosseum_v2_paper/figure_hardware.py HARDWARE_ROWS.
 PERTURBATIONS=(
     none
-    # light_color
-    # mo_size
-    # background_color
-    # table_color
-    # mo_color
-    # distractor_object
-    # language_none
+    all
+    MO_color
+    RO_color
+    MO_texture
+    RO_texture
+    MO_size
+    RO_size
+    table_color
+    light_color
+    table_texture
+    distractor_object
+    background_texture
+    background_color
+    camera_pose
+    pose_randomization
+    language_paraphrase
+    language_other_task
+    language_random
+    language_none
 )
 
-CHECKPOINT="checkpoints/hyeonho_mar17/hyeonho_mar17_act_clip_single_arm_3cameras_15687623_checkpoints_best_eval_success_once.pt"
+SINGLE_ARM_TASKS=(
+    RaiseCube-v1
+    PickSodaFromCabinet-v1
+    PickDishFromRack-v1
+    StackCubeColosseumV2-v1
+    PlaceBookInShelf-v1
+    PlaceDishInRack-v1
+    LiftPegUprightColosseumV2-v1
+    RotateArrow-v1
+    PegInsertionSideColosseumV2-v1
+    PlugChargerColosseumV2-v1
+    HammerNail-v1
+    ScoopBanana-v1
+    OpenDrawer-v1
+    OpenCabinet-v1
+    PlaceCubeInDrawer-v1
+    CookItemInPan-v1
+)
 
-for pert in "${PERTURBATIONS[@]}"; do
-    echo "=== RaiseCube-v1 / ${pert} (1 env x ${K} episodes) ==="
+BIMANUAL_TASKS=(
+    DualArmPickCube-v1
+    DualArmPickBottle-v1
+    DualArmLiftPot-v1
+    DualArmLiftTray-v1
+    DualArmPushBox-v1
+    DualArmPourPot-v1
+    DualArmThreading-v1
+    DualArmPenCap-v1
+    DualArmDrawerPlace-v1
+    DualArmDrawerOpen-v1
+    DualArmStackCube-v1
+    DualArmStack3Cube-v1
+)
+
+SINGLE_ARM_CKPT="checkpoints/hyeonho_mar17/hyeonho_mar17_act_clip_single_arm_3cameras_15687623_checkpoints_best_eval_success_once.pt"
+BIMANUAL_CKPT="checkpoints/hyeonho_mar17/hyeonho_mar17_act_clip_bimanual_4cameras_15689642_checkpoints_best_eval_success_once.pt"
+
+run_eval() {
+    local ckpt="$1"
+    local env_id="$2"
+    local pert="$3"
+    local control_mode="$4"
+    local n_cams="$5"
+
+    echo "=== ${env_id} / ${pert} (1 env x ${K} episodes) ==="
     python examples/baselines/act_clip/eval_rgbd.py \
-        --checkpoint-path "$CHECKPOINT" \
-        --control-mode "pd_ee_delta_pose" \
+        --checkpoint-path "$ckpt" \
+        --control-mode "$control_mode" \
         --no-include-depth \
         --sim-backend "physx_cpu" \
         --is-multi-task True \
-        --target-num-cams 3 \
+        --target-num-cams "$n_cams" \
         --num-eval-episodes "$K" \
         --num-eval-envs 1 \
         --max-episode-steps-from-lookup \
         --internal-instruction \
         --capture-video \
         --no-metrics-on-video \
-        --env-id "RaiseCube-v1" \
+        --env-id "$env_id" \
+        --human-render-shader "rt" \
         --perturbation-set "$pert"
+}
+
+for env_id in "${SINGLE_ARM_TASKS[@]}"; do
+    for pert in "${PERTURBATIONS[@]}"; do
+        run_eval "$SINGLE_ARM_CKPT" "$env_id" "$pert" "pd_ee_delta_pose" 3
+    done
 done
 
-echo "Done. Videos under: ${CHECKPOINT%.pt}__videos/"
+for env_id in "${BIMANUAL_TASKS[@]}"; do
+    for pert in "${PERTURBATIONS[@]}"; do
+        run_eval "$BIMANUAL_CKPT" "$env_id" "$pert" "pd_joint_pos" 4
+    done
+done
+
+echo "Done. Videos under:"
+echo "  ${SINGLE_ARM_CKPT%.pt}__videos/"
+echo "  ${BIMANUAL_CKPT%.pt}__videos/"
+echo "Outcomes CSV (filepath ↔ success/fail):"
+echo "  ${SINGLE_ARM_CKPT%.pt}__videos/video_outcomes.csv"
+echo "  ${BIMANUAL_CKPT%.pt}__videos/video_outcomes.csv"

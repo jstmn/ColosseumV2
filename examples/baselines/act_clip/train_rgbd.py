@@ -163,6 +163,9 @@ class Args:
     """the control mode to use for the evaluation environments. Must match the control mode of the demonstration dataset."""
     real: bool = False
 
+    # Human render shader for the evaluation environments
+    human_render_shader: str = "default"
+    """the human render shader to use for the evaluation environments. Must be one of the following: "minimal", "default", "rt", "rt-med", "rt-fast"."""
 
     # additional tags/configs for logging purposes to wandb and shared comparisons with other algorithms
     demo_type: Optional[str] = None

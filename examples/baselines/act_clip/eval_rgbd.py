@@ -1,3 +1,4 @@
+import csv
 import os
 from time import time
 from termcolor import cprint
@@ -168,6 +169,52 @@ TASK_TEXT_MAP = {
 
 def get_now_str():
     return datetime.now().strftime("%Y:%m:%d__%H:%M:%S")
+
+
+VIDEO_OUTCOMES_CSV_COLUMNS = (
+    "filepath",
+    "env_id",
+    "perturbation_set",
+    "episode_idx",
+    "outcome",
+)
+
+
+def append_video_outcomes_csv(
+    video_dir: str,
+    video_filename: str,
+    env_id: str,
+    perturbation_set: str,
+    success_once: np.ndarray,
+) -> Path:
+    """Append one row per recorded episode: video path ↔ success/fail.
+
+    RecordEpisode names CPU videos ``{video_filename}__{episode_idx}.mp4``
+    in order, matching the flattened ``success_once`` from evaluate().
+    """
+    video_dir_path = Path(video_dir)
+    video_dir_path.mkdir(parents=True, exist_ok=True)
+    csv_path = video_dir_path / "video_outcomes.csv"
+    write_header = not csv_path.exists() or csv_path.stat().st_size == 0
+
+    success_once = np.asarray(success_once).reshape(-1)
+    with csv_path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=VIDEO_OUTCOMES_CSV_COLUMNS)
+        if write_header:
+            writer.writeheader()
+        for ep_idx, ok in enumerate(success_once):
+            stem = f"{video_filename}__{ep_idx}".replace(" ", "_").replace("\n", "_")
+            filepath = str((video_dir_path / f"{stem}.mp4").resolve())
+            writer.writerow(
+                {
+                    "filepath": filepath,
+                    "env_id": env_id,
+                    "perturbation_set": perturbation_set,
+                    "episode_idx": ep_idx,
+                    "outcome": "success" if bool(ok) else "fail",
+                }
+            )
+    return csv_path
 
 
 RESULTS_CSV_COLUMNS = [
@@ -368,6 +415,7 @@ if __name__ == "__main__":
             reward_mode="sparse",
             obs_mode="rgbd" if args.include_depth else "rgb",
             render_mode="rgb_array" if args.capture_video else None,
+            human_render_shader=args.human_render_shader,
             perturbation_set=PERTURBATION_SETS[args.perturbation_set.upper()].to_dict(),
             _env_id=args.env_id,
         )
@@ -466,6 +514,17 @@ if __name__ == "__main__":
     n_success = int(success_once.sum())
     success_percentage = 100*(n_success / n_episodes) if n_episodes else 0.0
     print(f"Success rate: {success_percentage:.2f}% \t ({n_success}/{n_episodes})")
+
+    if args.capture_video:
+        outcomes_csv = append_video_outcomes_csv(
+            video_dir=video_dir,
+            video_filename=video_filename,
+            env_id=args.env_id,
+            perturbation_set=args.perturbation_set,
+            success_once=success_once,
+        )
+        print(f"Video outcomes appended to: {outcomes_csv}")
+
     envs.close()
 
     if args.results_path is not None:
