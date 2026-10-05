@@ -3,7 +3,7 @@
 # One env at a time, rolled out K times. Uses the matching single-arm /
 # bimanual checkpoints from eval_rgbd_loop.sh.
 
-K=10
+K=3
 
 PERTURBATIONS=(
     none

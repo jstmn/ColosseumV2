@@ -217,6 +217,42 @@ def append_video_outcomes_csv(
     return csv_path
 
 
+def videos_already_recorded(
+    video_dir: str,
+    env_id: str,
+    perturbation_set: str,
+    num_episodes: int,
+) -> bool:
+    """True if CSV has episode_idx 0..N-1 for this pair and each filepath exists."""
+    if num_episodes <= 0:
+        return False
+    csv_path = Path(video_dir) / "video_outcomes.csv"
+    if not csv_path.exists():
+        return False
+
+    pert = str(perturbation_set).lower()
+    # Latest row wins if the same (env, pert, episode_idx) was appended more than once.
+    by_ep_idx: dict[int, str] = {}
+    with csv_path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if str(row.get("env_id", "")) != env_id:
+                continue
+            if str(row.get("perturbation_set", "")).lower() != pert:
+                continue
+            try:
+                ep_idx = int(row["episode_idx"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            by_ep_idx[ep_idx] = row.get("filepath", "")
+
+    for ep_idx in range(num_episodes):
+        filepath = by_ep_idx.get(ep_idx)
+        if not filepath or not Path(filepath).is_file():
+            return False
+    return True
+
+
 RESULTS_CSV_COLUMNS = [
     "checkpoint_path","pc_hostname","now","t_final","duration_sec","perturbation_set","env_id","control_mode","include_depth","num_eval_episodes","max_episode_steps","message","num_sucessful_episodes","success_percent"
 ]
@@ -433,6 +469,32 @@ if __name__ == "__main__":
         ]
         video_dir = args.checkpoint_path.replace(".pt", "__videos")
         video_filename = f"{args.env_id}___ds:{args.perturbation_set}"
+        if args.capture_video and videos_already_recorded(
+            video_dir,
+            args.env_id,
+            args.perturbation_set,
+            args.num_eval_episodes,
+        ):
+            cprint(
+                f"Skipping {args.env_id} / {args.perturbation_set}: "
+                f"{args.num_eval_episodes} videos already in video_outcomes.csv "
+                f"and files exist under {video_dir}",
+                "green",
+            )
+            if args.results_path is not None:
+                finalize_results_row(
+                    args,
+                    duration_sec=time() - t0,
+                    message="skipped_existing_videos",
+                    n_episodes=args.num_eval_episodes,
+                    n_success=-1,
+                    success_percent=-1,
+                )
+                remaining, n_total = get_remaining_eval_pairs(args)
+                cprint(f"Remaining eval pairs after skip: {len(remaining)}/{n_total}", "cyan")
+                continue
+            exit(0)
+
         try:
             envs = make_eval_envs(
                 args.env_id,
