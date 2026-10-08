@@ -28,6 +28,8 @@ from .hammer_nail import solve as solveHammerNail
 from .open_cabinet import solve as solveOpenCabinet
 from .place_cube_in_drawer import solve as solvePlaceCubeInDrawer
 
+from .mpc import solveLiftPegUprightV2, solvePickCubeV2, solvePullCubeToolV2, solvePushCubeV2
+
 
 # Deprecated
 # from .object_in_cabinet import solve as solveObjectInCabinet

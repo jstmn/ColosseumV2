@@ -17,7 +17,7 @@ import mani_skill.envs
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.trajectory.merge_trajectory import merge_trajectories
-from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer
+from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, solvePickCube, solveStackCube, solvePegInsertionSide, solvePlugCharger, solvePullCubeTool, solveLiftPegUpright, solvePullCube, solveDrawTriangle, solveDrawSVG, solvePlaceSphere,solveOpenDrawer,solveRaiseCube, solvePlaceBookInShelf, solvePickSodaFromCabinet, solveRotateArrow, solveScoopBanana, solveCookItemInPan, solvePlaceDishInRack,solvePickDishFromRack,solveHammerNail, solveOpenCabinet, solvePlaceCubeInDrawer, solvePickCubeV2, solvePushCubeV2, solveLiftPegUprightV2, solvePullCubeToolV2
 from mani_skill.envs.tasks.tabletop.colosseum_v2.perturbation_set import PERTURBATION_SETS
 from mani_skill.examples.motionplanning.dual_panda.solutions import solveBimanualLiftPot, solveBimanualLiftTray, solveBimanualPassBottle, solveBimanualPourPot, solveBimanualPassCube, solveBimanualDrawerPlace, solveBimanualPourPot, solveBimanualDrawerOpen, solveBimanualPenCap, solveBimanualPushBox, solveBimanualStack3Cubes, solveBimanualStackCubes, solveBimanualThreading
 
@@ -38,7 +38,10 @@ MP_SOLUTIONS = {
     # New tasks:
     "RaiseCube-v1": solveRaiseCube,
     "OpenDrawer-v1": solveOpenDrawer,               # new
-    "PushCube-v2": solvePushCube,                   # new
+    "PushCube-v2": solvePushCubeV2,
+    "PickCube-v2-wrist": solvePickCubeV2,
+    "LiftPegUpright-v2": solveLiftPegUprightV2,
+    "PullCubeTool-v2": solvePullCubeToolV2,
     "StackCube-v2": solveStackCube,                 # new
 
     "PlaceBookInShelf-v1": solvePlaceBookInShelf,
@@ -79,6 +82,12 @@ MP_SOLUTIONS = {
 }
 
 """
+# MPCM v2 tabletop tasks (successful-task solutions only)
+ENV_ID="PickCube-v2-wrist"
+ENV_ID="PushCube-v2"
+ENV_ID="LiftPegUpright-v2"
+ENV_ID="PullCubeTool-v2"
+
 # Colosseum v2 single-arm tasks
 ENV_ID="PlaceBookInShelf-v1"
 ENV_ID="CookItemInPan-v1"
