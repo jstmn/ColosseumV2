@@ -10,6 +10,12 @@ import trimesh.creation
 import trimesh.visual
 
 
+def _align_trimesh_primitive_to_sapien_x_axis(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """trimesh cylinders and capsules are aligned with +Z. SAPIEN and PhysX align them with +X."""
+    mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0]))
+    return mesh
+
+
 def get_component_meshes(component: physx.PhysxRigidBaseComponent):
     """Get component (collision) meshes in the component's frame."""
     meshes = []
@@ -17,13 +23,13 @@ def get_component_meshes(component: physx.PhysxRigidBaseComponent):
         if isinstance(geom, physx.PhysxCollisionShapeBox):
             mesh = trimesh.creation.box(extents=2 * geom.half_size)
         elif isinstance(geom, physx.PhysxCollisionShapeCapsule):
-            mesh = trimesh.creation.capsule(
-                height=2 * geom.half_length, radius=geom.radius
+            mesh = _align_trimesh_primitive_to_sapien_x_axis(
+                trimesh.creation.capsule(height=2 * geom.half_length, radius=geom.radius)
             )
 
         elif isinstance(geom, physx.PhysxCollisionShapeCylinder):
-            mesh = trimesh.creation.cylinder(
-                radius=geom.radius, height=2 * geom.half_length
+            mesh = _align_trimesh_primitive_to_sapien_x_axis(
+                trimesh.creation.cylinder(radius=geom.radius, height=2 * geom.half_length)
             )
         elif isinstance(geom, physx.PhysxCollisionShapeSphere):
             mesh = trimesh.creation.icosphere(radius=geom.radius)
@@ -68,13 +74,13 @@ def get_render_shape_meshes(render_shape: sapien.render.RenderShape):
         mesh = trimesh.creation.box(extents=2 * render_shape.half_size)
         meshes.append(mesh)
     elif type(render_shape) == sapien.render.RenderShapeCapsule:
-        mesh = trimesh.creation.capsule(
-            height=2 * render_shape.half_length, radius=render_shape.radius
+        mesh = _align_trimesh_primitive_to_sapien_x_axis(
+            trimesh.creation.capsule(height=2 * render_shape.half_length, radius=render_shape.radius)
         )
         meshes.append(mesh)
     elif type(render_shape) == sapien.render.RenderShapeCylinder:
-        mesh = trimesh.creation.cylinder(
-            radius=render_shape.radius, height=2 * render_shape.half_length
+        mesh = _align_trimesh_primitive_to_sapien_x_axis(
+            trimesh.creation.cylinder(radius=render_shape.radius, height=2 * render_shape.half_length)
         )
         meshes.append(mesh)
     elif type(render_shape) == sapien.render.RenderShapeSphere:
