@@ -47,8 +47,11 @@ class PushCubeEnv(BaseEnv):
     goal_radius = 0.1
     cube_half_size = 0.02
 
-    def __init__(self, *args, robot_uids="panda_wristcam2", robot_init_qpos_noise=0.02, **kwargs):
+    def __init__(
+        self, *args, robot_uids="panda_wristcam2", robot_init_qpos_noise=0.02, included_cameras=None, **kwargs
+    ):
         # specifying robot_uids="panda" as the default means gym.make("PushCube-v1") will default to using the panda arm.
+        self._included_cameras = list(included_cameras) if included_cameras else None
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
@@ -69,6 +72,8 @@ class PushCubeEnv(BaseEnv):
             ),
             wrist_camera_config(self.agent, MANISKILL_CAMERA_WIDTH, MANISKILL_CAMERA_HEIGHT),
         ]
+        if self._included_cameras is not None:
+            configs = [cfg for cfg in configs if cfg.uid in self._included_cameras]
         return configs
 
     @property

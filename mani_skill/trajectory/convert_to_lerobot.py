@@ -3,7 +3,7 @@
 Converts ManiSkill HDF5 trajectory files to LeRobot v3.0 format.
 
 Usage:
-    python convert_maniskill_to_lerobot.py input.h5 output_dir --task-name "Pick cube"
+    python convert_maniskill_to_lerobot.py input.h5 output_dir
 
 For more information: https://github.com/huggingface/lerobot
 """
@@ -30,6 +30,23 @@ DEFAULT_FPS = 30
 DEFAULT_IMAGE_SIZE = "640x480"
 DEFAULT_CHUNKS_SIZE = 1000
 
+# Language prompts for merged multi-task trajectories (episode json `env_id`).
+ENV_TASK_PROMPTS = {
+    "PickCube-v2-wrist": "lift the red cube",
+    "PushCube-v2": "push the cube to the goal",
+    "LiftPegUpright-v2": "lift the peg upright",
+    "PullCubeTool-v2": "grasp the red L-shaped hook and use it to pull the blue cube closer to the robot",
+}
+
+
+def resolve_episode_task(episode_data: Dict[str, Any]) -> str:
+    env_id = episode_data.get("env_id")
+    if env_id not in ENV_TASK_PROMPTS:
+        raise ValueError(
+            f"No task prompt for env_id={env_id!r}. Add it to ENV_TASK_PROMPTS."
+        )
+    return ENV_TASK_PROMPTS[env_id]
+
 
 @dataclass
 class Args:
@@ -41,9 +58,6 @@ class Args:
     
     fps: int = DEFAULT_FPS
     """Video FPS (default: 30)"""
-    
-    task_name: Optional[str] = None
-    """Task description (default: auto-detected from metadata)"""
     
     chunks_size: int = DEFAULT_CHUNKS_SIZE
     """Episodes per chunk (default: 1000)"""
@@ -84,10 +98,18 @@ def load_trajectory_from_h5(h5_file: Path) -> Tuple[List[Dict[str, np.ndarray]],
     metadata = load_metadata(h5_file)
     
     with h5py.File(h5_file, 'r') as f:
-        traj_keys = [k for k in f.keys() if k.startswith('traj_')]
+        traj_keys = sorted(
+            [k for k in f.keys() if k.startswith('traj_')],
+            key=lambda k: int(k.split('_', 1)[1]),
+        )
         
         if not traj_keys:
             raise ValueError(f"No trajectories found in {h5_file}. Expected keys starting with 'traj_'")
+
+        env_id_by_episode = {}
+        for ep in metadata.get('episodes') or []:
+            if isinstance(ep, dict) and 'episode_id' in ep:
+                env_id_by_episode[ep['episode_id']] = ep.get('env_id')
         
         first_traj = f[traj_keys[0]]
         actions = first_traj['actions'][:]
@@ -105,7 +127,11 @@ def load_trajectory_from_h5(h5_file: Path) -> Tuple[List[Dict[str, np.ndarray]],
         for traj_key in traj_keys:
             traj = f[traj_key]
             actions = traj['actions'][:]
-            episode_data = {'actions': actions}
+            episode_id = int(traj_key.split('_', 1)[1])
+            episode_data = {
+                'actions': actions,
+                'env_id': env_id_by_episode.get(episode_id),
+            }
             
             if rgb_cameras and 'obs' in traj:
                 for camera_name in rgb_cameras:
@@ -243,6 +269,39 @@ def process_episode(
     return df[[col for col in column_order if col in df.columns]]
 
 
+def _vector_stats(arr: np.ndarray) -> Dict[str, Any]:
+    """Mean/std/min/max plus LeRobot quantile stats required by QUANTILES normalization."""
+    if arr.ndim == 1:
+        arr = arr[:, None]
+        squeeze = True
+    else:
+        squeeze = False
+    stats = {
+        "mean": arr.mean(axis=0).tolist(),
+        "std": arr.std(axis=0).tolist(),
+        "max": arr.max(axis=0).tolist(),
+        "min": arr.min(axis=0).tolist(),
+        "q01": np.quantile(arr, 0.01, axis=0).tolist(),
+        "q10": np.quantile(arr, 0.10, axis=0).tolist(),
+        "q50": np.quantile(arr, 0.50, axis=0).tolist(),
+        "q90": np.quantile(arr, 0.90, axis=0).tolist(),
+        "q99": np.quantile(arr, 0.99, axis=0).tolist(),
+        "count": [len(arr)],
+    }
+    if squeeze:
+        for key in ("mean", "std", "max", "min", "q01", "q10", "q50", "q90", "q99"):
+            stats[key] = [stats[key][0]]
+    return stats
+
+
+def _positive_file_size_mb(root: Path, glob_pattern: str) -> int:
+    """LeRobot requires these info.json fields to be > 0. Use ceil(max file size in MB), at least 1."""
+    sizes = [p.stat().st_size for p in root.rglob(glob_pattern) if p.is_file()]
+    if not sizes:
+        return 1
+    return max(1, int(np.ceil(max(sizes) / (1024 * 1024))))
+
+
 def calculate_statistics(
     all_dataframes: List[pd.DataFrame], 
     all_rgb_data_by_camera: Dict[str, List[np.ndarray]], 
@@ -252,23 +311,11 @@ def calculate_statistics(
     stats = {}
     
     actions = np.stack(combined_df['action'].values)
-    stats['action'] = {
-        'mean': actions.mean(axis=0).tolist(),
-        'std': actions.std(axis=0).tolist(),
-        'max': actions.max(axis=0).tolist(),
-        'min': actions.min(axis=0).tolist(),
-        'count': [len(actions)]
-    }
+    stats['action'] = _vector_stats(actions)
     
     if has_state and 'observation.state' in combined_df:
         states = np.stack(combined_df['observation.state'].values)
-        stats['observation.state'] = {
-            'mean': states.mean(axis=0).tolist(),
-            'std': states.std(axis=0).tolist(),
-            'max': states.max(axis=0).tolist(),
-            'min': states.min(axis=0).tolist(),
-            'count': [len(states)]
-        }
+        stats['observation.state'] = _vector_stats(states)
     
     for camera_name, rgb_data in all_rgb_data_by_camera.items():
         if rgb_data:
@@ -313,7 +360,6 @@ def create_meta_files(
     state_dim: Optional[int], 
     rgb_cameras: List[str], 
     metadata: Dict[str, Any], 
-    task_name: str, 
     chunks_size: int, 
     fps: int, 
     image_width: int, 
@@ -336,7 +382,7 @@ def create_meta_files(
             "data/file_index": 0,
             "dataset_from_index": dataset_from_index,
             "dataset_to_index": dataset_from_index + length,
-            "tasks": [task_name],
+            "tasks": [str(df['task'].iloc[0])],
             "length": length,
         }
         
@@ -348,19 +394,15 @@ def create_meta_files(
             episode_meta[f"{prefix}/to_timestamp"] = float(df['timestamp'].iloc[-1])
         
         actions = np.stack(df['action'].values)
-        episode_meta["stats/action/min"] = actions.min(axis=0).tolist()
-        episode_meta["stats/action/max"] = actions.max(axis=0).tolist()
-        episode_meta["stats/action/mean"] = actions.mean(axis=0).tolist()
-        episode_meta["stats/action/std"] = actions.std(axis=0).tolist()
-        episode_meta["stats/action/count"] = [length]
+        action_stats = _vector_stats(actions)
+        for stat_name, stat_value in action_stats.items():
+            episode_meta[f"stats/action/{stat_name}"] = stat_value
         
         if state_dim and 'observation.state' in df:
             states = np.stack(df['observation.state'].values)
-            episode_meta["stats/observation.state/min"] = states.min(axis=0).tolist()
-            episode_meta["stats/observation.state/max"] = states.max(axis=0).tolist()
-            episode_meta["stats/observation.state/mean"] = states.mean(axis=0).tolist()
-            episode_meta["stats/observation.state/std"] = states.std(axis=0).tolist()
-            episode_meta["stats/observation.state/count"] = [length]
+            state_stats = _vector_stats(states)
+            for stat_name, stat_value in state_stats.items():
+                episode_meta[f"stats/observation.state/{stat_name}"] = stat_value
         
         for camera_name in rgb_cameras:
             if camera_name in all_rgb_data_by_camera and ep_idx < len(all_rgb_data_by_camera[camera_name]):
@@ -389,7 +431,17 @@ def create_meta_files(
     episodes_df = pd.DataFrame(episodes_data)
     episodes_df.to_parquet(base_path / "meta" / "episodes" / "chunk-000" / "file-000.parquet", index=False)
     
-    tasks_df = pd.DataFrame({"task_index": [0]}, index=[task_name])
+    unique_tasks: List[Tuple[str, int]] = []
+    seen_tasks = set()
+    for df in all_dataframes:
+        ep_task = str(df['task'].iloc[0])
+        if ep_task not in seen_tasks:
+            unique_tasks.append((ep_task, int(df['task_index'].iloc[0])))
+            seen_tasks.add(ep_task)
+    tasks_df = pd.DataFrame(
+        {"task_index": [idx for _, idx in unique_tasks]},
+        index=[name for name, _ in unique_tasks],
+    )
     tasks_df.index.name = None
     tasks_df.to_parquet(base_path / "meta" / "tasks.parquet", index=True)
     
@@ -443,20 +495,18 @@ def create_meta_files(
             }
         }
     
-    data_files_size = sum(f.stat().st_size for f in (base_path / "data").rglob("*.parquet"))
-    data_files_size_mb = int(data_files_size / (1024 * 1024))
-    
     info_data = {
         "codebase_version": "v3.0",
         "robot_type": robot_type,
         "total_episodes": len(episode_lengths),
         "total_frames": total_frames,
-        "total_tasks": 1,
+        "total_tasks": len(unique_tasks),
         "total_videos": len(episode_lengths) * len(rgb_cameras),
         "total_chunks": num_chunks,
         "chunks_size": chunks_size,
         "fps": fps,
-        "data_files_size_in_mb": data_files_size_mb,
+        "data_files_size_in_mb": _positive_file_size_mb(base_path / "data", "*.parquet"),
+        "video_files_size_in_mb": _positive_file_size_mb(base_path / "videos", "*.mp4"),
         "splits": {"train": f"0:{len(episode_lengths)}"},
         "data_path": "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet",
         "video_path": "videos/{video_key}/chunk-{chunk_index:03d}/file-{file_index:03d}.mp4",
@@ -482,13 +532,6 @@ def main(args: Args):
         episodes, info = load_trajectory_from_h5(input_path)
         logger.info(f"Found {len(episodes)} episodes")
         
-        task_name = args.task_name
-        if not task_name and info['metadata'] and 'env_info' in info['metadata']:
-            task_name = info['metadata']['env_info'].get('env_id', 'Unknown task')
-        if not task_name:
-            task_name = "Unknown task"
-            logger.warning("No task name provided and couldn't auto-detect. Using 'Unknown task'")
-        
         base_path = create_directory_structure(args.output_dir, info['rgb_cameras'], len(episodes), args.chunks_size)
         image_width, image_height = parse_image_size(args.image_size)
         
@@ -496,6 +539,7 @@ def main(args: Args):
         all_rgb_data_by_camera = {camera: [] for camera in info['rgb_cameras']}
         episode_lengths = []
         global_index = 0
+        task_to_index: Dict[str, int] = {}
         
         for episode_idx, episode_data in enumerate(tqdm(episodes, desc="Processing episodes")):
             chunk_idx = episode_idx // args.chunks_size
@@ -504,9 +548,19 @@ def main(args: Args):
                 rgb_key = f'rgb_{camera_name}'
                 if rgb_key in episode_data:
                     all_rgb_data_by_camera[camera_name].append(episode_data[rgb_key])
+
+            episode_task = resolve_episode_task(episode_data)
+            if episode_task not in task_to_index:
+                task_to_index[episode_task] = len(task_to_index)
             
-            df = process_episode(episode_data, episode_idx, info['state_dim'] is not None, args.fps,
-                               task_index=0, task_name=task_name)
+            df = process_episode(
+                episode_data,
+                episode_idx,
+                info['state_dim'] is not None,
+                args.fps,
+                task_index=task_to_index[episode_task],
+                task_name=episode_task,
+            )
             episode_length = len(df)
             df['index'] = range(global_index, global_index + episode_length)
             global_index += episode_length
@@ -564,7 +618,7 @@ def main(args: Args):
         create_meta_files(
             base_path, episode_lengths, total_frames,
             info['action_dim'], info['state_dim'], info['rgb_cameras'],
-            info['metadata'], task_name, args.chunks_size, args.fps, 
+            info['metadata'], args.chunks_size, args.fps, 
             image_width, image_height, all_dataframes, all_rgb_data_by_camera,
             robot_type_override=args.robot_type
         )

@@ -8,10 +8,15 @@ PERTURBATION_SET=none
 # ^ Must be one of: none, all, distractor_object_cfg, MO_color_cfg, MO_texture_cfg, RO_color_cfg, RO_texture_cfg, table_color_cfg, table_texture_cfg, camera_pose_cfg
 
 INCLUDED_CAMERAS=""
+DATA_DIR=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --included-cameras)
             INCLUDED_CAMERAS="$2"
+            shift 2
+            ;;
+        --data-dir)
+            DATA_DIR="$2"
             shift 2
             ;;
         *)
@@ -20,6 +25,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [ -z "${DATA_DIR}" ]; then
+    DATA_DIR="${LEROBOT_DATA_DIR:-}"
+fi
+if [ -z "${DATA_DIR}" ]; then
+    echo "data dir required: pass --data-dir or set LEROBOT_DATA_DIR" >&2
+    exit 1
+fi
+if [ ! -d "${DATA_DIR}" ]; then
+    echo "data dir does not exist: ${DATA_DIR}" >&2
+    exit 1
+fi
+DATA_DIR="$(cd "${DATA_DIR}" && pwd)"
+DEMOS_DIR="${DATA_DIR}/demos"
 
 
 ENVS=(
@@ -49,7 +68,7 @@ fi
 
 for ENV_ID in "${ENVS[@]}"; do
 
-    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+    TRAJ_PATH=${DEMOS_DIR}/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
     if [ -f "$TRAJ_PATH" ]; then
         echo -e "\033[1;33mTrajectory file $TRAJ_PATH already exists\033[0m"
         continue
@@ -74,16 +93,17 @@ for ENV_ID in "${ENVS[@]}"; do
         --reward-mode ${REWARD_MODE} \
         --random-seed \
         --only-count-success \
+        --record-dir "${DEMOS_DIR}" \
         --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
 done
 
 # Merge trajectories
 INPUT_DIRS=""
 for ENV in "${ENVS[@]}"; do
-    INPUT_DIRS="${INPUT_DIRS}demos/${ENV}/motionplanning "
+    INPUT_DIRS="${INPUT_DIRS}${DEMOS_DIR}/${ENV}/motionplanning "
 done
 INPUT_DIRS=$(echo "${INPUT_DIRS}" | xargs)
-OUTPUT_PATH=demos/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
+OUTPUT_PATH=${DEMOS_DIR}/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
 
 echo "Input directories: ${INPUT_DIRS}"
 echo ""

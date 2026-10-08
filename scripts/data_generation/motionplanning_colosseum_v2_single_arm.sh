@@ -3,6 +3,7 @@
 PERTURBATION_SET=none
 INCLUDED_CAMERAS=""
 ENVS_ARG=""
+DATA_DIR=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -15,12 +16,30 @@ while [[ $# -gt 0 ]]; do
             ENVS_ARG="$2"
             shift 2
             ;;
+        --data-dir)
+            DATA_DIR="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             exit 1
             ;;
     esac
 done
+
+if [ -z "${DATA_DIR}" ]; then
+    DATA_DIR="${LEROBOT_DATA_DIR:-}"
+fi
+if [ -z "${DATA_DIR}" ]; then
+    echo "data dir required: pass --data-dir or set LEROBOT_DATA_DIR" >&2
+    exit 1
+fi
+if [ ! -d "${DATA_DIR}" ]; then
+    echo "data dir does not exist: ${DATA_DIR}" >&2
+    exit 1
+fi
+DATA_DIR="$(cd "${DATA_DIR}" && pwd)"
+DEMOS_DIR="${DATA_DIR}/demos"
 
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh
 # bash scripts/data_generation/motionplanning_colosseum_v2_single_arm.sh --included-cameras "hand_camera external1_camera"
@@ -63,8 +82,8 @@ fi
 
 for ENV_ID in "${ENVS[@]}"; do
 
-    TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
-    TRANSLATED_TRAJ_PATH=demos/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}.physx_cpu.h5
+    TRAJ_PATH=${DEMOS_DIR}/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.h5
+    TRANSLATED_TRAJ_PATH=${DEMOS_DIR}/${ENV_ID}/motionplanning/trajectory__pd_joint_pos__${N_TRAJ}.${OBS_MODE}.${TARGET_CONTROL_MODE}.physx_cpu.h5
 
     if [ -f "$TRANSLATED_TRAJ_PATH" ]; then
         echo -e "\033[1;32m Converted trajectory file $TRANSLATED_TRAJ_PATH already exists\033[0m"
@@ -93,6 +112,7 @@ for ENV_ID in "${ENVS[@]}"; do
             --reward-mode ${REWARD_MODE} \
             --random-seed \
             --only-count-success \
+            --record-dir "${DEMOS_DIR}" \
             --traj-name "trajectory__pd_joint_pos__${N_TRAJ}"
     else
         echo -e "\033[1;32mTrajectory file $TRAJ_PATH already exists\033[0m"
@@ -130,10 +150,10 @@ done
 # Merge trajectories
 INPUT_DIRS=""
 for ENV in "${ENVS[@]}"; do
-    INPUT_DIRS="${INPUT_DIRS}demos/${ENV}/motionplanning "
+    INPUT_DIRS="${INPUT_DIRS}${DEMOS_DIR}/${ENV}/motionplanning "
 done
 INPUT_DIRS=$(echo "${INPUT_DIRS}" | xargs)
-OUTPUT_PATH=demos/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
+OUTPUT_PATH=${DEMOS_DIR}/trajectory__cv2-full__${TARGET_CONTROL_MODE}__${N_TRAJ}.h5
 
 echo "Input directories: ${INPUT_DIRS}"
 echo ""
