@@ -378,6 +378,8 @@ class ViserVisualizer:
     def mark_sensors_captured(self) -> None:
         """Call after ``Camera.capture()`` / ``take_picture()`` so frustum images are safe to read."""
         self._sensors_captured = True
+        # The pictures are only valid until the next update_render, so the frustum images are refreshed here.
+        self.sync_cameras(update_images=True)
 
     def _camera_rgb(self, sensor: Camera) -> np.ndarray | None:
         if not self._sensors_captured:
@@ -451,6 +453,7 @@ class ViserVisualizer:
         self, update_sensors: bool = True, update_human_render_cameras: bool = True
     ):
         # update_render invalidates GPU pictures; do not call get_picture until capture_sensor_data.
+        self._sensors_captured = False
         self.sync(update_camera_images=False)
 
     def add_point_light(
