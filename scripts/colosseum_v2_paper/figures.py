@@ -162,39 +162,109 @@ def _load_formatted_results_csv(result_csv: str) -> pd.DataFrame:
     return df.set_index("Task", drop=True)
 
 
-def calculate_mean_changes_from_none(result_csvs: list[str], model_names: list[str]):
+def _passing_tasks(df: pd.DataFrame) -> set[str]:
+    """Tasks whose baseline ('none') success rate meets the inclusion threshold."""
+    return {str(task) for task in df[df["none"] >= LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING].index}
+
+
+def calculate_mean_changes_from_none(
+    result_csvs: list[str],
+    model_names: list[str],
+    task_filter: str = "model-specific",
+):
+    """Compute mean SR changes from 'none'.
+
+    task_filter:
+      - "model-specific": each model keeps its own tasks with none SR >= threshold
+      - "intersection": keep only tasks that pass the threshold for every model
+    """
+    if task_filter not in ("model-specific", "intersection"):
+        raise ValueError(
+            f"Unknown task_filter={task_filter!r}; expected 'model-specific' or 'intersection'"
+        )
+
     mean_changes_from_none = {
         name: {} for name in model_names
     }
     mean_absolute_sr = {
         name: {} for name in model_names
     }
+    loaded = {
+        model_name: _load_formatted_results_csv(result_csv)
+        for model_name, result_csv in zip(model_names, result_csvs)
+    }
+
+    # Intersection is computed within models that share a task vocabulary.
+    # Single-arm and bimanual CSVs have disjoint task sets, so intersecting
+    # across all models would always be empty.
+    intersection_by_model: dict[str, set[str]] = {}
+    if task_filter == "intersection":
+        # Group models by overlapping task names (connected components).
+        remaining = set(model_names)
+        groups: list[list[str]] = []
+        while remaining:
+            seed = next(iter(remaining))
+            group = [seed]
+            remaining.remove(seed)
+            seed_tasks = set(map(str, loaded[seed].index))
+            changed = True
+            while changed:
+                changed = False
+                for name in list(remaining):
+                    if seed_tasks & set(map(str, loaded[name].index)):
+                        group.append(name)
+                        remaining.remove(name)
+                        changed = True
+            groups.append(group)
+
+        for group in groups:
+            group_intersection = set.intersection(*(_passing_tasks(loaded[name]) for name in group))
+            print(
+                f"intersection task filter [{', '.join(group)}]: "
+                f"{len(group_intersection)} tasks pass "
+                f"none SR >= {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
+            )
+            for task in sorted(group_intersection):
+                print(f"    {task}")
+            for name in group:
+                intersection_by_model[name] = group_intersection
+
     for model_name, result_csv in zip(model_names, result_csvs):
-        df = _load_formatted_results_csv(result_csv)
-        
+        df = loaded[model_name]
+
         # Allow perturbation-set columns to be either exact-case (e.g. MO_color) or lower-case (e.g. mo_color).
         col_by_lower = {str(c).strip().lower(): c for c in df.columns}
-        
+
         for ds in PERTURBATION_SETS:
             ds_col = col_by_lower.get(str(ds).lower(), ds)
             mean_absolute_sr[model_name][ds] = df[ds_col].mean()
 
-
     for model_name, result_csv in zip(model_names, result_csvs):
-        df = _load_formatted_results_csv(result_csv)
-        filtered_out_tasks = df[df["none"] < LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
-        if not filtered_out_tasks.empty:
-            print(
-                f"{model_name}: filtering out tasks with none success rate "
-                f"< {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
-            )
-            for task in filtered_out_tasks.index:
-                none_success_rate = filtered_out_tasks.at[task, "none"]
-                print(f"    {task}: {none_success_rate}")
-        df = df[df["none"] >= LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
+        df = loaded[model_name]
+        if task_filter == "intersection":
+            keep = intersection_by_model[model_name]
+            excluded = sorted(set(map(str, df.index)) - keep)
+            if excluded:
+                print(f"{model_name}: intersection filter excluding:")
+                for task in excluded:
+                    none_success_rate = df.at[task, "none"] if task in df.index else float("nan")
+                    print(f"    {task}: {none_success_rate}")
+            df = df.loc[df.index.astype(str).isin(keep)]
+        else:
+            filtered_out_tasks = df[df["none"] < LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
+            if not filtered_out_tasks.empty:
+                print(
+                    f"{model_name}: filtering out tasks with none success rate "
+                    f"< {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
+                )
+                for task in filtered_out_tasks.index:
+                    none_success_rate = filtered_out_tasks.at[task, "none"]
+                    print(f"    {task}: {none_success_rate}")
+            df = df[df["none"] >= LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING]
         print(
             f"{model_name}: including tasks with none success rate "
-            f">= {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING}:"
+            f">= {LOWEST_NONE_SUCCESS_RATE_FOR_COUNTING} "
+            f"({task_filter}):"
         )
         for task in df.index:
             none_success_rate = df.at[task, "none"]
@@ -588,7 +658,7 @@ def generate_radial_two_plots(mean_absolute_sr: Dict[str, Dict[str, float]], mea
 
 
 
-def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
+def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str, task_filter: str = "model-specific"):
     # Compute per-model means clumped by modality.
     mean_clumped_changes: Dict[str, Dict[str, float]] = {
         model: {"vision": 0.0, "action": 0.0, "language": 0.0} for model in model_names
@@ -710,7 +780,7 @@ def generate_radial_two_plots_v2(mean_absolute_sr: Dict[str, Dict[str, float]], 
     # plt.subplots_adjust(wspace=0.6)
 
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "radial_two_plots_v2.png")
+    save_path = os.path.join(output_dir, f"radial_two_plots_v2.{task_filter}.pdf")
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     print(f"Saved radial two plots to {save_path}")
@@ -782,13 +852,13 @@ def generate_waterfall_plot(single_arm_csvs: list[str], single_arm_model_names: 
     fig.tight_layout()
     
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "waterfall_plot.png")
+    save_path = os.path.join(output_dir, "waterfall_plot.pdf")
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     print(f"Saved waterfall plot to {save_path}")
 
 
-def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str):
+def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, float]], model_names: list[str], output_dir: str, task_filter: str = "model-specific"):
 
     # Plotting barchart
     perturbation_sets = list(PERTURBATION_SETS)
@@ -827,7 +897,7 @@ def generate_mean_change_figure(mean_changes_from_none: Dict[str, Dict[str, floa
     plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "mean_change_barchart.png")
+    save_path = os.path.join(output_dir, f"mean_change_barchart.{task_filter}.pdf")
     plt.savefig(save_path)
     plt.close()
     print(f"Saved mean change barchart to {save_path}")
@@ -854,6 +924,14 @@ if __name__ == "__main__":
         help="Optional. Provide together with --molmoact2-single-arm-csv.",
     )
     parser.add_argument("--output-dir", type=str, required=True)
+    parser.add_argument(
+        "--task-filter",
+        type=str,
+        nargs="+",
+        choices=["model-specific", "intersection"],
+        default=["model-specific", "intersection"],
+        help="Task inclusion mode(s). Saves figures as *.<mode>.pdf. Default: both.",
+    )
     args = parser.parse_args()
 
     include_molmo = (
@@ -891,60 +969,72 @@ if __name__ == "__main__":
         bimanual_csvs.append(args.molmoact2_bimanual_csv)
         bimanual_model_names.append("MolmoAct2 - Bimanual")
 
-    mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(result_csvs, model_names)
     print_threshold_task_latex_table(result_csvs, model_names)
 
-    # First, print out some stats.
-    print()
-    act_bimanual_results = mean_changes_from_none["ACT - Bimanual"]
-    act_single_arm_results = mean_changes_from_none["ACT - Single-Arm"]
-    pi0_bimanual_results = mean_changes_from_none["Pi0.5 - Bimanual"]
-    pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single-Arm"]
-    molmo_bimanual_results = (
-        mean_changes_from_none["MolmoAct2 - Bimanual"] if include_molmo else None
-    )
-    molmo_single_arm_results = (
-        mean_changes_from_none["MolmoAct2 - Single-Arm"] if include_molmo else None
-    )
-    act_deltas = []
-    pi0_deltas = []
-    molmo_deltas = []
-    for ds in PERTURBATION_SETS:
-        if 'none'.lower() in ds.lower():
-            continue
-        act_delta = abs(act_single_arm_results[ds] - act_bimanual_results[ds])
-        pi0_delta = abs(pi0_single_arm_results[ds] - pi0_bimanual_results[ds])
-        act_deltas.append(act_delta)
-        pi0_deltas.append(pi0_delta)
+    for task_filter in args.task_filter:
+        print()
+        print("=" * 80)
+        print(f"Task filter: {task_filter}")
+        print("=" * 80)
+
+        mean_changes_from_none, mean_absolute_sr = calculate_mean_changes_from_none(
+            result_csvs, model_names, task_filter=task_filter
+        )
+
+        # First, print out some stats.
+        print()
+        act_bimanual_results = mean_changes_from_none["ACT - Bimanual"]
+        act_single_arm_results = mean_changes_from_none["ACT - Single-Arm"]
+        pi0_bimanual_results = mean_changes_from_none["Pi0.5 - Bimanual"]
+        pi0_single_arm_results = mean_changes_from_none["Pi0.5 - Single-Arm"]
+        molmo_bimanual_results = (
+            mean_changes_from_none["MolmoAct2 - Bimanual"] if include_molmo else None
+        )
+        molmo_single_arm_results = (
+            mean_changes_from_none["MolmoAct2 - Single-Arm"] if include_molmo else None
+        )
+        act_deltas = []
+        pi0_deltas = []
+        molmo_deltas = []
+        for ds in PERTURBATION_SETS:
+            if 'none'.lower() in ds.lower():
+                continue
+            act_delta = abs(act_single_arm_results[ds] - act_bimanual_results[ds])
+            pi0_delta = abs(pi0_single_arm_results[ds] - pi0_bimanual_results[ds])
+            act_deltas.append(act_delta)
+            pi0_deltas.append(pi0_delta)
+            if include_molmo:
+                molmo_delta = abs(molmo_single_arm_results[ds] - molmo_bimanual_results[ds])
+                molmo_deltas.append(molmo_delta)
+                print(
+                    f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
+                    f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}\t"
+                    f"MolmoAct2 - Single/Bimanual: {molmo_delta:.4f}"
+                )
+            else:
+                print(
+                    f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
+                    f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}"
+                )
+        print(f"ACT - Single-Arm, Bimanual: {np.mean(act_deltas):.4f}")
+        print(f"Pi0.5 - Bimanual, Single-Arm: {np.mean(pi0_deltas):.4f}")
         if include_molmo:
-            molmo_delta = abs(molmo_single_arm_results[ds] - molmo_bimanual_results[ds])
-            molmo_deltas.append(molmo_delta)
-            print(
-                f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
-                f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}\t"
-                f"MolmoAct2 - Single/Bimanual: {molmo_delta:.4f}"
-            )
-        else:
-            print(
-                f"{ds}:\tACT - Single/Bimanual: {act_delta:.4f}\t"
-                f"Pi0.5 - Single/Bimanual: {pi0_delta:.4f}"
-            )
-    print(f"ACT - Single-Arm, Bimanual: {np.mean(act_deltas):.4f}")
-    print(f"Pi0.5 - Bimanual, Single-Arm: {np.mean(pi0_deltas):.4f}")
-    if include_molmo:
-        print(f"MolmoAct2 - Single-Arm, Bimanual: {np.mean(molmo_deltas):.4f}")
-    print()
+            print(f"MolmoAct2 - Single-Arm, Bimanual: {np.mean(molmo_deltas):.4f}")
+        print()
 
+        # Generate plots
+        generate_mean_change_figure(
+            mean_changes_from_none, model_names, args.output_dir, task_filter=task_filter
+        )
+        # generate_clumped_change_figure(mean_changes_from_none, model_names, args.output_dir)
+        # generate_clumped_change_figure_radial(mean_changes_from_none, model_names, args.output_dir)
+        # generate_radial_absolute(mean_absolute_sr, model_names, args.output_dir)
+        # generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
+        generate_radial_two_plots_v2(
+            mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir, task_filter=task_filter
+        )
 
-    # Generate plots
-    generate_mean_change_figure(mean_changes_from_none, model_names, args.output_dir)
-    # generate_clumped_change_figure(mean_changes_from_none, model_names, args.output_dir)
-    # generate_clumped_change_figure_radial(mean_changes_from_none, model_names, args.output_dir)
-    # generate_radial_absolute(mean_absolute_sr, model_names, args.output_dir)
-    # generate_radial_two_plots(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
-    generate_radial_two_plots_v2(mean_absolute_sr, mean_changes_from_none, model_names, args.output_dir)
-
-    # Waterfall plots
+    # Waterfall is independent of task filtering; save once without a filter suffix.
     generate_waterfall_plot(
         single_arm_csvs=single_arm_csvs,
         single_arm_model_names=single_arm_model_names,
